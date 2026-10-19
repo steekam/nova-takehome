@@ -3,6 +3,7 @@ import { FastifyReply, FastifyRequest } from 'fastify'
 import { RequestIdService } from './request-id.service'
 import { emitTelemetryLog } from '../telemetry-logger'
 import { SeverityNumber } from '@opentelemetry/api-logs'
+import { ValidationIssue } from './validation-errors'
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
@@ -28,7 +29,16 @@ export class ApiExceptionFilter implements ExceptionFilter {
       request_id: requestId,
     })
 
-    reply.status(status).send({ statusCode: status, message, requestId })
+    const body: Record<string, unknown> = { statusCode: status, message, requestId }
+    const response = exception instanceof HttpException ? exception.getResponse() : undefined
+    if (status < 500 && typeof response === 'object' && response !== null && 'code' in response) {
+      if (response.code === 'VALIDATION_ERROR' && 'errors' in response && this.isValidationIssues(response.errors)) {
+        body.code = response.code
+        body.errors = response.errors
+      }
+    }
+
+    reply.status(status).send(body)
   }
 
   private getMessage(exception: unknown): string | string[] {
@@ -40,5 +50,20 @@ export class ApiExceptionFilter implements ExceptionFilter {
       if (typeof message === 'string' || Array.isArray(message)) return message as string | string[]
     }
     return exception.message
+  }
+
+  private isValidationIssues(value: unknown): value is ValidationIssue[] {
+    return Array.isArray(value) && value.every((issue) =>
+      typeof issue === 'object' &&
+      issue !== null &&
+      'field' in issue &&
+      typeof issue.field === 'string' &&
+      'constraints' in issue &&
+      this.isStringArray(issue.constraints),
+    )
+  }
+
+  private isStringArray(value: unknown): value is string[] {
+    return Array.isArray(value) && value.every((item: unknown) => typeof item === 'string')
   }
 }

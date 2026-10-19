@@ -17,6 +17,8 @@ The web app has a starter route. The API has a health endpoint and an initial Dr
 
 The API uses NestJS with Fastify. `/api/health` checks liveness and `/api/health/ready` checks database readiness. Swagger is available at `/api/docs`; DTO validation uses Nest's global `ValidationPipe` with `class-validator` decorators. Shared Drizzle CRUD operations live under `apps/api/src/database/crud`. Domain services must enforce authorization and workflow rules instead of exposing generic table CRUD routes. Multipart uploads have size and file-count limits. OpenTelemetry exports traces, metrics, and request/error logs to the configured OTLP endpoint when `OTEL_ENABLED=true`.
 
+Authorization building blocks live under `apps/api/src/common/auth`: `@Roles()` plus `RolesGuard` (any listed role), and `@Permissions()` plus `PermissionsGuard` (all listed permissions). Apply guards with `@UseGuards(...)` after authentication populates `request.user`; guards are opt-in until then. Validation failures return `code: "VALIDATION_ERROR"` with field-keyed constraint identifiers and omit submitted values.
+
 Run the API smoke test with `pnpm --filter @nova/api test:e2e`; typecheck it with `pnpm --filter @nova/api typecheck:e2e`.
 
 Reusable API plumbing and CRUD concepts were adapted from [MarkNjunge/nest-boilerplate](https://github.com/MarkNjunge/nest-boilerplate); see [AI_LOG.md](AI_LOG.md) for the attribution and adaptation notes.

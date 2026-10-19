@@ -1,11 +1,12 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify'
-import { ValidationPipe } from '@nestjs/common'
+import { BadRequestException, ValidationPipe } from '@nestjs/common'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import helmet from '@fastify/helmet'
 import multipart from '@fastify/multipart'
 import { RequestIdService } from './common/request-id.service'
 import { ApiExceptionFilter } from './common/api-exception.filter'
 import { RequestLoggingInterceptor } from './common/request-logging.interceptor'
+import { flattenValidationErrors } from './common/validation-errors'
 
 export async function configureHttp(app: NestFastifyApplication): Promise<void> {
   app.setGlobalPrefix('api')
@@ -43,6 +44,11 @@ export async function configureHttp(app: NestFastifyApplication): Promise<void> 
     transform: true,
     whitelist: true,
     forbidNonWhitelisted: true,
+    exceptionFactory: (errors) => new BadRequestException({
+      code: 'VALIDATION_ERROR',
+      message: 'Validation failed',
+      errors: flattenValidationErrors(errors),
+    }),
   }))
 
   const swagger = new DocumentBuilder()
