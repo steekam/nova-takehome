@@ -5,7 +5,7 @@ import { performance } from 'node:perf_hooks'
 import { metrics } from '@opentelemetry/api'
 import { SeverityNumber } from '@opentelemetry/api-logs'
 import { RequestIdService } from './request-id.service'
-import { emitTelemetryLog } from '../telemetry-logger'
+import { emitTelemetryLog, getTraceCorrelation } from '../telemetry-logger'
 
 @Injectable()
 export class RequestLoggingInterceptor implements NestInterceptor {
@@ -25,7 +25,9 @@ export class RequestLoggingInterceptor implements NestInterceptor {
       const durationMs = Math.round(performance.now() - startedAt)
       const route = request.routeOptions.url ?? 'unmatched'
       const attributes = { method: request.method, route, status_code: statusCode }
-      this.logger.log(`${request.method} ${route} ${statusCode} ${durationMs}ms requestId=${requestId} ${outcome}`)
+      const trace = getTraceCorrelation()
+      const traceFields = trace.trace_id ? ` traceId=${trace.trace_id} spanId=${trace.span_id}` : ''
+      this.logger.log(`${request.method} ${route} ${statusCode} ${durationMs}ms requestId=${requestId}${traceFields} ${outcome}`)
       emitTelemetryLog(`HTTP request ${outcome}`, SeverityNumber.INFO, { ...attributes, request_id: requestId, duration_ms: durationMs })
       this.requests.add(1, attributes)
       this.duration.record(durationMs, attributes)

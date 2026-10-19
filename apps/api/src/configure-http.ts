@@ -29,7 +29,7 @@ export async function configureHttp(app: NestFastifyApplication): Promise<void> 
   app.enableCors({
     origin: (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(',').map((origin) => origin.trim()),
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'traceparent', 'tracestate', 'baggage'],
     exposedHeaders: ['X-Request-Id'],
     credentials: true,
   })

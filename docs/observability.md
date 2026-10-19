@@ -2,7 +2,7 @@
 
 ## Local API telemetry
 
-The API exports traces, metrics, and structured request/error logs over OTLP HTTP. Start the local backends with `docker compose up -d`, then start the apps with `env DATABASE_URL=postgresql://postgres:postgres@localhost:5433/nova_hub OTEL_ENABLED=true pnpm dev`. The Collector receives OTLP on `localhost:4318`, exports traces to Tempo, metrics to Prometheus, and logs to Loki. Open Grafana at `http://localhost:3000`; Prometheus, Tempo, and Loki data sources are provisioned automatically. The API currently emits HTTP request counters, duration histograms, request logs, and exception logs. LLM traces and spend metrics remain part of the later LiteLLM integration.
+The API exports traces, metrics, and structured request/error logs over OTLP HTTP. Start the local backends with `docker compose up -d`, then start the apps with `env DATABASE_URL=postgresql://postgres:postgres@localhost:5433/nova_hub OTEL_ENABLED=true pnpm dev`. The Collector receives OTLP on `localhost:4318`, exports traces to Tempo, metrics to Prometheus, and logs to Loki. Open Grafana at `http://localhost:3000`; Prometheus, Tempo, and Loki data sources are provisioned automatically. The API uses the NodeSDK W3C Trace Context propagator to extract incoming `traceparent` headers and inject context into instrumented outbound HTTP calls. Request and error logs include `request_id`, `trace_id`, and `span_id` when an active span exists. LLM traces and spend metrics remain part of the later LiteLLM integration.
 
 Keep the responsibilities distinct so the demo answers three different questions: what did the model call cost, why did it return this plan, and what happened across the request?
 
@@ -37,7 +37,7 @@ Mock mode bypasses LiteLLM and provider credentials. Real mode sends a model ali
 
 - Initialize Node OpenTelemetry before importing or booting Nest so HTTP/Express, PostgreSQL, and outbound HTTP instrumentations can patch their libraries.
 - Use auto-instrumentation for framework and network spans where supported; add small manual spans around retrieval, prompt loading, validation, and the generation adapter.
-- Propagate W3C `traceparent` from the Nest request to LiteLLM so its spans join the API trace.
+- Keep W3C `traceparent` propagation enabled so LiteLLM spans join the API trace when its client call is added.
 - Export through one Collector pipeline, then fan out to Tempo and Langfuse. Avoid a second direct LiteLLM-to-Langfuse exporter when the Collector already exports that trace; duplicate export makes demo traces harder to read.
 - Keep prompt content capture explicit. The demo uses mock curriculum and synthetic users; omit user email and other personal data from traces. Include prompt name/version, model alias, source IDs, outcome, and timing.
 - Keep browser instrumentation out of this slice. The API trace covers the consequential work, while browser OpenTelemetry support is still experimental.

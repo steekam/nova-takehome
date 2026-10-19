@@ -1,7 +1,7 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common'
 import { FastifyReply, FastifyRequest } from 'fastify'
 import { RequestIdService } from './request-id.service'
-import { emitTelemetryLog } from '../telemetry-logger'
+import { emitTelemetryLog, getTraceCorrelation } from '../telemetry-logger'
 import { SeverityNumber } from '@opentelemetry/api-logs'
 import { ValidationIssue } from './validation-errors'
 
@@ -20,7 +20,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const requestId = this.requestIds.getOrCreate(request.headers['x-request-id'])
 
     if (status >= 500) {
-      this.logger.error(`${request.method} ${request.url} failed`, exception instanceof Error ? exception.stack : undefined)
+      const trace = getTraceCorrelation()
+      const traceFields = trace.trace_id ? ` traceId=${trace.trace_id} spanId=${trace.span_id}` : ''
+      this.logger.error(`${request.method} ${request.url} failed requestId=${requestId}${traceFields}`, exception instanceof Error ? exception.stack : undefined)
     }
     emitTelemetryLog('HTTP request failed', status >= 500 ? SeverityNumber.ERROR : SeverityNumber.WARN, {
       method: request.method,
