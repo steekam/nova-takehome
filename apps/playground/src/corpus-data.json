@@ -1,0 +1,199 @@
+{
+  "schemaVersion": "cbc-corpus-v1",
+  "fixtures": [
+    {
+      "id": "particles",
+      "scenario": {
+        "curriculum": "Kenya CBC (KICD)",
+        "curriculumRelease": "Grade 8 Integrated Science, July 2024",
+        "programme": "Junior School",
+        "grade": "Grade 8",
+        "subject": "Integrated Science",
+        "targetId": "target-kicd-g8-is-particles-three-states-slo-a-jul2024",
+        "targetLocator": "1.2(a)",
+        "target": "Describe the characteristics of particles in the three states of matter.",
+        "lessonFocus": "Compare particle spacing and movement in solids, liquids, and gases; treat particle size remaining unchanged as a synthetic teaching-note emphasis, not part of the KICD outcome wording.",
+        "durationMinutes": 40
+      },
+      "chunks": [
+        {
+          "id": "chunk-target-particles",
+          "documentId": "source-kicd-g8-integrated-science-july-2024",
+          "title": "KICD specific learning outcome 1.2(a)",
+          "kind": "curriculum_target",
+          "synthetic": false,
+          "eligibleForGrounding": true,
+          "targetId": "target-kicd-g8-is-particles-three-states-slo-a-jul2024",
+          "text": "Describe the characteristics of particles in the three states of matter.",
+          "sourceReference": {
+            "sourceId": "source-kicd-g8-integrated-science-july-2024",
+            "publisher": "Kenya Institute of Curriculum Development",
+            "documentTitle": "Integrated Science Grade 8",
+            "edition": "July 2024 design; first published 2023, revised 2024; ISBN 978-9914-52-947-0",
+            "url": "https://drive.google.com/file/d/1RpqZRmeMywbc1Tya0_x-tNJBs75Gy0-v/preview",
+            "locator": "Strand 1.0 Mixtures, Elements and Compounds; sub-strand 1.2 Physical and chemical changes; specific learning outcome (a)",
+            "relationship": "exact_excerpt"
+          }
+        },
+        {
+          "id": "chunk-sequence-particles",
+          "documentId": "doc-demo-scheme",
+          "title": "Demo scheme of work",
+          "kind": "scheme",
+          "synthetic": true,
+          "eligibleForGrounding": true,
+          "text": "DEMO ONLY, SYNTHETIC SCHOOL SEQUENCE: Learners have already named solids, liquids, and gases. This lesson introduces particle models before later lessons on changes of state."
+        },
+        {
+          "id": "chunk-particle-properties",
+          "documentId": "doc-demo-teaching-note",
+          "title": "Demo particle teaching note",
+          "kind": "teaching_note",
+          "synthetic": true,
+          "eligibleForGrounding": true,
+          "text": "DEMO ONLY, SYNTHETIC TEACHING NOTE: In this particle model, particles stay the same size in solids, liquids, and gases; state changes affect spacing and movement, not particle size. In a solid, particles are close together and vibrate around fixed positions. In a liquid, particles remain close but can move past one another. In a gas, particles are far apart and move freely. Possible misconception to address: a learner may think each gas particle grows when a gas fills a container. Correct this by explaining that a gas changing container shape does not mean each particle grows."
+        },
+        {
+          "id": "chunk-assessment-evidence",
+          "documentId": "doc-demo-assessment",
+          "title": "Demo assessment guidance",
+          "kind": "assessment",
+          "synthetic": true,
+          "eligibleForGrounding": true,
+          "text": "DEMO ONLY, SYNTHETIC ASSESSMENT GUIDANCE: Ask learners to identify a state from a particle diagram and justify the answer using both spacing and movement. Credit an explanation that distinguishes particle motion from particle size."
+        },
+        {
+          "id": "chunk-lead-constraint",
+          "documentId": "doc-demo-lead-guidance",
+          "title": "Demo curriculum-lead note",
+          "kind": "lead_guidance",
+          "synthetic": true,
+          "eligibleForGrounding": true,
+          "text": "DEMO ONLY, SYNTHETIC LEAD NOTE: Prefer paper cards, drawings, counters, or learner movement to model particles. Do not require heating, burning, or open flames. Give learners a non-movement option for activities involving body movement."
+        },
+        {
+          "id": "chunk-exemplar-pacing",
+          "documentId": "doc-demo-exemplar",
+          "title": "Demo reviewed lesson excerpt",
+          "kind": "exemplar",
+          "synthetic": true,
+          "eligibleForGrounding": true,
+          "text": "DEMO ONLY, SYNTHETIC EXEMPLAR: A short lesson can begin with contrasting diagrams, use pairs to build and compare models, then end with an individual explanation. The exemplar informs teaching structure; the learning target still comes from the target source."
+        },
+        {
+          "id": "chunk-check-prior-knowledge",
+          "documentId": "doc-demo-assessment",
+          "title": "Demo particle assessment pack — diagnostic prompt",
+          "kind": "assessment",
+          "synthetic": true,
+          "eligibleForGrounding": true,
+          "text": "DEMO ONLY, SYNTHETIC DIAGNOSTIC: Show two particle diagrams and ask learners what is similar and what differs. Listen for claims about spacing, movement, and particle size before teaching."
+        },
+        {
+          "id": "chunk-accessible-responses",
+          "documentId": "doc-demo-lead-guidance",
+          "title": "Demo curriculum-lead guidance — accessible responses",
+          "kind": "lead_guidance",
+          "synthetic": true,
+          "eligibleForGrounding": true,
+          "text": "DEMO ONLY, SYNTHETIC ACCESSIBILITY GUIDANCE: For diagram comparisons, provide two equivalent spoken descriptions and static response cards. This option must work without visual access or body movement, including the closing check. Tactile counters are another option, with movement represented as vibration, sliding, or free movement."
+        },
+        {
+          "id": "chunk-classroom-setup",
+          "documentId": "doc-demo-teaching-note",
+          "title": "Demo particle teaching note — classroom setup",
+          "kind": "teaching_note",
+          "synthetic": true,
+          "eligibleForGrounding": true,
+          "text": "DEMO ONLY, SYNTHETIC CLASSROOM SETUP NOTE: Prepare same-size particle cards, counters, spoken-description cards, and one response sheet per learner before the lesson. Display all three diagrams together for comparison. Use paper or counters; no heating demonstration or electrical equipment is needed."
+        }
+      ],
+      "objectiveId": "objective-particles",
+      "citationEvidence": {
+        "lessonFocusChunkId": "chunk-particle-properties",
+        "mainActivityChunkId": "chunk-particle-properties",
+        "assessmentChunkId": "chunk-assessment-evidence"
+      },
+      "retrievalQuery": "Describe the characteristics of particles in the three states of matter. Compare particle spacing and movement in solids, liquids, and gases; treat particle size remaining unchanged as a synthetic teaching-note emphasis, not part of the KICD outcome wording. Integrated Science Grade 8 lesson activity assessment constraints"
+    },
+    {
+      "id": "changes",
+      "scenario": {
+        "curriculum": "Kenya CBC (KICD)",
+        "curriculumRelease": "Grade 8 Integrated Science, July 2024",
+        "programme": "Junior School",
+        "grade": "Grade 8",
+        "subject": "Integrated Science",
+        "targetId": "target-kicd-g8-is-physical-chemical-changes-slo-c-jul2024",
+        "targetLocator": "1.2(c)",
+        "target": "distinguish between physical and chemical changes in substances,",
+        "lessonFocus": "Classify melting ice and tearing paper as physical changes, and rusting iron and cooking an egg as chemical changes, using whether a new substance forms. These four cases are synthetic teaching choices; use supplied case descriptions without a live heating demonstration.",
+        "durationMinutes": 40
+      },
+      "chunks": [
+        {
+          "id": "chunk-target-changes",
+          "documentId": "source-kicd-g8-integrated-science-july-2024",
+          "title": "KICD specific learning outcome 1.2(c)",
+          "kind": "curriculum_target",
+          "synthetic": false,
+          "eligibleForGrounding": true,
+          "targetId": "target-kicd-g8-is-physical-chemical-changes-slo-c-jul2024",
+          "text": "distinguish between physical and chemical changes in substances,",
+          "sourceReference": {
+            "sourceId": "source-kicd-g8-integrated-science-july-2024",
+            "publisher": "Kenya Institute of Curriculum Development",
+            "documentTitle": "Integrated Science Grade 8",
+            "edition": "July 2024 design; first published 2023, revised 2024; ISBN 978-9914-52-947-0",
+            "url": "https://drive.google.com/file/d/1RpqZRmeMywbc1Tya0_x-tNJBs75Gy0-v/preview",
+            "locator": "Strand 1.0 Mixtures, Elements and Compounds; sub-strand 1.2 Physical and chemical changes; specific learning outcome (c)",
+            "relationship": "exact_excerpt"
+          }
+        },
+        {
+          "id": "chunk-change-cases",
+          "documentId": "doc-demo-change-cases",
+          "title": "Demo change case cards",
+          "kind": "teaching_note",
+          "synthetic": true,
+          "eligibleForGrounding": true,
+          "text": "DEMO ONLY, SYNTHETIC TEACHING NOTE: Classify these supplied cases by whether a new substance forms. Melting ice: solid water becomes liquid water; no new substance forms; physical change. Tearing paper: the pieces remain paper; no new substance forms; physical change. Rusting iron: iron reacts to form rust; a new substance forms; chemical change. Cooking an egg: heating changes its proteins into a cooked form with new substances; a new substance forms; chemical change. These are simplified Grade 8 case descriptions, not instructions for live demonstrations. Irreversibility alone is not the deciding rule: tearing paper is physical even though restoring the original sheet is difficult."
+        },
+        {
+          "id": "chunk-change-assessment",
+          "documentId": "doc-demo-change-assessment",
+          "title": "Demo changes assessment guidance",
+          "kind": "assessment",
+          "synthetic": true,
+          "eligibleForGrounding": true,
+          "text": "DEMO ONLY, SYNTHETIC ASSESSMENT: Give each learner the four supplied cases: melting ice, tearing paper, rusting iron, and cooking an egg. For each, select physical or chemical and state whether a new substance forms. Award one point for correct classification and one for correct new-substance evidence per case: eight total. Tearing paper exposes the misconception that every hard-to-reverse change is chemical."
+        },
+        {
+          "id": "chunk-change-lead",
+          "documentId": "doc-demo-lead-guidance",
+          "title": "Demo curriculum-lead guidance — physical and chemical changes",
+          "kind": "lead_guidance",
+          "synthetic": true,
+          "eligibleForGrounding": true,
+          "text": "DEMO ONLY, SYNTHETIC LEAD NOTE: Use prepared case descriptions and pictures. Do not heat, burn, cook, or handle rusting samples in the classroom. Cooking an egg is a described case only. Offer equivalent spoken descriptions and an individual spoken, written, or selectable response for every task, including the closing check, without visual access or body movement."
+        },
+        {
+          "id": "chunk-change-sequence",
+          "documentId": "doc-demo-change-sequence",
+          "title": "Demo changes lesson sequence",
+          "kind": "scheme",
+          "synthetic": true,
+          "eligibleForGrounding": true,
+          "text": "DEMO ONLY, SYNTHETIC SCHOOL SEQUENCE: Learners previously named states of matter. Begin by collecting prior ideas about melting ice and tearing paper. Model using new-substance evidence, practise classifying all four supplied cases in pairs, then collect an individual response for all four. Use starter 5 minutes, main 25 minutes, and closing 10 minutes."
+        }
+      ],
+      "objectiveId": "objective-changes",
+      "citationEvidence": {
+        "lessonFocusChunkId": "chunk-change-cases",
+        "mainActivityChunkId": "chunk-change-cases",
+        "assessmentChunkId": "chunk-change-assessment"
+      },
+      "retrievalQuery": "distinguish between physical and chemical changes in substances, Classify melting ice and tearing paper as physical changes, and rusting iron and cooking an egg as chemical changes, using whether a new substance forms. These four cases are synthetic teaching choices; use supplied case descriptions without a live heating demonstration. Integrated Science Grade 8 lesson activity assessment constraints"
+    }
+  ]
+}

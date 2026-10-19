@@ -1,0 +1,70 @@
+{
+  "title": "Compare particle models across three states",
+  "durationMinutes": 40,
+  "lessonObjectives": [
+    {
+      "id": "objective-particles",
+      "text": "Compare particle spacing and movement in solids, liquids, and gases, and explain that particle size stays the same across states.",
+      "sourceChunkIds": ["chunk-target-particles", "chunk-particle-properties"]
+    }
+  ],
+  "materials": [
+    {
+      "name": "Three particle diagram cards",
+      "notes": "Show same-size particles with different spacing and movement marks. Keep the diagrams displayed for comparison."
+    },
+    {
+      "name": "Counters and response sheets",
+      "notes": "Prepare tactile counters and an individual written, recorded, or selectable response sheet for each learner."
+    }
+  ],
+  "activities": [
+    {
+      "id": "starter-particles",
+      "kind": "starter",
+      "durationMinutes": 5,
+      "teacherActions": "Display the three diagrams and ask learners what changes and what stays the same.",
+      "learnerActions": "Compare the diagrams and share one observation about particle spacing or movement.",
+      "objectiveIds": ["objective-particles"],
+      "sourceChunkIds": ["chunk-check-prior-knowledge", "chunk-target-particles"]
+    },
+    {
+      "id": "model-particles",
+      "kind": "main",
+      "durationMinutes": 25,
+      "teacherActions": "Give pairs the prepared diagrams and counters. Model one state, then ask pairs to compare all three. Explain that solid and liquid particles are both close together, gas particles are far apart, and their movement differs. Offer spoken descriptions and static cards for use without visual access or body movement.",
+      "learnerActions": "Use the diagrams, spoken descriptions, static cards, or counters to model all three states. Choose two diagrams, compare spacing and movement, and state that particle size stays the same.",
+      "objectiveIds": ["objective-particles"],
+      "sourceChunkIds": ["chunk-particle-properties", "chunk-lead-constraint", "chunk-exemplar-pacing"]
+    },
+    {
+      "id": "closing-particles",
+      "kind": "closing",
+      "durationMinutes": 10,
+      "teacherActions": "Keep the diagrams displayed and give each learner an individual response sheet or equivalent. Ask for a comparison covering state, spacing, movement, and particle size.",
+      "learnerActions": "Each learner submits a written, recorded, or selectable comparison that names each state, compares spacing, describes movement, and states whether particle size changes.",
+      "objectiveIds": ["objective-particles"],
+      "sourceChunkIds": ["chunk-assessment-evidence", "chunk-particle-properties"]
+    }
+  ],
+  "checksForUnderstanding": [
+    {
+      "id": "check-particles",
+      "prompt": "Show all three diagrams, then choose two to compare. For each selected diagram, state its state, spacing, and movement; say whether spacing is similar or different, then name how movement differs between the pair. Choose once whether particle size stays the same, gets larger, or gets smaller across states. Choices: state = solid, liquid, gas; spacing = close together or far apart; movement = vibrate around fixed positions, slide past one another, or move freely; particle size = stays the same, gets larger, or gets smaller.",
+      "expectedEvidence": "Reference answer key: solid = close together and vibrate around fixed positions; liquid = close together and slide past one another; gas = far apart and move freely. Use only the entries matching the learner's two selected diagrams. Particle size stays the same across states. Possible misconception: a learner may think each gas particle grows when a gas fills a container. Correction: a gas changing container shape does not mean each particle grows.",
+      "scoringCriteria": {
+        "perDiagram": { "pointsPerCriterion": 1, "criteria": ["state", "spacing", "movement"] },
+        "particleSizeAcrossPair": { "points": 1, "expected": "same" },
+        "spacingComparison": { "points": 1, "criterion": "similar_or_different" },
+        "movementComparison": { "points": 1, "criterion": "compare_movement" },
+        "totalPoints": 9
+      },
+      "objectiveIds": ["objective-particles"],
+      "sourceChunkIds": ["chunk-assessment-evidence", "chunk-particle-properties"]
+    }
+  ],
+  "differentiation": [
+    "For every diagram task, including closing, provide a distinct nonvisual, non-movement option: two equivalent spoken descriptions and static response cards; learners compare the descriptions and select or state answers without visual access or body movement."
+  ],
+  "safetyNotes": ["Use prepared cards or counters; no heating demonstration is needed."]
+}

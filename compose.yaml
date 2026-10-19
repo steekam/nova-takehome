@@ -1,20 +1,168 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:0.8.6-pg17-bookworm
     restart: unless-stopped
     environment:
       POSTGRES_DB: nova_hub
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      LITELLM_POSTGRES_PASSWORD: ${LITELLM_POSTGRES_PASSWORD:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_POSTGRES_PASSWORD: ${LANGFUSE_POSTGRES_PASSWORD:?Run Compose through Varlock to load .env.local}
     ports:
       - "127.0.0.1:5433:5432"
     volumes:
       - nova-postgres-data:/var/lib/postgresql/data
+      - ./ops/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d nova_hub"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  litellm:
+    profiles: [litellm]
+    image: ghcr.io/berriai/litellm:v1.106.0
+    restart: unless-stopped
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--prometheus_metrics_port", "4001"]
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:-}
+      LITELLM_DATABASE_URL: postgresql://litellm:${LITELLM_POSTGRES_PASSWORD:?Run Compose through Varlock to load .env.local}@postgres:5432/litellm
+      BASETEN_API_KEY: ${BASETEN_API_KEY:-}
+      BASETEN_BASE_URL: ${BASETEN_BASE_URL:-https://inference.baseten.co/v1}
+      LITELLM_OTEL_V2: "true"
+      OTEL_EXPORTER: otlp_http
+      OTEL_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: litellm
+      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: no_content
+    volumes:
+      - ./ops/litellm/config.yaml:/app/config.yaml:ro
+    ports:
+      - "127.0.0.1:4000:4000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/readiness', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:25.12
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:?Run Compose through Varlock to load .env.local}
+      TZ: UTC
+    volumes:
+      - langfuse-clickhouse-data:/var/lib/clickhouse
+      - langfuse-clickhouse-logs:/var/log/clickhouse-server
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    environment:
+      LANGFUSE_REDIS_AUTH: ${LANGFUSE_REDIS_AUTH:?Run Compose through Varlock to load .env.local}
+    command: ["redis-server", "--requirepass", "${LANGFUSE_REDIS_AUTH:?Run Compose through Varlock to load .env.local}", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - shared-redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$LANGFUSE_REDIS_AUTH\" ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  langfuse-minio:
+    image: cgr.dev/chainguard/minio
+    restart: unless-stopped
+    entrypoint: sh
+    command: ["-c", "mkdir -p /data/langfuse && minio server --address ':9000' --console-address ':9001' /data"]
+    environment:
+      MINIO_ROOT_USER: ${LANGFUSE_MINIO_ROOT_USER:?Run Compose through Varlock to load .env.local}
+      MINIO_ROOT_PASSWORD: ${LANGFUSE_MINIO_ROOT_PASSWORD:?Run Compose through Varlock to load .env.local}
+    ports:
+      - "127.0.0.1:9092:9000"
+      - "127.0.0.1:9093:9001"
+    volumes:
+      - langfuse-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  langfuse-worker:
+    image: docker.langfuse.com/langfuse/langfuse-worker:4
+    restart: unless-stopped
+    depends_on: &langfuse-depends-on
+      postgres:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
+    environment: &langfuse-env
+      NEXTAUTH_URL: ${LANGFUSE_HOST:-http://localhost:3002}
+      DATABASE_URL: postgresql://langfuse:${LANGFUSE_POSTGRES_PASSWORD:?Run Compose through Varlock to load .env.local}@postgres:5432/langfuse
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:?Run Compose through Varlock to load .env.local}
+      SALT: ${LANGFUSE_SALT:?Run Compose through Varlock to load .env.local}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:?Run Compose through Varlock to load .env.local}
+      TELEMETRY_ENABLED: "false"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:?Run Compose through Varlock to load .env.local}
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_AUTH: ${LANGFUSE_REDIS_AUTH:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_MINIO_ROOT_USER:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_ROOT_PASSWORD:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: us-east-1
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_MINIO_ROOT_USER:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_ROOT_PASSWORD:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: ${LANGFUSE_MEDIA_URL:-http://localhost:9092}
+      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+
+  langfuse-web:
+    image: docker.langfuse.com/langfuse/langfuse:4
+    restart: unless-stopped
+    depends_on: *langfuse-depends-on
+    ports:
+      - "127.0.0.1:3002:3000"
+    environment:
+      <<: *langfuse-env
+      LANGFUSE_INIT_ORG_ID: ${LANGFUSE_INIT_ORG_ID:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_INIT_ORG_NAME: ${LANGFUSE_INIT_ORG_NAME:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_INIT_PROJECT_ID: ${LANGFUSE_INIT_PROJECT_ID:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_INIT_PROJECT_NAME:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:?Run Compose through Varlock to load .env.local}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: ${LANGFUSE_MEDIA_URL:-http://localhost:9092}
+      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://langfuse-minio:9000
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.129.1
@@ -22,6 +170,8 @@ services:
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     volumes:
       - ./ops/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    environment:
+      LANGFUSE_OTEL_AUTH: ${LANGFUSE_OTEL_AUTH:?Run Compose through Varlock to load .env.local}
     ports:
       - "127.0.0.1:4317:4317"
       - "127.0.0.1:4318:4318"
@@ -30,6 +180,7 @@ services:
       - tempo
       - prometheus
       - loki
+      - langfuse-web
 
   tempo:
     image: grafana/tempo:2.9.0
@@ -83,6 +234,14 @@ services:
 
 volumes:
   nova-postgres-data:
+  # Retained source volumes from the former dedicated services; remove only after owner sign-off.
+  litellm-postgres-data:
+  langfuse-postgres-data:
+  langfuse-clickhouse-data:
+  langfuse-clickhouse-logs:
+  langfuse-redis-data:
+  shared-redis-data:
+  langfuse-minio-data:
   nova-tempo-data:
   nova-prometheus-data:
   nova-loki-data:

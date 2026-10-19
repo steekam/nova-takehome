@@ -1,37 +1,56 @@
 # Nova Curriculum Hub
 
-Initial pnpm workspace for the full-stack performance task. Use [the reviewer checklist](docs/performance-checklist.md) to track the brief from scaffold to submission.
+Full-stack CBC lesson-planning task. Teachers generate a grounded draft, edit and submit it; a curriculum lead returns it with feedback or publishes it.
 
-## Workspace
+## Stack
 
-- `apps/web`: React + TypeScript + TanStack Router.
-- `apps/api`: NestJS + TypeScript + Drizzle + PostgreSQL.
-- `packages/shared`: Zod lesson-plan schema and shared types.
-- `docs/architecture.md`: package boundaries and request flow.
-- `docs/observability.md`: proposed LiteLLM, Langfuse, OpenTelemetry, and Grafana flow.
-- `docs/performance-checklist.md`: reviewer-focused requirements and invariants.
+- `apps/web`: React, TypeScript, TanStack Router.
+- `apps/api`: NestJS, TypeScript, Fastify, Drizzle, PostgreSQL + pgvector.
+- `packages/shared`: lesson-plan schemas and transport types.
+- `apps/playground`: internal corpus, retrieval, generation, review, and evaluation CLI. It is not part of the product walkthrough.
+- LiteLLM, Langfuse, OpenTelemetry, Collector, Grafana, Tempo, Prometheus, and Loki support local verification and telemetry.
 
-## Current scaffold
+See [architecture](docs/architecture.md), [observability setup](docs/observability.md), [the reviewer checklist](docs/performance-checklist.md), and the [shared data-service migration record](docs/local-state-migration.md).
 
-The web app has role-aware teacher and curriculum-lead shells, a sign-in route, and a typed API client generated from the API OpenAPI document. shadcn components use Base UI primitives. Varlock validates environment values against the root `.env.schema`; use `.env.local` for machine-specific overrides. Run `pnpm exec varlock load` to inspect validation. The root `pnpm dev` command loads validated values for both apps.
+## Run locally
 
-The API uses NestJS with Fastify. `/api/health` checks liveness and `/api/health/ready` checks database readiness. OpenAPI JSON is available at `/api/docs-json` and generated into `apps/api/openapi.json` with `pnpm openapi:generate`; the web client types come from that document. DTO validation uses Nest's global `ValidationPipe` with `class-validator` decorators. Authentication uses 12-hour signed sessions in HttpOnly cookies; `/api/auth/login` and `/api/auth/logout` are public, while other API handlers require a valid session unless marked `@Public()`. Set `AUTH_SECRET` to a random value of at least 32 characters outside local development/test. Use `@Roles()` and `@Permissions()` to restrict handlers. Shared Drizzle CRUD operations live under `apps/api/src/database/crud`. Domain services must enforce authorization and workflow rules instead of exposing generic table CRUD routes. Multipart uploads have size and file-count limits. OpenTelemetry exports traces, metrics, and request/error logs to the configured OTLP endpoint when `OTEL_ENABLED=true`.
+Use Node 24 with `nvm install && nvm use` or `mise install`. Install packages with `pnpm install`. Varlock reads `.env.schema` plus ignored `.env.local`; `pnpm exec varlock load` validates the configuration without printing secrets.
 
-Run `pnpm db:generate` to generate migrations from the Drizzle schema and `pnpm db:migrate` to apply them. For local auth flows, run `env NODE_ENV=development pnpm db:seed`. The seed command requires `NODE_ENV=development` or `test` and refuses remote database hosts. It creates two accounts, both with password `NovaLocal123!`:
+Prepare local secrets and start PostgreSQL, Redis, LiteLLM, and observability services with `pnpm local:prepare` and `pnpm exec varlock run -- docker compose --profile litellm up -d`. Apply the schema and seed local accounts/corpus:
 
-- `teacher@example.test` (`teacher`)
-- `curriculum-lead@example.test` (`curriculum_lead`)
+```sh
+pnpm db:migrate
+env NODE_ENV=development pnpm db:seed
+```
 
-Do not run the seed command against production data. Validation failures return `code: "VALIDATION_ERROR"` with field-keyed constraint identifiers and omit submitted values.
+The seed is additive and creates two demo accounts, both with password `NovaLocal123!`:
 
-Start PostgreSQL and the telemetry stack with `docker compose up -d`. PostgreSQL binds to `127.0.0.1:5433` so it can run alongside a host PostgreSQL server on port 5432. To use it, set `DATABASE_URL=postgresql://postgres:postgres@localhost:5433/nova_hub` in `.env.local`, then run `pnpm db:migrate` and `env NODE_ENV=development pnpm db:seed`.
+- `teacher@example.test`
+- `curriculum-lead@example.test`
 
-The Compose stack includes the OpenTelemetry Collector, Tempo, Prometheus, Loki, and Grafana. Run the web app and API with telemetry enabled using `env DATABASE_URL=postgresql://postgres:postgres@localhost:5433/nova_hub OTEL_ENABLED=true pnpm dev`. The API sends OTLP over HTTP to `http://localhost:4318`; Grafana is at [http://localhost:3000](http://localhost:3000), Prometheus at [http://localhost:9091](http://localhost:9091), and Collector zPages at [http://localhost:55679/debug/servicez](http://localhost:55679/debug/servicez). Grafana provisions Prometheus, Tempo, and Loki data sources plus a Nova API dashboard. Generate requests with `curl http://localhost:3001/api/health/ready`; traces appear in Tempo, request metrics in Prometheus, and request logs in Loki. `docker compose down` stops services and preserves their volumes; `docker compose down -v` also deletes telemetry and database data.
+Run `pnpm dev`. Mock generation is the default, so no model key is needed. For LiteLLM-backed generation, set `LLM_PROVIDER=openai-compatible`, `LLM_BASE_URL=http://localhost:4000/v1`, `LLM_MODEL=lesson-planner`, and `LLM_API_KEY` in `.env.local`. Provider credentials stay server-side.
 
-Run the API smoke test with `pnpm --filter @nova/api test:e2e`; typecheck it with `pnpm --filter @nova/api typecheck:e2e`.
+## Workflow rules
 
-Reusable API plumbing and CRUD concepts were adapted from [MarkNjunge/nest-boilerplate](https://github.com/MarkNjunge/nest-boilerplate); see [AI_LOG.md](AI_LOG.md) for the attribution and adaptation notes.
+The API enforces these transitions:
 
-## Node version
+```text
+Draft --submit after QA--> Submitted --lead returns with feedback--> Returned --teacher edit--> Draft
+                                      `--lead publishes------------> Published
+```
 
-Use Node 24. The root `.nvmrc` pins `24.22.0`; `mise.toml` enables mise to read that same file. With nvm, run `nvm install && nvm use`. With mise, run `mise install`. `package.json` declares Node 24 as the supported major line.
+Returned plans require resubmission after an edit. Published plans are read-only. Each teacher edit creates an immutable version. Submit checks the shared lesson schema, activity-time totals, and citations against existing curriculum chunks and the plan's original retrieval candidates. Invalid transitions return `409 PLAN_TRANSITION_INVALID`; QA failures return `422 LESSON_PLAN_QA_FAILED` with the failed checks. See [the full state and error rules](docs/architecture.md#lesson-plan-workflow).
+
+## Internal playground
+
+The internal playground supports corpus, retrieval, generation, review, and evaluation work. It is excluded from the product walkthrough. See [apps/playground/README.md](apps/playground/README.md).
+
+## Verification
+
+```sh
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+`pnpm test` covers playground behavior and API workflow/role invariants. Verified behavior and remaining work are tracked in [performance-checklist.md](docs/performance-checklist.md).

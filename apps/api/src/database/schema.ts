@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -8,6 +9,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  vector,
 } from 'drizzle-orm/pg-core'
 import { userRoles, type LessonPlanContent } from '@nova/shared'
 
@@ -45,9 +47,15 @@ export const curriculumChunks = pgTable(
     documentId: uuid('document_id').references(() => curriculumDocuments.id).notNull(),
     ordinal: integer('ordinal').notNull(),
     content: text('content').notNull(),
-    embedding: jsonb('embedding').$type<number[]>().notNull(),
+    embedding: vector('embedding', { dimensions: 384 }).notNull(),
   },
-  (table) => [uniqueIndex('curriculum_chunks_document_ordinal_idx').on(table.documentId, table.ordinal)],
+  (table) => [
+    uniqueIndex('curriculum_chunks_document_ordinal_idx').on(table.documentId, table.ordinal),
+    index('curriculum_chunks_embedding_hnsw_idx').using(
+      'hnsw',
+      table.embedding.op('vector_cosine_ops'),
+    ),
+  ],
 )
 
 export const lessonPlans = pgTable('lesson_plans', {

@@ -38,6 +38,11 @@ exporters:
       enabled: true
   otlphttp/loki:
     endpoint: http://loki:3100/otlp
+  otlphttp/langfuse:
+    endpoint: http://langfuse-web:3000/api/public/otel
+    headers:
+      Authorization: "Basic ${env:LANGFUSE_OTEL_AUTH}"
+      x-langfuse-ingestion-version: "4"
 
 extensions:
   zpages:
@@ -49,7 +54,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [resource/clean, batch]
-      exporters: [otlp/tempo]
+      exporters: [otlp/tempo, otlphttp/langfuse]
     metrics:
       receivers: [otlp]
       processors: [resource/clean, batch]

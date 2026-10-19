@@ -1,0 +1,26 @@
+model_list:
+  - model_name: lesson-planner
+    litellm_params:
+      model: openai/deepseek-ai/DeepSeek-V4.1-Flash
+      api_base: os.environ/BASETEN_BASE_URL
+      api_key: os.environ/BASETEN_API_KEY
+      input_cost_per_token: 0.0000003
+      cache_read_input_token_cost: 0.000000007
+      output_cost_per_token: 0.0000012
+  - model_name: lesson-planner-glm
+    litellm_params:
+      model: openai/zai-org/GLM-5.3-Flash
+      api_base: os.environ/BASETEN_BASE_URL
+      api_key: os.environ/BASETEN_API_KEY
+      input_cost_per_token: 0.00000015
+      cache_read_input_token_cost: 0.00000003
+      output_cost_per_token: 0.0000005
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/LITELLM_DATABASE_URL
+
+litellm_settings:
+  callbacks: [prometheus, otel]
+  max_budget: 1.0
+  budget_duration: 1h

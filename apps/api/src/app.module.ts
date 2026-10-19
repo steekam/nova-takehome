@@ -10,14 +10,17 @@ import { AuthModule } from './auth/auth.module'
 import { AuthGuard } from './common/auth/auth.guard'
 import { RolesGuard } from './common/auth/roles.guard'
 import { PermissionsGuard } from './common/auth/permissions.guard'
+import { CurriculumModule } from './curriculum/curriculum.module'
+import { validateEnvironment } from './configuration'
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
+    ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true, validate: validateEnvironment }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     DatabaseModule,
     CommonModule,
     AuthModule,
+    CurriculumModule,
   ],
   controllers: [HealthController],
   providers: [

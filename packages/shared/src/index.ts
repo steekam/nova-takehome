@@ -34,6 +34,30 @@ export type LessonPlanSource = z.infer<typeof LessonPlanSourceSchema>
 export type LessonPlanStatus = z.infer<typeof LessonPlanStatusSchema>
 export type UserRole = z.infer<typeof UserRoleSchema>
 
+export const LessonPlanDtoSchema = z.object({
+  id: z.string().uuid(), teacherId: z.string().uuid(), status: LessonPlanStatusSchema,
+  content: LessonPlanContentSchema, version: z.number().int().positive(),
+  createdAt: z.string().datetime(), updatedAt: z.string().datetime(),
+}).strict()
+export type LessonPlanDto = z.infer<typeof LessonPlanDtoSchema>
+
+export const CurriculumOutcomeDtoSchema = z.object({
+  id: z.string().uuid(), targetId: z.string().uuid(), title: z.string(), subject: z.string(), grade: z.string(), content: z.string(),
+}).strict()
+export type CurriculumOutcomeDto = z.infer<typeof CurriculumOutcomeDtoSchema>
+
+export const CurriculumSourceDtoSchema = z.object({
+  documentId: z.string().uuid(), chunkId: z.string().uuid(), documentType: z.enum(['scheme_of_work', 'learning_outcome', 'assessment_item']),
+  title: z.string(), subject: z.string(), grade: z.string(), content: z.string(),
+}).strict()
+export type CurriculumSourceDto = z.infer<typeof CurriculumSourceDtoSchema>
+
+export const LessonPlanReviewDtoSchema = z.object({
+  id: z.string().uuid(), lessonPlanId: z.string().uuid(), curriculumLeadId: z.string().uuid(),
+  decision: z.enum(['returned', 'published']), comment: z.string().nullable(), createdAt: z.string().datetime(),
+}).strict()
+export type LessonPlanReviewDto = z.infer<typeof LessonPlanReviewDtoSchema>
+
 export interface ApiPrincipal {
   subject: string
   roles: UserRole[]

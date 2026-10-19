@@ -1,0 +1,361 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "durationMinutes": {
+      "type": "integer",
+      "maximum": 9007199254740991,
+      "minimum": 1
+    },
+    "lessonObjectives": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceChunkIds": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "sourceChunkIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "materials": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "notes": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "name",
+          "notes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "activities": {
+      "minItems": 2,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "starter",
+              "main",
+              "closing"
+            ]
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "maximum": 9007199254740991,
+            "minimum": 1
+          },
+          "teacherActions": {
+            "type": "string",
+            "minLength": 1
+          },
+          "learnerActions": {
+            "type": "string",
+            "minLength": 1
+          },
+          "objectiveIds": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "sourceChunkIds": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "durationMinutes",
+          "teacherActions",
+          "learnerActions",
+          "objectiveIds",
+          "sourceChunkIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "checksForUnderstanding": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expectedEvidence": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scoringCriteria": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "perDiagram": {
+                    "type": "object",
+                    "properties": {
+                      "pointsPerCriterion": {
+                        "type": "integer",
+                        "maximum": 9007199254740991,
+                        "minimum": 1
+                      },
+                      "criteria": {
+                        "minItems": 3,
+                        "maxItems": 3,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "state",
+                            "spacing",
+                            "movement"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "pointsPerCriterion",
+                      "criteria"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "particleSizeAcrossPair": {
+                    "type": "object",
+                    "properties": {
+                      "points": {
+                        "type": "integer",
+                        "maximum": 9007199254740991,
+                        "minimum": 1
+                      },
+                      "expected": {
+                        "type": "string",
+                        "enum": [
+                          "same",
+                          "larger",
+                          "smaller"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "points",
+                      "expected"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "spacingComparison": {
+                    "type": "object",
+                    "properties": {
+                      "points": {
+                        "type": "integer",
+                        "maximum": 9007199254740991,
+                        "minimum": 1
+                      },
+                      "criterion": {
+                        "type": "string",
+                        "enum": [
+                          "similar_or_different"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "points",
+                      "criterion"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "movementComparison": {
+                    "type": "object",
+                    "properties": {
+                      "points": {
+                        "type": "integer",
+                        "maximum": 9007199254740991,
+                        "minimum": 1
+                      },
+                      "criterion": {
+                        "type": "string",
+                        "enum": [
+                          "compare_movement"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "points",
+                      "criterion"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "totalPoints": {
+                    "type": "integer",
+                    "maximum": 9007199254740991,
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "perDiagram",
+                  "particleSizeAcrossPair",
+                  "spacingComparison",
+                  "movementComparison",
+                  "totalPoints"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "perCase": {
+                    "type": "object",
+                    "properties": {
+                      "pointsPerCriterion": {
+                        "type": "integer",
+                        "maximum": 9007199254740991,
+                        "minimum": 1
+                      },
+                      "criteria": {
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "classification",
+                            "new_substance_evidence"
+                          ]
+                        }
+                      },
+                      "caseCount": {
+                        "type": "integer",
+                        "maximum": 9007199254740991,
+                        "minimum": 1
+                      }
+                    },
+                    "required": [
+                      "pointsPerCriterion",
+                      "criteria",
+                      "caseCount"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "totalPoints": {
+                    "type": "integer",
+                    "maximum": 9007199254740991,
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "perCase",
+                  "totalPoints"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "objectiveIds": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "sourceChunkIds": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "id",
+          "prompt",
+          "expectedEvidence",
+          "scoringCriteria",
+          "objectiveIds",
+          "sourceChunkIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "differentiation": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "safetyNotes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "required": [
+    "title",
+    "durationMinutes",
+    "lessonObjectives",
+    "materials",
+    "activities",
+    "checksForUnderstanding",
+    "differentiation",
+    "safetyNotes"
+  ],
+  "additionalProperties": false
+}

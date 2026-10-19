@@ -1,6 +1,5 @@
 import { Test } from '@nestjs/testing'
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify'
-import request from 'supertest'
 import { AppModule } from '../src/app.module'
 import { configureHttp } from '../src/configure-http'
 
@@ -20,9 +19,10 @@ describe('API plumbing', () => {
   })
 
   it('serves health checks with a request ID', async () => {
-    const response = await request(app.getHttpServer()).get('/api/health').expect(200)
+    const response = await app.getHttpAdapter().getInstance().inject({ method: 'GET', url: '/api/health' })
 
-    expect(response.body).toEqual({ status: 'ok' })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ status: 'ok' })
     expect(response.headers['x-request-id']).toMatch(/^[\w.-]{1,128}$/)
   })
 })

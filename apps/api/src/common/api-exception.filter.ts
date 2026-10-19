@@ -16,7 +16,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const request = context.getRequest<FastifyRequest>()
     const reply = context.getResponse<FastifyReply>()
     const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR
-    const message = status >= 500 ? 'Internal server error' : this.getMessage(exception)
+    const message = status >= 500 && !this.hasStableErrorCode(exception) ? 'Internal server error' : this.getMessage(exception)
     const requestId = this.requestIds.getOrCreate(request.headers['x-request-id'])
 
     if (status >= 500) {
@@ -39,6 +39,12 @@ export class ApiExceptionFilter implements ExceptionFilter {
         body.errors = response.errors
       }
     }
+    if (this.hasStableErrorCode(exception)) {
+      const providerResponse = exception.getResponse()
+      if (typeof providerResponse === 'object' && providerResponse !== null && 'code' in providerResponse && typeof providerResponse.code === 'string') {
+        body.code = providerResponse.code
+      }
+    }
 
     reply.status(status).send(body)
   }
@@ -52,6 +58,14 @@ export class ApiExceptionFilter implements ExceptionFilter {
       if (typeof message === 'string' || Array.isArray(message)) return message as string | string[]
     }
     return exception.message
+  }
+
+  private hasStableErrorCode(exception: unknown): exception is HttpException {
+    if (!(exception instanceof HttpException)) return false
+    const response = exception.getResponse()
+    return typeof response === 'object' && response !== null && 'code' in response &&
+      typeof response.code === 'string' && (/^(LLM_(PROVIDER_|INVALID_RESPONSE)|EMBEDDING_)/.test(response.code) ||
+        ['PLAN_TRANSITION_INVALID', 'LESSON_PLAN_QA_FAILED', 'REVIEW_COMMENT_REQUIRED'].includes(response.code))
   }
 
   private isValidationIssues(value: unknown): value is ValidationIssue[] {

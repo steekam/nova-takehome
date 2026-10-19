@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nova curriculum corpus: domain model and run path</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1d2927;
+      --muted: #5d6b66;
+      --line: #d5ddd7;
+      --paper: #f3f4ee;
+      --card: #fffefa;
+      --green: #176c53;
+      --green-soft: #e4f3eb;
+      --blue: #335e85;
+      --blue-soft: #e9f1f8;
+      --amber: #885b0c;
+      --amber-soft: #fff3d7;
+      --red: #8e3832;
+      --red-soft: #fcebe7;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); line-height: 1.45; }
+    main { max-width: 1380px; margin: 0 auto; padding: 38px 28px 56px; }
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 24px; }
+    h1 { font-size: clamp(28px, 4vw, 46px); line-height: 1.05; letter-spacing: -.035em; max-width: 780px; margin: 0 0 12px; }
+    h2 { font-size: 19px; margin: 0 0 14px; letter-spacing: -.015em; }
+    h3 { font-size: 15px; margin: 0 0 7px; }
+    p { margin: 0; }
+    .lede { max-width: 790px; color: var(--muted); font-size: 16px; }
+    .tag { display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+    .tag.green { color: var(--green); background: var(--green-soft); }
+    .tag.blue { color: var(--blue); background: var(--blue-soft); }
+    .tag.amber { color: var(--amber); background: var(--amber-soft); }
+    .tag.red { color: var(--red); background: var(--red-soft); }
+    section { background: rgba(255,254,250,.82); border: 1px solid var(--line); border-radius: 18px; padding: 22px; margin-top: 18px; box-shadow: 0 8px 24px rgba(30,54,43,.035); }
+    .section-kicker { color: var(--green); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; }
+    .identity-scroll, .pipeline-scroll { overflow-x: auto; padding: 3px 2px 10px; }
+    .identity { min-width: 1060px; display: grid; grid-template-columns: 1.04fr 1.12fr 1.16fr 1fr 1.16fr 1.2fr; gap: 9px; align-items: stretch; }
+    .node { position: relative; min-height: 108px; border: 1px solid var(--line); border-radius: 13px; background: var(--card); padding: 13px; }
+    .node:not(:last-child)::after { content: "→"; position: absolute; z-index: 2; right: -17px; top: 40px; color: var(--green); font-size: 22px; font-weight: 800; }
+    .node .num { color: var(--green); font-size: 11px; font-weight: 800; margin-bottom: 8px; }
+    .node p, .small { color: var(--muted); font-size: 12px; }
+    .identity-note { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .note { border-radius: 12px; padding: 12px 14px; font-size: 13px; }
+    .note strong { display: block; margin-bottom: 3px; }
+    .note.blue { background: var(--blue-soft); color: #264c70; }
+    .note.amber { background: var(--amber-soft); color: #69480e; }
+    .resource-types { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 15px; }
+    .resource-types span { border: 1px solid var(--line); background: var(--card); padding: 7px 10px; border-radius: 9px; font-size: 13px; }
+    .resource-model { display: grid; grid-template-columns: 1fr 38px 1fr 38px 1fr; gap: 8px; align-items: center; }
+    .resource-card { border: 1px solid var(--line); background: var(--card); border-radius: 12px; min-height: 78px; padding: 13px; }
+    .resource-card p { color: var(--muted); font-size: 12px; }
+    .arrow { text-align: center; color: var(--green); font-size: 23px; font-weight: 800; }
+    .provenance { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 13px; }
+    .provenance-label { color: var(--muted); font-size: 12px; font-weight: 700; margin-right: 2px; }
+    .pill { padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--muted); font-size: 11px; }
+    .isbn { margin-left: auto; color: var(--muted); font-size: 12px; }
+    .pipeline { min-width: 1542px; display: grid; grid-template-columns: repeat(8, 150px 24px) 150px; align-items: stretch; gap: 4px; }
+    .step { border-radius: 13px; border: 1px solid var(--line); background: var(--card); padding: 12px; min-height: 147px; }
+    .step p { color: var(--muted); font-size: 12px; }
+    .step .label { color: var(--green); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 7px; }
+    .step.check { background: var(--green-soft); border-color: #b8ddc8; }
+    .step.review { background: var(--blue-soft); border-color: #cadbea; }
+    .step.save { background: #f4f0fa; border-color: #ded3ed; }
+    .step-arrow { display: flex; justify-content: center; align-items: center; color: var(--green); font-size: 20px; font-weight: 800; }
+    .workflow { margin-top: 14px; padding: 12px 14px; background: #f7f8f2; border-radius: 11px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+    .workflow b { color: var(--muted); font-weight: 600; }
+    .state { padding: 5px 9px; border: 1px solid var(--line); background: white; border-radius: 7px; font-weight: 700; }
+    .state.returned { color: var(--amber); }
+    .state.published { color: var(--green); }
+    .lower { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; }
+    .lower section { margin-top: 18px; }
+    .scenario { display: grid; grid-template-columns: 100px 1fr; gap: 10px 12px; font-size: 13px; }
+    .scenario dt { color: var(--muted); font-weight: 700; }
+    .scenario dd { margin: 0; }
+    .failures { display: grid; gap: 9px; }
+    .failure { background: var(--red-soft); border-left: 3px solid #d37b70; border-radius: 8px; padding: 9px 11px; color: #67302c; font-size: 12px; }
+    .failure code { font-weight: 800; }
+    .lesson-model { display: grid; grid-template-columns: minmax(250px, .78fr) minmax(480px, 1.5fr); gap: 14px; align-items: start; }
+    .lesson-stack { display: grid; gap: 10px; }
+    .lesson-card { border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; background: var(--card); }
+    .lesson-card.context { background: var(--blue-soft); border-color: #cadbea; }
+    .lesson-card.workflow { background: var(--amber-soft); border-color: #ead69e; }
+    .lesson-card p, .lesson-card li { color: var(--muted); font-size: 12px; }
+    .lesson-card ul { margin: 7px 0 0; padding-left: 18px; }
+    .lesson-example { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--card); }
+    .lesson-example header { display: block; margin: 0; padding: 14px 16px; background: var(--green-soft); border-bottom: 1px solid #c9e3d3; }
+    .lesson-example header p { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .lesson-body { padding: 14px 16px; }
+    .lesson-label { display: block; color: var(--green); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
+    .lesson-goal { margin-bottom: 13px; font-size: 13px; }
+    .lesson-activities { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .lesson-activities th { color: var(--muted); font-size: 10px; letter-spacing: .07em; text-align: left; text-transform: uppercase; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+    .lesson-activities td { vertical-align: top; padding: 8px; border-bottom: 1px solid #e8ece8; }
+    .lesson-activities td:first-child { white-space: nowrap; font-weight: 700; }
+    .lesson-check { margin-top: 12px; padding: 10px 12px; border-radius: 9px; background: #f4f0fa; font-size: 12px; }
+    .lesson-check strong { display: block; margin-bottom: 3px; }
+    .lesson-source { margin-top: 10px; color: var(--muted); font-size: 11px; }
+    .lesson-rule { margin-top: 12px; padding: 11px 13px; border-radius: 10px; background: #f7f8f2; color: var(--muted); font-size: 12px; }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 15px; color: var(--muted); font-size: 12px; }
+    .legend span { display: inline-flex; gap: 6px; align-items: center; }
+    .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+    footer { color: var(--muted); font-size: 12px; margin: 18px 4px 0; }
+    @media (max-width: 760px) {
+      main { padding: 24px 14px 36px; }
+      header { display: block; }
+      header .tag { margin-top: 15px; }
+      section { padding: 17px; }
+      .identity-note, .lower { grid-template-columns: 1fr; }
+      .lesson-model { grid-template-columns: 1fr; }
+      .lesson-example { overflow-x: auto; }
+      .resource-model { grid-template-columns: 1fr; }
+      .resource-model .arrow { transform: rotate(90deg); }
+      .isbn { margin-left: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <div class="section-kicker">Design map · discussion draft</div>
+        <h1>From curriculum source to reviewed lesson</h1>
+        <p class="lede">Model real resource types, keep curriculum identity structured, then freeze exactly what retrieval supplied before a plan is generated and checked.</p>
+      </div>
+      <span class="tag amber">Design proposal · no app schema changes</span>
+    </header>
+
+    <section>
+      <div class="section-kicker">01 · curriculum identity</div>
+      <h2>Resolve one CBC curriculum path</h2>
+      <div class="identity-scroll">
+        <div class="identity">
+          <article class="node"><div class="num">1 · AUTHORITY</div><h3>KICD CBC</h3><p>Keep publisher and framework explicit.</p></article>
+          <article class="node"><div class="num">2 · RELEASE + PROGRAMME</div><h3>Dated curriculum version</h3><p>For example: KICD Junior School.</p></article>
+          <article class="node"><div class="num">3 · LEVEL MAPPING</div><h3>Curriculum level</h3><p>Grade 8; store any school-specific mapping separately.</p></article>
+          <article class="node"><div class="num">4 · SUBJECT</div><h3>Subject offering</h3><p>Integrated Science; external code scoped to programme.</p></article>
+          <article class="node"><div class="num">5 · HIERARCHY</div><h3>CBC learning structure</h3><p>Strand and sub-strand path.</p></article>
+          <article class="node"><div class="num">6 · SELECTED TARGET</div><h3>Stable internal target ID</h3><p>Versioned statement, source wording, and locator.</p></article>
+        </div>
+      </div>
+      <div class="identity-note">
+        <div class="note blue"><strong>IDs: internal key plus source label</strong>Nova's target ID is stable within the product. A printed code like <code>1.2(a)</code> is an external code/locator scoped to its source release; it is not a global ID.</div>
+        <div class="note amber"><strong>Keep the school mapping explicit</strong>Store the KICD curriculum level separately from any school-specific grade mapping.</div>
+        <div class="note blue"><strong>Target sample</strong>Grade 8 Integrated Science, sub-strand <code>1.2</code>, SLO code <code>1.2(a)</code>.</div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-kicker">02 · corpus resources</div>
+      <h2>“Demo” marks provenance, not a fake document type</h2>
+      <div class="resource-types">
+        <span>Official curriculum</span><span>Lead guidance / rule</span><span>Scheme entry</span><span>Assessment item</span><span>Lesson exemplar</span>
+      </div>
+      <div class="resource-model">
+        <article class="resource-card"><h3>Resource identity</h3><p>Real type, owner, curriculum scope, and stable ID.</p></article>
+        <div class="arrow">→</div>
+        <article class="resource-card"><h3>Immutable revision</h3><p>Exact content, release, approval state, and source provenance.</p></article>
+        <div class="arrow">→</div>
+        <article class="resource-card"><h3>Chunks + locators</h3><p>Searchable passages that point back to page, section, or objective.</p></article>
+      </div>
+      <div class="provenance">
+        <span class="provenance-label">Separate axes:</span>
+        <span class="pill">authority role</span><span class="pill">authorship</span><span class="pill">approval state</span><span class="pill">fixture origin: demo_seed</span>
+        <span class="isbn">ISBN is optional publication metadata; internal revisions need their own IDs.</span>
+      </div>
+      <div class="identity-note">
+        <div class="note blue"><strong>Curriculum Lead notes</strong>Version by scope and type: mandatory constraint, clarification, or recommendation. Block unresolved mandatory conflicts; flag recommendation conflicts.</div>
+        <div class="note amber"><strong>Past strong plans</strong>Use reviewed sections as pedagogical exemplars for pacing or activity ideas. Require alignment and reuse permission; never treat an exemplar as curriculum authority.</div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-kicker">03 · repeatable generation + verification</div>
+      <h2>Fixture data should exercise this whole path before app code</h2>
+      <div class="pipeline-scroll">
+        <div class="pipeline">
+          <article class="step"><div class="label">Teacher request</div><h3>Context + target + minutes</h3><p>Framework, release, level, subject, target ID, duration.</p></article><div class="step-arrow">→</div>
+          <article class="step"><div class="label">Scoped retrieval</div><h3>Filter, then rank</h3><p>Approved, compatible revisions; retrieve chunks and applicable guidance/exemplars.</p></article><div class="step-arrow">→</div>
+          <article class="step"><div class="label">Freeze inputs</div><h3>Save exact references</h3><p>Resource revisions, chunk IDs/locators, guidance revisions, retrieval and prompt versions.</p></article><div class="step-arrow">→</div>
+          <article class="step"><div class="label">Draft</div><h3>LLM or deterministic mock</h3><p>LLM drafts from supplied context. Mock mode returns a stable fixture without keys or cost.</p></article><div class="step-arrow">→</div>
+          <article class="step check"><div class="label">Mechanical checks</div><h3>Server can decide</h3><p>Schema, target/scope, citation membership, duration math, structured constraints.</p></article><div class="step-arrow">→</div>
+          <article class="step save"><div class="label">Save Draft + audit</div><h3>Version the result</h3><p>Persist the generated plan and its exact source-use links before editing.</p></article><div class="step-arrow">→</div>
+          <article class="step"><div class="label">Teacher review</div><h3>Edit, then submit</h3><p>Teacher edits their draft and submits it for lead review.</p></article><div class="step-arrow">→</div>
+          <article class="step review"><div class="label">Lead review</div><h3>Check meaning and fit</h3><p>Does the source support the claim? Is it accurate, safe, feasible, and age-appropriate?</p></article><div class="step-arrow">→</div>
+          <article class="step"><div class="label">Decision</div><h3>Publish or return</h3><p>Lead publishes to the bank or returns with a comment for revision.</p></article>
+        </div>
+      </div>
+      <div class="workflow"><b>Plan state:</b><span class="state">Draft</span> → <span class="state">Submitted</span> → <span class="state returned">Returned → edit → Draft</span> or <span class="state published">Published → lesson bank</span></div>
+      <div class="legend"><span><i class="dot" style="background:#b8ddc8"></i>Deterministic validation</span><span><i class="dot" style="background:#cadbea"></i>Human semantic review</span><span>Embeddings are used at corpus ingestion; generative AI drafts the lesson plan.</span></div>
+    </section>
+
+    <section>
+      <div class="section-kicker">04 · lesson-plan content</div>
+      <h2>One selected target becomes one teachable session</h2>
+      <div class="lesson-model">
+        <div class="lesson-stack">
+          <article class="lesson-card context">
+            <h3>Context · fixed by the request</h3>
+            <p>KICD CBC → Grade 8 → Integrated Science → selected official outcome → 40 minutes. Keep the exact curriculum wording and source in the record.</p>
+          </article>
+          <article class="lesson-card">
+            <h3>Lesson content · AI drafts, Teacher edits</h3>
+            <ul>
+              <li>Teacher-facing objective derived from the outcome</li>
+              <li>Materials learners need</li>
+              <li>Timed steps: teacher actions and learner actions</li>
+              <li>A check for learning and expected evidence</li>
+            </ul>
+          </article>
+          <article class="lesson-card">
+            <h3>Sources · linked to the relevant parts</h3>
+            <p>Objective, activity and check each carry source chunk IDs. The server resolves IDs to approved source titles and locators.</p>
+          </article>
+          <article class="lesson-card workflow">
+            <h3>History · outside lesson content</h3>
+            <p>Owner, version, AI or teacher origin, status, generation run and lead decision. The Lead reviews the exact submitted version.</p>
+          </article>
+        </div>
+
+        <div class="lesson-example">
+          <header>
+            <h3>Example · particles in the three states</h3>
+            <p>Grade 8 Integrated Science · 40 minutes · example lesson objective, not an official curriculum quote</p>
+          </header>
+          <div class="lesson-body">
+            <div class="lesson-goal"><span class="lesson-label">By the end, learners can</span>Compare particle spacing and movement in solids, liquids and gases.</div>
+            <span class="lesson-label">Lesson sequence</span>
+            <table class="lesson-activities">
+              <thead><tr><th>Time / step</th><th>Teacher does</th><th>Learners do</th></tr></thead>
+              <tbody>
+                <tr><td>5 min · Starter</td><td>Show particle diagrams.</td><td>Compare them and predict what differs.</td></tr>
+                <tr><td>25 min · Main</td><td>Guide groups as they model particles.</td><td>Build and explain a model for each state.</td></tr>
+                <tr><td>10 min · Closing</td><td>Ask learners to justify one model.</td><td>Name evidence about spacing and movement.</td></tr>
+              </tbody>
+            </table>
+            <div class="lesson-check"><strong>Check for understanding</strong>“Which model represents a gas? What is your evidence?” Look for an explanation about particle spacing and movement.</div>
+            <div class="lesson-source"><b>Source links:</b> official outcome chunk supports the objective; reviewed teaching-note chunk supports the model activity. Optional 5E label, competency, value or PCI appears only when the lesson actually uses it.</div>
+          </div>
+        </div>
+      </div>
+      <div class="lesson-rule"><b>Authorship rule:</b> the model returns lesson content and chunk IDs. The server adds curriculum context and version metadata. The Teacher edits the same content shape; each save creates a new version. The Curriculum Lead's decision stays in workflow history.</div>
+    </section>
+
+    <div class="lower">
+      <section>
+        <div class="section-kicker">One success fixture</div>
+        <h2>Simulate a complete CBC request</h2>
+        <dl class="scenario">
+          <dt>Request</dt><dd>KICD CBC · Grade 8 · Integrated Science · target <code>target-fixture-001</code> · 40 minutes</dd>
+          <dt>Target</dt><dd>Specific learning outcome about particle characteristics in the three states of matter</dd>
+          <dt>Retrieved</dt><dd>Official outcome chunk, reviewed teaching note, assessment item, applicable lead rule, approved exemplar section</dd>
+          <dt>Checks</dt><dd>Target/scope match · all citations in frozen context · lesson totals 40 minutes · schema valid</dd>
+          <dt>Result</dt><dd>Save as Draft with exact source-use links; teacher reviews and edits before submission.</dd>
+        </dl>
+      </section>
+      <section>
+        <div class="section-kicker">Rejected / flagged fixtures</div>
+        <h2>Expected outcomes are explicit</h2>
+        <div class="failures">
+          <div class="failure"><code>CITATION_NOT_IN_CONTEXT</code> Draft cites a chunk absent from retrieval.</div>
+          <div class="failure"><code>GUIDANCE_CONSTRAINT_VIOLATION</code> Draft breaks an active mandatory lead rule.</div>
+          <div class="failure"><code>DURATION_MISMATCH</code> Activity timings exceed the requested minutes.</div>
+          <div class="failure"><code>INSUFFICIENT_CURRICULUM_GROUNDING</code> Only an exemplar supports the draft.</div>
+        </div>
+      </section>
+    </div>
+    <footer>ISBN identifies a publication product such as an edition or format; keep internal resource revision IDs and file hashes for exact imported content. Sources: <a href="https://kicd.ac.ke/wp-content/uploads/2024/06/Integrated-Science-Grade-8-Design-Formatted-April-2024.pdf">KICD Grade 8 design</a>, <a href="https://www.isbn-international.org/node/88">International ISBN Agency</a>. Full <a href="domain-model-and-grounding.md#proposed-erd">ERD</a>, <a href="domain-model-and-grounding.md#lesson-plan-schema-and-authorship">plan schema</a> and <a href="domain-model-and-grounding.md">grounding rules</a>.</footer>
+  </main>
+</body>
+</html>
