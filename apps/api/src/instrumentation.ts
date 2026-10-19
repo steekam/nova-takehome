@@ -22,7 +22,14 @@ const sdk = enabled
           exportIntervalMillis: 10_000,
         }),
       ],
-      instrumentations: [getNodeAutoInstrumentations()],
+      instrumentations: [
+        getNodeAutoInstrumentations({
+          '@opentelemetry/instrumentation-fs': { enabled: false },
+          '@opentelemetry/instrumentation-nestjs-core': { enabled: true },
+          '@opentelemetry/instrumentation-dns': { enabled: false },
+          '@opentelemetry/instrumentation-net': { enabled: false },
+        }),
+      ],
     })
   : undefined
 const logProvider = enabled

@@ -10,8 +10,8 @@ import { emitTelemetryLog } from '../telemetry-logger'
 @Injectable()
 export class RequestLoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger(RequestLoggingInterceptor.name)
-  private readonly requests = metrics.getMeter('nova-api').createCounter('http.server.requests')
-  private readonly duration = metrics.getMeter('nova-api').createHistogram('http.server.duration', { unit: 'ms' })
+  private readonly requests = metrics.getMeter('nova-api').createCounter('api.http.requests')
+  private readonly duration = metrics.getMeter('nova-api').createHistogram('api.http.request.duration', { unit: 'ms' })
 
   constructor(private readonly requestIds: RequestIdService) {}
 

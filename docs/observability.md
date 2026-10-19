@@ -1,5 +1,9 @@
 # Observability and demo plan
 
+## Local API telemetry
+
+The API exports traces, metrics, and structured request/error logs over OTLP HTTP. Start the local backends with `docker compose up -d`, then start the apps with `env DATABASE_URL=postgresql://postgres:postgres@localhost:5433/nova_hub OTEL_ENABLED=true pnpm dev`. The Collector receives OTLP on `localhost:4318`, exports traces to Tempo, metrics to Prometheus, and logs to Loki. Open Grafana at `http://localhost:3000`; Prometheus, Tempo, and Loki data sources are provisioned automatically. The API currently emits HTTP request counters, duration histograms, request logs, and exception logs. LLM traces and spend metrics remain part of the later LiteLLM integration.
+
 Keep the responsibilities distinct so the demo answers three different questions: what did the model call cost, why did it return this plan, and what happened across the request?
 
 | Tool | Responsibility in this app | Demo evidence |

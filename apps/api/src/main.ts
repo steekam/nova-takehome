@@ -1,6 +1,6 @@
 import 'varlock/auto-load'
-import 'reflect-metadata'
 import './instrumentation'
+import 'reflect-metadata'
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify'
 import { NestFactory } from '@nestjs/core'
 import { Logger } from '@nestjs/common'
