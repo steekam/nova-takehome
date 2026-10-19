@@ -1,8 +1,6 @@
-export interface ApiPrincipal {
-  subject: string
-  roles: string[]
-  permissions: string[]
-}
+import type { ApiPrincipal } from '@nova/shared'
+
+export type { ApiPrincipal } from '@nova/shared'
 
 declare module 'fastify' {
   interface FastifyRequest {

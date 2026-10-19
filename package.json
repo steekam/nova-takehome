@@ -11,7 +11,9 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm --filter @nova/shared build && pnpm -r typecheck",
     "db:generate": "pnpm --filter @nova/api db:generate",
-    "db:migrate": "pnpm --filter @nova/api db:migrate"
+    "db:migrate": "pnpm --filter @nova/api db:migrate",
+    "db:seed": "pnpm --filter @nova/api db:seed",
+    "openapi:generate": "pnpm --filter @nova/api openapi:export && pnpm --filter @nova/web openapi:types"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

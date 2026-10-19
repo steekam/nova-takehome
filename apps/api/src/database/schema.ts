@@ -9,9 +9,9 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
-import type { LessonPlanContent } from '@nova/shared'
+import { userRoles, type LessonPlanContent } from '@nova/shared'
 
-export const userRole = pgEnum('user_role', ['teacher', 'curriculum_lead'])
+export const userRole = pgEnum('user_role', userRoles)
 export const planStatus = pgEnum('plan_status', ['draft', 'submitted', 'returned', 'published'])
 export const curriculumDocumentType = pgEnum('curriculum_document_type', [
   'scheme_of_work',

@@ -26,7 +26,16 @@ export const LessonPlanContentSchema = z.object({
 }).strict()
 
 export const LessonPlanStatusSchema = z.enum(['draft', 'submitted', 'returned', 'published'])
+export const userRoles = ['teacher', 'curriculum_lead'] as const
+export const UserRoleSchema = z.enum(userRoles)
 
 export type LessonPlanContent = z.infer<typeof LessonPlanContentSchema>
 export type LessonPlanSource = z.infer<typeof LessonPlanSourceSchema>
 export type LessonPlanStatus = z.infer<typeof LessonPlanStatusSchema>
+export type UserRole = z.infer<typeof UserRoleSchema>
+
+export interface ApiPrincipal {
+  subject: string
+  roles: UserRole[]
+  permissions: string[]
+}
