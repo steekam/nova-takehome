@@ -6,13 +6,18 @@
     "node": ">=24 <25"
   },
   "scripts": {
-    "dev": "pnpm --filter @nova/shared build && pnpm --parallel --filter @nova/web --filter @nova/api dev",
+    "dev": "varlock run -- pnpm dev:apps",
+    "dev:apps": "pnpm --filter @nova/shared build && pnpm --parallel --filter @nova/web --filter @nova/api dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm --filter @nova/shared build && pnpm -r typecheck",
     "db:generate": "pnpm --filter @nova/api db:generate",
     "db:migrate": "pnpm --filter @nova/api db:migrate"
   },
   "devDependencies": {
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "varlock": "^1.21.0"
+  },
+  "varlock": {
+    "loadPath": "./"
   }
 }

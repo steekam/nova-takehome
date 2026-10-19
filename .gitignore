@@ -3,7 +3,7 @@ dist/
 coverage/
 .env
 .env.*
-!.env.example
+!.env.schema
 .DS_Store
 apps/api/drizzle/
 *.tsbuildinfo
