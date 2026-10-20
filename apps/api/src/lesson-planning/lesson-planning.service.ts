@@ -9,6 +9,10 @@ import { EmbeddingAdapter } from '../embeddings/embedding.service'
 import { EmbeddingError } from '../embeddings/embedding.adapter'
 import { CurriculumLibraryService } from '../curriculum-library/curriculum-library.service'
 import type { ZodIssue } from 'zod'
+import { SpanStatusCode } from '@opentelemetry/api'
+import { setLangfuseInput, setLangfuseOutput, startLangfuseSpan } from './generation-telemetry'
+import { LessonPlanRubric } from './lesson-plan-rubric'
+import { RequestIdService } from '../common/request-id.service'
 
 @Injectable()
 export class LessonPlanningService {
@@ -18,6 +22,8 @@ export class LessonPlanningService {
     private readonly library: CurriculumLibraryService,
     private readonly generator: LessonPlanGenerator,
     private readonly embeddings: EmbeddingAdapter,
+    private readonly rubric: LessonPlanRubric,
+    private readonly requestIds: RequestIdService,
   ) {}
 
   async list(principal: ApiPrincipal) {
@@ -57,26 +63,96 @@ export class LessonPlanningService {
     return this.repository.versions(id)
   }
 
+  async latestRubricQa(id: string) {
+    const [latest] = await this.repository.latestValidation(id)
+    return latest ? { ...latest, createdAt: latest.createdAt.toISOString() } : null
+  }
+
+  async validateVersion(id: string, versionId: string, principal: ApiPrincipal) {
+    const plan = await this.plan(id)
+    assertCanReadPlan(plan.teacherId, plan.status, principal)
+    const [version] = await this.repository.versionById(id, versionId)
+    if (!version) throw new NotFoundException('Lesson plan version not found')
+    const sourceDetails = version.targetRevisionId ? await this.library.sourceDetailsForTarget(version.targetRevisionId) : []
+    const cited = new Set(version.content.sources.map((source) => source.chunkId))
+    const evidence = sourceDetails.filter((source) => cited.has(source.chunkId)).map((source) => ({
+      chunkId: source.chunkId,
+      role: source.role,
+      authority: source.authority,
+      content: source.content,
+    }))
+    const validation = await this.rubric.validate(id, versionId, version.content, evidence)
+    return { validation }
+  }
+
   async generate(principal: ApiPrincipal, targetRevisionId: string, durationMinutes: number) {
-    const outcome = await this.library.outcomeForGeneration(targetRevisionId)
-    const queryEmbedding = await this.embedQuery(outcome.content)
-    const sources = await this.library.sourceChunksForGeneration(targetRevisionId, queryEmbedding, outcome.subject, outcome.grade)
-    const content = await this.generator.generate(outcome, sources, durationMinutes)
-    const plan = await this.database.db.transaction(async (tx) => {
-      const created = await this.repository.createPlan(principal.subject, tx)
-      const [version] = await this.repository.createVersion({
-        lessonPlanId: created.id,
-        targetRevisionId,
-        version: 1,
-        content,
-        createdBy: principal.subject,
-      }, tx)
-      const candidateChunkIds = new Set(sources.map((source) => source.chunkId))
-      await this.repository.addRetrievalCandidates(created.id, [...candidateChunkIds], tx)
-      await this.repository.addVersionSources(version.id, content.sources.map((source) => source.chunkId), tx)
-      return created
-    })
-    return this.dto(plan.id)
+    return startLangfuseSpan('curriculum.lesson_plan.workflow.generate', async (span) => {
+      span.setAttribute('lesson_plan.workflow', 'generate')
+      const requestId = this.requestIds.current()
+      if (requestId) span.setAttribute('http.request_id', requestId)
+      span.setAttribute('curriculum.target_revision_id', targetRevisionId)
+      span.setAttribute('lesson.duration_minutes', durationMinutes)
+      setLangfuseInput(span, { targetRevisionId, durationMinutes })
+      try {
+        const outcome = await runGenerationStage('curriculum.lesson_plan.target.resolve', { targetRevisionId }, () => this.library.outcomeForGeneration(targetRevisionId))
+        const queryEmbedding = await runGenerationStage('curriculum.lesson_plan.embedding.query', { targetRevisionId, query: outcome.content }, () => this.embedQuery(outcome.content), (embedding) => ({ dimensions: embedding.length }))
+        const sources = await runGenerationStage('curriculum.lesson_plan.retrieval', {
+          targetRevisionId, subject: outcome.subject, grade: outcome.grade, queryEmbeddingDimensions: queryEmbedding.length,
+        }, () => this.library.sourceChunksForGeneration(targetRevisionId, queryEmbedding, outcome.subject, outcome.grade))
+        span.setAttribute('curriculum.source_count', sources.length)
+        const content = await this.generator.generate(outcome, sources, durationMinutes)
+        const persisted = await runGenerationStage('curriculum.lesson_plan.persistence', {
+          targetRevisionId, candidateChunkIds: sources.map((source) => source.chunkId), citedChunkIds: content.sources.map((source) => source.chunkId),
+        }, () => this.database.db.transaction(async (tx) => {
+          const created = await this.repository.createPlan(principal.subject, tx)
+          const [version] = await this.repository.createVersion({
+            lessonPlanId: created.id,
+            targetRevisionId,
+            version: 1,
+            content,
+            createdBy: principal.subject,
+          }, tx)
+          const candidateChunkIds = new Set(sources.map((source) => source.chunkId))
+          await this.repository.addRetrievalCandidates(created.id, [...candidateChunkIds], tx)
+          await this.repository.addVersionSources(version.id, content.sources.map((source) => source.chunkId), tx)
+          return { planId: created.id, versionId: version.id, version: version.version }
+        }))
+        const result = await this.dto(persisted.planId)
+        const cited = new Set(content.sources.map((source) => source.chunkId))
+        const rubricQa = await this.rubric.validate(result.id, result.versionId, content, sources.filter((source) => cited.has(source.chunkId)).map((source) => ({
+          chunkId: source.chunkId, role: source.role, authority: source.authority, content: source.content,
+        })))
+        span.setAttribute('lesson_plan.id', result.id)
+        span.setAttribute('lesson_plan.version_id', result.versionId)
+        span.setAttribute('lesson_plan.version', result.version)
+        span.setAttribute('lesson_plan.status', result.status)
+        span.setAttribute('lesson_plan.workflow.outcome', 'success')
+        setLangfuseOutput(span, {
+          plan: {
+            id: result.id,
+            versionId: result.versionId,
+            version: result.version,
+            status: result.status,
+            targetRevisionId: result.targetRevisionId,
+            content: result.content,
+          },
+          deterministicQa: { passed: true },
+          rubricQa,
+        })
+        span.setStatus({ code: SpanStatusCode.OK })
+        return { ...result, rubricQa }
+      } catch (error) {
+        span.setAttribute('lesson_plan.workflow.outcome', 'failure')
+        if (error instanceof Error) {
+          span.setAttribute('error.type', error.name)
+          span.recordException(error)
+        }
+        span.setStatus({ code: SpanStatusCode.ERROR })
+        throw error
+      } finally {
+        span.end()
+      }
+    }, this.requestIds.current())
   }
 
   async edit(id: string, principal: ApiPrincipal, content: unknown) {
@@ -196,6 +272,27 @@ export class LessonPlanningService {
     return uniqueReferences && citationsWithinCandidateSet(content.sources, initial?.content.sources ?? [])
   }
 
+}
+
+async function runGenerationStage<T>(name: string, input: unknown, action: () => Promise<T>, projectOutput: (result: T) => unknown = (result) => result): Promise<T> {
+  return startLangfuseSpan(name, async (span) => {
+    setLangfuseInput(span, input)
+    try {
+      const result = await action()
+      setLangfuseOutput(span, projectOutput(result))
+      span.setStatus({ code: SpanStatusCode.OK })
+      return result
+    } catch (error) {
+      if (error instanceof Error) {
+        span.setAttribute('error.type', error.name)
+        span.recordException(error)
+      }
+      span.setStatus({ code: SpanStatusCode.ERROR })
+      throw error
+    } finally {
+      span.end()
+    }
+  })
 }
 
 export function assertTeacherOwns(owner: string, principal: ApiPrincipal) {

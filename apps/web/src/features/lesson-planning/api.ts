@@ -8,6 +8,7 @@ export type LessonPlanSummary = Schemas['LessonPlanListResponse']['items'][numbe
 export type LessonPlanDetails = Schemas['LessonPlanDetailsResponse']
 export type LessonPlanContent = Schemas['LessonPlanContent']
 export type QualityReport = LessonPlanDetails['qa']
+export type RubricQa = NonNullable<LessonPlanDetails['rubricQa']>
 
 export const lessonPlanningKeys = {
   all: ['lesson-plans'] as const,
@@ -26,6 +27,13 @@ export async function getLessonPlan(id: string) {
   if (error) throw error
   if (!data) throw new Error('The API returned no lesson plan details.')
   return data
+}
+
+export async function validateLessonPlan(id: string, versionId: string) {
+  const { data, error } = await apiClient.POST('/api/lesson-plans/{id}/validate', { params: { path: { id } }, body: { versionId } })
+  if (error) throw error
+  if (!data) throw new Error('The API returned no rubric review.')
+  return data.validation
 }
 
 export async function generateLessonPlan(input: { targetRevisionId: string; durationMinutes: number }) {

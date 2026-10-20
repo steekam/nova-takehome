@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common'
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
-import { EditLessonPlanRequestSchema, GenerateLessonPlanRequestSchema, LessonPlanContentSchema, ReviewLessonPlanRequestSchema, type ApiPrincipal } from '@nova/shared'
+import { EditLessonPlanRequestSchema, GenerateLessonPlanRequestSchema, LessonPlanContentSchema, ReviewLessonPlanRequestSchema, ValidateLessonPlanRequestSchema, type ApiPrincipal } from '@nova/shared'
 import { CurrentUser } from '../common/auth/current-user.decorator'
 import { Roles } from '../common/auth/roles.decorator'
 import { StandardSchemaPipe } from '../common/validation/standard-schema.pipe'
@@ -22,8 +22,9 @@ export class LessonPlanningController {
   @ApiResponse({ status: 400, schema: { $ref: '#/components/schemas/ValidationErrorResponse' } })
   @Roles('teacher')
   async generate(@CurrentUser() principal: ApiPrincipal, @Body(new StandardSchemaPipe(GenerateLessonPlanRequestSchema)) input: { targetRevisionId: string; durationMinutes: number }) {
-    const plan = await this.curriculum.generate(principal, input.targetRevisionId, input.durationMinutes)
-    return { plan, qa: buildLessonPlanQa(plan.content, await this.curriculum.citationsExist(plan.content, plan.targetRevisionId), await this.curriculum.citationsAllowed(plan.id, plan.content)) }
+    const result = await this.curriculum.generate(principal, input.targetRevisionId, input.durationMinutes)
+    const { rubricQa, ...plan } = result
+    return { plan, rubricQa, qa: buildLessonPlanQa(plan.content, await this.curriculum.citationsExist(plan.content, plan.targetRevisionId), await this.curriculum.citationsAllowed(plan.id, plan.content)) }
   }
 
   @Get('lesson-plans/:id')
@@ -31,7 +32,15 @@ export class LessonPlanningController {
   async get(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal) {
     const plan = await this.curriculum.get(id, principal)
     const [reviews, versions] = await Promise.all([this.curriculum.reviews(id), this.curriculum.versions(id)])
-    return { plan, reviews, versions, qa: buildLessonPlanQa(plan.content, await this.curriculum.citationsExist(plan.content, plan.targetRevisionId), await this.curriculum.citationsAllowed(plan.id, plan.content)) }
+    return { plan, reviews, versions, rubricQa: await this.curriculum.latestRubricQa(id), qa: buildLessonPlanQa(plan.content, await this.curriculum.citationsExist(plan.content, plan.targetRevisionId), await this.curriculum.citationsAllowed(plan.id, plan.content)) }
+  }
+
+  @Post('lesson-plans/:id/validate')
+  @ApiOperation({ summary: 'Run advisory rubric QA against an immutable lesson plan version' })
+  @ApiBody({ schema: { $ref: '#/components/schemas/ValidateLessonPlanRequest' } })
+  @ApiResponse({ status: 201, schema: { $ref: '#/components/schemas/LessonPlanRubricQaResponse' } })
+  async validate(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal, @Body(new StandardSchemaPipe(ValidateLessonPlanRequestSchema)) input: { versionId: string }) {
+    return this.curriculum.validateVersion(id, input.versionId, principal)
   }
 
   @Patch('lesson-plans/:id')

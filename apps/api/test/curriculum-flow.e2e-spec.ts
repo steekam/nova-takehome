@@ -6,7 +6,7 @@ import { eq, inArray } from 'drizzle-orm'
 import supertest = require('supertest')
 import { configureHttp } from '../src/configure-http'
 import { DatabaseService } from '../src/database/database.service'
-import { curriculumSourceLinks, lessonPlanRetrievalCandidates, lessonPlanVersionSources, lessonPlanVersions, lessonPlans, planReviews, users } from '../src/database/schema'
+import { curriculumSourceLinks, lessonPlanRetrievalCandidates, lessonPlanValidations, lessonPlanVersionSources, lessonPlanVersions, lessonPlans, planReviews, users } from '../src/database/schema'
 import { hashPassword } from '../src/auth/password'
 import { CurriculumLibraryRepository } from '../src/curriculum-library/curriculum-library.repository'
 import { EmbeddingAdapter } from '../src/embeddings/embedding.service'
@@ -50,6 +50,7 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
         if (createdPlanIds.length) {
           const versions = await tx.select({ id: lessonPlanVersions.id }).from(lessonPlanVersions).where(inArray(lessonPlanVersions.lessonPlanId, createdPlanIds))
           await tx.delete(planReviews).where(inArray(planReviews.lessonPlanId, createdPlanIds))
+          await tx.delete(lessonPlanValidations).where(inArray(lessonPlanValidations.lessonPlanId, createdPlanIds))
           if (versions.length) await tx.delete(lessonPlanVersionSources).where(inArray(lessonPlanVersionSources.lessonPlanVersionId, versions.map((version) => version.id)))
           await tx.delete(lessonPlanRetrievalCandidates).where(inArray(lessonPlanRetrievalCandidates.lessonPlanId, createdPlanIds))
           await tx.delete(lessonPlanVersions).where(inArray(lessonPlanVersions.lessonPlanId, createdPlanIds))
@@ -116,7 +117,7 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     }).onConflictDoNothing().returning({ id: curriculumSourceLinks.id })
     createdSourceLinkIds.push(...createdLinks.map((link) => link.id))
 
-    const generated = await request<{ plan: Plan; qa: { passed: boolean } }>(teacherCookie, 'POST', '/api/lesson-plans/generate', {
+    const generated = await request<{ plan: Plan; qa: { passed: boolean }; rubricQa: { status: string; lessonPlanVersionId: string; dimensions: Array<{ key: string; score: number }> } }>(teacherCookie, 'POST', '/api/lesson-plans/generate', {
       targetRevisionId: target!.id,
       durationMinutes: 40,
     })
@@ -124,12 +125,15 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     createdPlanIds.push(generated.body.plan.id)
     expect(generated.body.qa.passed).toBe(true)
     expect(generated.body.plan.status).toBe('draft')
+    expect(generated.body.rubricQa).toMatchObject({ status: 'completed', lessonPlanVersionId: generated.body.plan.versionId })
+    expect(generated.body.rubricQa.dimensions.map((dimension) => dimension.key)).toHaveLength(6)
     const retrievalCandidates = await database.db.select({ resourceChunkId: lessonPlanRetrievalCandidates.resourceChunkId })
       .from(lessonPlanRetrievalCandidates).where(eq(lessonPlanRetrievalCandidates.lessonPlanId, generated.body.plan.id))
     expect(new Set(retrievalCandidates.map((candidate) => candidate.resourceChunkId)).size).toBe(retrievalCandidates.length)
 
     const original = generated.body.plan
     expect((await request(otherTeacherCookie, 'GET', `/api/lesson-plans/${original.id}`)).statusCode).toBe(403)
+    expect((await request(otherTeacherCookie, 'POST', `/api/lesson-plans/${original.id}/validate`, { versionId: original.versionId })).statusCode).toBe(403)
     const leadCannotEdit = await request(leadCookie, 'PATCH', `/api/lesson-plans/${original.id}`, { content: original.content })
     expect(leadCannotEdit.statusCode).toBe(403)
     const targetSource = target!.sources.find((source) => source.role === 'defines_target' && source.authority === 'official')
@@ -148,6 +152,12 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     const secondEdit = await request<{ plan: Plan }>(teacherCookie, 'PATCH', `/api/lesson-plans/${original.id}`, { content: expandedCitations })
     expect(secondEdit.statusCode).toBe(200)
     expect(secondEdit.body.plan.version).toBe(3)
+
+    const validated = await request<{ validation: { lessonPlanVersionId: string; status: string; dimensions: Array<{ key: string }> } }>(teacherCookie, 'POST', `/api/lesson-plans/${original.id}/validate`, { versionId: secondEdit.body.plan.versionId })
+    expect(validated.statusCode).toBe(201)
+    expect(validated.body.validation).toMatchObject({ lessonPlanVersionId: secondEdit.body.plan.versionId, status: 'completed' })
+    expect(validated.body.validation.dimensions).toHaveLength(6)
+    expect((await request<{ rubricQa: { lessonPlanVersionId: string } }>(teacherCookie, 'GET', `/api/lesson-plans/${original.id}`)).body.rubricQa.lessonPlanVersionId).toBe(secondEdit.body.plan.versionId)
 
     const forgedCitation = {
       ...expandedCitations,
@@ -231,6 +241,7 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
 
 type Plan = {
   id: string
+  versionId: string
   status: string
   version: number
   content: { title: string; sources: Array<{ documentId: string; chunkId: string }> }

@@ -53,6 +53,24 @@ export const LessonPlanQaSchema = z.object({
   checks: z.array(LessonPlanQaCheckSchema),
 }).strict()
 
+export const LessonPlanRubricDimensionSchema = z.object({
+  key: z.enum(['outcome_alignment', 'objective_measurability', 'activity_alignment', 'assessment_quality', 'pacing_feasibility', 'source_support']),
+  score: z.number().int().min(1).max(4),
+  rationale: z.string().min(1),
+  evidence: z.array(z.object({ planPath: z.string().min(1), sourceChunkIds: z.array(z.string().uuid()) }).strict()),
+  suggestions: z.array(z.string()),
+}).strict()
+
+export const LessonPlanRubricQaSchema = z.object({
+  id: z.string().uuid(), lessonPlanId: z.string().uuid(), lessonPlanVersionId: z.string().uuid(),
+  status: z.enum(['completed', 'unavailable', 'invalid_output']), rubricVersion: z.string(), promptVersion: z.string(),
+  reviewerModel: z.string(), summary: z.string(), dimensions: z.array(LessonPlanRubricDimensionSchema),
+  traceId: z.string().optional(), createdAt: z.string().datetime(),
+}).strict()
+
+export const ValidateLessonPlanRequestSchema = z.object({ versionId: z.string().uuid() }).strict()
+export const LessonPlanRubricQaResponseSchema = z.object({ validation: LessonPlanRubricQaSchema }).strict()
+
 export const LessonPlanVersionDtoSchema = z.object({
   version: z.number().int().positive(),
   content: LessonPlanContentSchema,
@@ -68,6 +86,7 @@ export type GenerateLessonPlanRequest = z.infer<typeof GenerateLessonPlanRequest
 export type EditLessonPlanRequest = z.infer<typeof EditLessonPlanRequestSchema>
 export type ReviewLessonPlanRequest = z.infer<typeof ReviewLessonPlanRequestSchema>
 export type LessonPlanQa = z.infer<typeof LessonPlanQaSchema>
+export type LessonPlanRubricQa = z.infer<typeof LessonPlanRubricQaSchema>
 
 export function hasValidReturnComment(comment: string): boolean {
   return comment.replace(/\s/g, '').length >= 8
@@ -94,6 +113,7 @@ export const LessonPlanListResponseSchema = z.object({
 export const LessonPlanResponseSchema = z.object({
   plan: LessonPlanDtoSchema,
   qa: LessonPlanQaSchema,
+  rubricQa: LessonPlanRubricQaSchema.optional(),
 }).strict()
 
 export const LessonPlanDetailsResponseSchema = z.object({
@@ -101,6 +121,7 @@ export const LessonPlanDetailsResponseSchema = z.object({
   reviews: z.array(LessonPlanReviewDtoSchema),
   versions: z.array(LessonPlanVersionDtoSchema),
   qa: LessonPlanQaSchema,
+  rubricQa: LessonPlanRubricQaSchema.nullable(),
 }).strict()
 
 export const LessonPlanReviewResponseSchema = z.object({

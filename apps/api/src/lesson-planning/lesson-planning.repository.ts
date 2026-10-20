@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common'
-import { desc, eq, inArray, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, or } from 'drizzle-orm'
 import type { LessonPlanContent } from '@nova/shared'
 import { DatabaseService } from '../database/database.service'
 import { DrizzleCrudRepository } from '../database/crud/drizzle-crud.repository'
 import type { DbExecutor } from '../database/executor'
-import { lessonPlanRetrievalCandidates, lessonPlanVersionSources, lessonPlanVersions, lessonPlans, libraryResourceChunks, libraryResourceRevisions, libraryResources, planReviews } from '../database/schema'
+import { lessonPlanRetrievalCandidates, lessonPlanValidations, lessonPlanVersionSources, lessonPlanVersions, lessonPlans, libraryResourceChunks, libraryResourceRevisions, libraryResources, planReviews } from '../database/schema'
 
 @Injectable()
 export class LessonPlanningRepository {
@@ -50,6 +50,18 @@ export class LessonPlanningRepository {
 
   createReview(input: typeof planReviews.$inferInsert, executor: DbExecutor = this.database.db) {
     return executor.insert(planReviews).values(input).returning()
+  }
+
+  createValidation(input: typeof lessonPlanValidations.$inferInsert, executor: DbExecutor = this.database.db) {
+    return executor.insert(lessonPlanValidations).values(input).returning()
+  }
+
+  latestValidation(planId: string) {
+    return this.database.db.select().from(lessonPlanValidations).where(eq(lessonPlanValidations.lessonPlanId, planId)).orderBy(desc(lessonPlanValidations.createdAt)).limit(1)
+  }
+
+  versionById(planId: string, versionId: string) {
+    return this.database.db.select().from(lessonPlanVersions).where(and(eq(lessonPlanVersions.lessonPlanId, planId), eq(lessonPlanVersions.id, versionId))).limit(1)
   }
 
   versions(planId: string) {

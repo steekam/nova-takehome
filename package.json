@@ -16,6 +16,8 @@
     "db:migrate": "pnpm --filter @nova/api db:migrate",
     "db:seed": "pnpm --filter @nova/api db:seed",
     "local:prepare": "node ops/langfuse/prepare-local-env.mjs",
+    "langfuse:prompts:sync": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && pnpm --filter @nova/api build && varlock run -- node ops/langfuse/sync-prompts.mjs",
+    "langfuse:prompts:publish": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && pnpm --filter @nova/api build && varlock run -- node ops/langfuse/sync-prompts.mjs --update",
     "demo:up": "node scripts/demo.mjs up",
     "demo:check": "node scripts/demo.mjs check",
     "litellm:key": "varlock run -- node ops/litellm/provision-playground-key.mjs",

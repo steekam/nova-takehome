@@ -1,15 +1,20 @@
 import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common'
-import { SpanStatusCode, trace } from '@opentelemetry/api'
+import { SpanStatusCode } from '@opentelemetry/api'
 import { LessonPlanContentSchema, type CurriculumOutcomeDto, type CurriculumSourceDto, type LessonPlanContent } from '@nova/shared'
 import { LESSON_PLAN_PROVIDER, LessonPlanProviderFailure, type LessonPlanProvider } from './llm-provider'
-import { recordGeneration, recordGenerationValidation } from './generation-telemetry'
+import { recordGeneration, recordGenerationValidation, setLangfuseInput, setLangfuseOutput, startLangfuseSpan } from './generation-telemetry'
+import { LangfusePrompts } from './langfuse-prompts'
+import { lessonPlanGenerationPrompt } from './prompt-definitions'
 
 @Injectable()
 export class LessonPlanGenerator {
-  constructor(@Inject(LESSON_PLAN_PROVIDER) private readonly provider: LessonPlanProvider) {}
+  constructor(
+    @Inject(LESSON_PLAN_PROVIDER) private readonly provider: LessonPlanProvider,
+    private readonly prompts: LangfusePrompts,
+  ) {}
 
   async generate(outcome: CurriculumOutcomeDto, sources: CurriculumSourceDto[], durationMinutes: number): Promise<LessonPlanContent> {
-    return trace.getTracer('nova-api-curriculum').startActiveSpan('curriculum.lesson_plan.generate', async (span) => {
+    return startLangfuseSpan('curriculum.lesson_plan.generate', async (span) => {
       const startedAt = Date.now()
       span.setAttribute('curriculum.target_id', outcome.id)
       span.setAttribute('curriculum.source_count', sources.length)
@@ -24,9 +29,17 @@ export class LessonPlanGenerator {
       let providerAttempts = 0
       let repairAttempts = 0
       let outcomeLabel: 'success' | 'invalid_output' | 'provider_error' = 'provider_error'
+      const validationAttempts: Array<{ attempt: number; passed: boolean; checks: Array<{ code: string; passed: boolean }> }> = []
       try {
-        const system = 'Return exactly one JSON object with no markdown and no extra keys. Shape: {"title":"string","subject":"string","grade":"string","learningOutcome":"string","durationMinutes":integer,"objectives":["string"],"materials":["string"],"starter":"string","activities":[{"title":"string","description":"string","durationMinutes":integer}],"checkForUnderstanding":"string","sources":[{"documentId":"UUID","chunkId":"UUID"}]}. Use positive integer activity durations that sum exactly to durationMinutes. Copy subject, grade, learningOutcome, and durationMinutes exactly from the selected outcome and request. Use the supplied curriculum material. Cite the chunk from the source marked defines_target. Each source documentId and chunkId pair must exactly match a supplied source; never invent IDs.'
+        const managedPrompt = await this.prompts.get(lessonPlanGenerationPrompt.name, lessonPlanGenerationPrompt.prompt)
+        const system = managedPrompt.text
+        if (managedPrompt.reference) {
+          span.setAttribute('langfuse.observation.prompt.name', managedPrompt.reference.name)
+          span.setAttribute('langfuse.observation.prompt.version', managedPrompt.reference.version)
+          span.setAttribute('langfuse.prompt.is_fallback', managedPrompt.reference.isFallback)
+        }
         const request = JSON.stringify({ outcome, sources, durationMinutes })
+        setLangfuseInput(span, { curriculumTarget: outcome, retrievedSources: sources, requestedDurationMinutes: durationMinutes })
         let repair: string | undefined
         for (let attempt = 0; attempt < 2; attempt += 1) {
           outcomeLabel = 'provider_error'
@@ -35,7 +48,8 @@ export class LessonPlanGenerator {
           const completion = await this.provider.complete({
             system,
             user: `${request}${repair ? `\n\nRegenerate the plan. The prior response failed these checks: ${repair}. Return a corrected JSON object.` : ''}`,
-          })
+            prompt: managedPrompt.reference,
+          }, managedPrompt.model)
           provider = completion.provider
           model = completion.model
           responseModel = completion.responseModel
@@ -49,6 +63,7 @@ export class LessonPlanGenerator {
           span.setAttribute('generation.provider_attempts', providerAttempts)
           const parsedJson = parseJson(completion.content)
           const checks = generatedPlanChecks(parsedJson, outcome, sources, durationMinutes)
+          validationAttempts.push({ attempt: attempt + 1, passed: checks.every((check) => check.passed), checks: checks.map(({ code, passed }) => ({ code, passed })) })
           for (const check of checks) recordGenerationValidation({ provider, checkCode: check.code, passed: check.passed })
           const issues = checks.filter((check) => !check.passed).map((check) => check.message)
           if (issues.length === 0) {
@@ -56,8 +71,10 @@ export class LessonPlanGenerator {
             span.setAttribute('generation.validation', 'passed')
             span.setAttribute('generation.validation.kind', 'deterministic_schema_target_timing_and_citation_provenance')
             setUsageAttributes(span, inputTokens, outputTokens, reportedCostUsd)
+            const plan = LessonPlanContentSchema.parse(parsedJson)
+            setLangfuseOutput(span, { lessonPlan: plan, deterministicQa: { passed: true, attempts: validationAttempts } })
             span.setStatus({ code: SpanStatusCode.OK })
-            return LessonPlanContentSchema.parse(parsedJson)
+            return plan
           }
           outcomeLabel = 'invalid_output'
           repair = issues.join('; ').slice(0, 700)
@@ -67,6 +84,7 @@ export class LessonPlanGenerator {
           setUsageAttributes(span, inputTokens, outputTokens, reportedCostUsd)
         }
         outcomeLabel = 'invalid_output'
+        setLangfuseOutput(span, { lessonPlan: null, deterministicQa: { passed: false, attempts: validationAttempts } })
         throw new ServiceUnavailableException({ code: 'LLM_INVALID_RESPONSE', message: `The model could not produce a valid lesson plan after one correction. Check: ${repair}. No draft was saved; try again or check the provider configuration.` })
       } catch (error) {
         if (error instanceof LessonPlanProviderFailure) {

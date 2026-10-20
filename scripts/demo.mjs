@@ -59,9 +59,11 @@ function printSummary() {
   process.stdout.write('------------------\n')
   for (const { name, url } of urls) process.stdout.write(`${name.padEnd(20)} ${url}\n`)
   process.stdout.write(`LLM config default   ${provider} (${modeSource}; app header shows current runtime mode)\n`)
+  process.stdout.write(`Langfuse prompts     ${configured('LANGFUSE_USE_MANAGED_PROMPTS') === 'false' ? 'code fallback' : `${configured('LANGFUSE_PROMPT_LABEL') || 'production'} label`}\n`)
   if (requestedLive && missing.length > 0) process.stdout.write(`Live mode unavailable ${missing.join(', ')} missing in .env.local; add values and restart to enable it.\n`)
   process.stdout.write('\nSign in with the Teacher or Curriculum lead demo button. Manual login password: NovaLocal123!\n')
   process.stdout.write('Langfuse login: admin@example.test; generated password is in .env.local.\n')
+  process.stdout.write('Edit workflow prompts in Langfuse > Prompts; publish changes to the selected label.\n')
   process.stdout.write('To stop the stack: pnpm exec varlock run -- docker compose --profile litellm down\n')
 }
 
@@ -120,6 +122,9 @@ async function main() {
 
   process.stdout.write('Checking demo services...\n')
   await checkServices(command === 'up')
+  if (command === 'up' && readLocalConfig().get('LANGFUSE_USE_MANAGED_PROMPTS') !== 'false') {
+    run('pnpm', ['langfuse:prompts:sync'])
+  }
   printSummary()
 }
 

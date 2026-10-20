@@ -234,6 +234,23 @@ export interface paths {
         patch: operations["LessonPlanningController_edit"];
         trace?: never;
     };
+    "/api/lesson-plans/{id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run advisory rubric QA against an immutable lesson plan version */
+        post: operations["LessonPlanningController_validate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/lesson-plans/{id}/submit": {
         parameters: {
             query?: never;
@@ -648,6 +665,34 @@ export interface components {
                     message: string;
                 }[];
             };
+            rubricQa: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                lessonPlanId: string;
+                /** Format: uuid */
+                lessonPlanVersionId: string;
+                /** @enum {string} */
+                status: "completed" | "unavailable" | "invalid_output";
+                rubricVersion: string;
+                promptVersion: string;
+                reviewerModel: string;
+                summary: string;
+                dimensions: {
+                    /** @enum {string} */
+                    key: "outcome_alignment" | "objective_measurability" | "activity_alignment" | "assessment_quality" | "pacing_feasibility" | "source_support";
+                    score: number;
+                    rationale: string;
+                    evidence: {
+                        planPath: string;
+                        sourceChunkIds: string[];
+                    }[];
+                    suggestions: string[];
+                }[];
+                traceId?: string;
+                /** Format: date-time */
+                createdAt: string;
+            } | null;
         };
         LessonPlanListResponse: {
             items: {
@@ -738,6 +783,34 @@ export interface components {
                     message: string;
                 }[];
             };
+            rubricQa?: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                lessonPlanId: string;
+                /** Format: uuid */
+                lessonPlanVersionId: string;
+                /** @enum {string} */
+                status: "completed" | "unavailable" | "invalid_output";
+                rubricVersion: string;
+                promptVersion: string;
+                reviewerModel: string;
+                summary: string;
+                dimensions: {
+                    /** @enum {string} */
+                    key: "outcome_alignment" | "objective_measurability" | "activity_alignment" | "assessment_quality" | "pacing_feasibility" | "source_support";
+                    score: number;
+                    rationale: string;
+                    evidence: {
+                        planPath: string;
+                        sourceChunkIds: string[];
+                    }[];
+                    suggestions: string[];
+                }[];
+                traceId?: string;
+                /** Format: date-time */
+                createdAt: string;
+            };
         };
         LessonPlanReviewResponse: {
             plan: {
@@ -824,6 +897,40 @@ export interface components {
             createdBy: string;
             /** Format: date-time */
             createdAt: string;
+        };
+        ValidateLessonPlanRequest: {
+            /** Format: uuid */
+            versionId: string;
+        };
+        LessonPlanRubricQaResponse: {
+            validation: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                lessonPlanId: string;
+                /** Format: uuid */
+                lessonPlanVersionId: string;
+                /** @enum {string} */
+                status: "completed" | "unavailable" | "invalid_output";
+                rubricVersion: string;
+                promptVersion: string;
+                reviewerModel: string;
+                summary: string;
+                dimensions: {
+                    /** @enum {string} */
+                    key: "outcome_alignment" | "objective_measurability" | "activity_alignment" | "assessment_quality" | "pacing_feasibility" | "source_support";
+                    score: number;
+                    rationale: string;
+                    evidence: {
+                        planPath: string;
+                        sourceChunkIds: string[];
+                    }[];
+                    suggestions: string[];
+                }[];
+                traceId?: string;
+                /** Format: date-time */
+                createdAt: string;
+            };
         };
         ReviewLessonPlanRequest: {
             /** @enum {string} */
@@ -1206,6 +1313,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ValidationErrorResponse"];
+                };
+            };
+        };
+    };
+    LessonPlanningController_validate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ValidateLessonPlanRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonPlanRubricQaResponse"];
                 };
             };
         };

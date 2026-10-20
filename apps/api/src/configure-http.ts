@@ -39,7 +39,7 @@ export async function configureHttp(app: NestFastifyApplication): Promise<void> 
     const requestId = requestIds.getOrCreate(request.headers['x-request-id'])
     request.headers['x-request-id'] = requestId
     reply.header('x-request-id', requestId)
-    done()
+    requestIds.run(requestId, done)
   })
 
   app.useGlobalFilters(app.get(ApiExceptionFilter))

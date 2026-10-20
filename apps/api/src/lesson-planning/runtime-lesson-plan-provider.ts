@@ -34,8 +34,8 @@ export class RuntimeLessonPlanProvider implements LessonPlanProvider {
     return this.status()
   }
 
-  complete(request: LessonPlanCompletionRequest): Promise<LessonPlanCompletionResult> {
-    return (this.mode === 'live' ? this.live : this.mock).complete(request)
+  complete(request: LessonPlanCompletionRequest, modelOverride?: string): Promise<LessonPlanCompletionResult> {
+    return this.mode === 'live' ? this.live.complete(request, modelOverride) : this.mock.complete(request, modelOverride)
   }
 
   private missingLiveSettings(): string[] {

@@ -34,10 +34,6 @@ for (const [key, generated] of secrets) {
   if (!values.get(key)?.trim()) values.set(key, generated)
 }
 
-values.set('LANGFUSE_OTEL_AUTH', Buffer.from(
-  `${values.get('LANGFUSE_PUBLIC_KEY')}:${values.get('LANGFUSE_SECRET_KEY')}`,
-).toString('base64'))
-
 const updated = new Set()
 const output = lines.map((line) => {
   const separator = line.indexOf('=')

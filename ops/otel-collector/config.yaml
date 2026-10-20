@@ -24,7 +24,6 @@ processors:
         action: delete
       - key: host.name
         action: delete
-
 exporters:
   otlp/tempo:
     endpoint: tempo:4317
@@ -38,12 +37,6 @@ exporters:
       enabled: true
   otlphttp/loki:
     endpoint: http://loki:3100/otlp
-  otlphttp/langfuse:
-    endpoint: http://langfuse-web:3000/api/public/otel
-    headers:
-      Authorization: "Basic ${env:LANGFUSE_OTEL_AUTH}"
-      x-langfuse-ingestion-version: "4"
-
 extensions:
   zpages:
     endpoint: 0.0.0.0:55679
@@ -54,7 +47,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [resource/clean, batch]
-      exporters: [otlp/tempo, otlphttp/langfuse]
+      exporters: [otlp/tempo]
     metrics:
       receivers: [otlp]
       processors: [resource/clean, batch]

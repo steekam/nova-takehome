@@ -9,6 +9,8 @@ import { OpenAiCompatibleLessonPlanProvider, LESSON_PLAN_PROVIDER } from './llm-
 import { MockLessonPlanProvider } from './mock-lesson-plan-provider'
 import { RuntimeLessonPlanProvider } from './runtime-lesson-plan-provider'
 import { RuntimeLlmController } from './runtime-llm.controller'
+import { LessonPlanRubric } from './lesson-plan-rubric'
+import { LangfusePrompts } from './langfuse-prompts'
 
 @Module({
   imports: [CurriculumLibraryModule, EmbeddingModule],
@@ -17,6 +19,8 @@ import { RuntimeLlmController } from './runtime-llm.controller'
     LessonPlanningService,
     LessonPlanningRepository,
     LessonPlanGenerator,
+    LessonPlanRubric,
+    LangfusePrompts,
     OpenAiCompatibleLessonPlanProvider,
     MockLessonPlanProvider,
     RuntimeLessonPlanProvider,

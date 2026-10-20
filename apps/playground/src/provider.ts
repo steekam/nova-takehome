@@ -63,7 +63,7 @@ async function generateCompatible(
         : { type: 'json-object' },
       timeoutMs: 90_000,
       temperature: 0.2,
-      maxOutputTokens: 2200,
+      maxOutputTokens: configuredMaxOutputTokens(process.env.LLM_MAX_OUTPUT_TOKENS),
       disableThinking: true,
       ...(connectionId === 'proxy' ? { reportedCostHeader: 'x-litellm-response-cost' } : {}),
     })
@@ -83,6 +83,14 @@ async function generateCompatible(
     if (error instanceof ModelRuntimeError) throw new ProviderError(error.code, error.message, error.retryable)
     throw error
   }
+}
+
+function configuredMaxOutputTokens(value: string | undefined): number {
+  const parsed = value === undefined ? 8192 : Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 16384) {
+    throw new Error('LLM_MAX_OUTPUT_TOKENS must be an integer from 1 to 16384.')
+  }
+  return parsed
 }
 
 async function generateOpenCode(candidate: Candidate, prompt: string): Promise<ProviderResponse> {

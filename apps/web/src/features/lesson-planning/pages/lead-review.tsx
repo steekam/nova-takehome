@@ -6,6 +6,7 @@ import { hasValidReturnComment } from '@nova/shared'
 import { Button } from '../../../components/ui/button'
 import { Card, CardContent } from '../../../components/ui/card'
 import { PlanReviewHistory, PlanVersionHistory } from '../../../components/plan-history'
+import { RubricQaPanel } from '../../../components/rubric-qa-panel'
 import { ApiError } from '../../../lib/api-client'
 import { getLessonPlan, lessonPlanningKeys, reviewLessonPlan, type LessonPlan, type LessonPlanDetails } from '../api'
 import { curriculumLibraryKeys, listCurriculumSources, type CurriculumSource } from '../../curriculum-library/api'
@@ -112,6 +113,8 @@ export function LeadReviewPage({ planId }: { planId: string }) {
             <div className="flex flex-wrap items-center justify-between gap-2"><h3 id="quality-checks-heading" className="font-semibold">Quality checks</h3>{qa && <span className={`text-xs font-semibold ${qa.passed ? 'text-emerald-700' : 'text-destructive'}`}>{qa.passed ? 'Passed' : 'Review needed'}</span>}</div>
             {qa ? <ul className="mt-3 space-y-2">{qa.checks.map(check => <li key={check.code} className="flex gap-2 text-sm"><span className={check.passed ? 'text-emerald-700' : 'text-destructive'}>{check.passed ? <CheckCircle2 className="size-4" aria-label="Passed" /> : <XCircle className="size-4" aria-label="Failed" />}</span><span>{check.message}</span></li>)}</ul> : <p className="mt-2 text-sm text-muted-foreground">No quality check report is attached.</p>}
           </section>
+
+          <RubricQaPanel planId={plan.id} versionId={plan.versionId} validation={detail.data.rubricQa} />
 
           <PlanVersionHistory versions={versions} currentVersion={plan.version} />
           <PlanReviewHistory reviews={reviews} />

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ApiPrincipal } from '@nova/shared'
 import { LessonPlanContentSchema } from '@nova/shared'
 import { AppShell } from '../../../components/app-shell'
+import { RubricQaPanel } from '../../../components/rubric-qa-panel'
 import { Button } from '../../../components/ui/button'
 import { buttonVariants } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
@@ -122,6 +123,7 @@ function PlanEditor({ initial, sources, sourcesLoading, sourcesError }: { initia
       </fieldset>
       <aside className="space-y-6 xl:sticky xl:top-6">
         <PlanContext detail={sourceContent} sources={sources} sourcesLoading={sourcesLoading} sourcesError={sourcesError} />
+        {!qaStale && <RubricQaPanel planId={plan.id} versionId={plan.versionId} validation={initial.rubricQa} />}
         {qaStale ? <p role="status" className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Quality checks need to be rerun after your edits. Save the draft to check the current plan.</p> : qa && <QualityReport qa={qa} />}
         <div className="rounded-xl border bg-card p-4"><h2 className="font-semibold">Ready to send?</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">Save your draft as you work. Submit when the plan is ready for curriculum review.</p><div className="mt-4 flex flex-wrap gap-2"><Button variant="outline" disabled={save.isPending || submit.isPending} onClick={() => { const valid = validate(); if (valid) save.mutate(valid) }}>{save.isPending ? 'Saving…' : 'Save draft'}</Button><Button disabled={submit.isPending || save.isPending} onClick={() => { const valid = validate(); if (valid) submit.mutate(valid) }}>{submit.isPending ? 'Submitting…' : 'Submit for review'}</Button></div></div>
       </aside>
@@ -143,7 +145,7 @@ function PlanContent({ detail, sources, sourcesLoading, sourcesError }: { detail
         <Card><CardHeader><CardTitle>Lesson sequence</CardTitle></CardHeader><CardContent className="space-y-6"><ListReadOnly label="Materials" values={plan.content.materials} /><section><h2 className="text-sm font-semibold text-muted-foreground">Starter</h2><p className="mt-2 whitespace-pre-wrap leading-7">{plan.content.starter}</p></section><section className="space-y-4"><h2 className="text-sm font-semibold text-muted-foreground">Activities</h2><ol className="divide-y">{plan.content.activities.map((activity, index) => <li key={`${activity.title}-${index}`} className="flex gap-4 py-4 first:pt-0 last:pb-0"><span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">{index + 1}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-baseline justify-between gap-2"><h3 className="font-semibold">{activity.title}</h3><span className="text-sm text-muted-foreground">{activity.durationMinutes} min</span></div><p className="mt-2 whitespace-pre-wrap leading-7 text-muted-foreground">{activity.description}</p></div></li>)}</ol></section></CardContent></Card>
         <Card><CardHeader><CardTitle>Assessment</CardTitle></CardHeader><CardContent><p className="whitespace-pre-wrap leading-7">{plan.content.checkForUnderstanding}</p></CardContent></Card>
       </div>
-      <aside className="space-y-6 xl:sticky xl:top-6"><PlanContext detail={detail} sources={sources} sourcesLoading={sourcesLoading} sourcesError={sourcesError} />{detail.qa && <QualityReport qa={detail.qa} />}<PlanVersionHistory versions={detail.versions} currentVersion={plan.version} /><PlanReviewHistory reviews={detail.reviews} />{plan.status === 'submitted' && <p className="rounded-xl border bg-card p-4 text-sm leading-6 text-muted-foreground">This plan is locked while it is with the curriculum lead for review.</p>}</aside>
+      <aside className="space-y-6 xl:sticky xl:top-6"><PlanContext detail={detail} sources={sources} sourcesLoading={sourcesLoading} sourcesError={sourcesError} />{detail.qa && <QualityReport qa={detail.qa} />}<RubricQaPanel planId={plan.id} versionId={plan.versionId} validation={detail.rubricQa} /><PlanVersionHistory versions={detail.versions} currentVersion={plan.version} /><PlanReviewHistory reviews={detail.reviews} />{plan.status === 'submitted' && <p className="rounded-xl border bg-card p-4 text-sm leading-6 text-muted-foreground">This plan is locked while it is with the curriculum lead for review.</p>}</aside>
     </div>
   </div>
 }

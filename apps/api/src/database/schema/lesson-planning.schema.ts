@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { foreignKey, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
-import { type LessonPlanContent } from '@nova/shared'
+import { type LessonPlanContent, type LessonPlanRubricQa } from '@nova/shared'
 import { users } from './identity.schema'
 import { curriculumTargetRevisions } from './curriculum-catalogue.schema'
 import { libraryResourceChunks } from './library.schema'
@@ -60,4 +60,22 @@ export const planReviews = pgTable('plan_reviews', {
   columns: [table.lessonPlanVersionId, table.lessonPlanId],
   foreignColumns: [lessonPlanVersions.id, lessonPlanVersions.lessonPlanId],
   name: 'plan_reviews_version_same_plan_fk',
+})])
+
+export const lessonPlanValidations = pgTable('lesson_plan_validations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  lessonPlanId: uuid('lesson_plan_id').references(() => lessonPlans.id).notNull(),
+  lessonPlanVersionId: uuid('lesson_plan_version_id').notNull(),
+  status: text('status').$type<LessonPlanRubricQa['status']>().notNull(),
+  rubricVersion: text('rubric_version').notNull(),
+  promptVersion: text('prompt_version').notNull(),
+  reviewerModel: text('reviewer_model').notNull(),
+  summary: text('summary').notNull(),
+  dimensions: jsonb('dimensions').$type<LessonPlanRubricQa['dimensions']>().notNull(),
+  traceId: text('trace_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [foreignKey({
+  columns: [table.lessonPlanVersionId, table.lessonPlanId],
+  foreignColumns: [lessonPlanVersions.id, lessonPlanVersions.lessonPlanId],
+  name: 'lesson_plan_validations_version_same_plan_fk',
 })])
