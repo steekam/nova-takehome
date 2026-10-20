@@ -18,8 +18,8 @@
     <span class="stamp">Curriculum Design Hub · 20 Oct 2026</span>
   </header>
   <div class="facts">
-    <div class="fact"><strong>10 docs</strong><span>synthetic CBC corpus · one subject</span></div>
-    <div class="fact"><strong>2 targets</strong><span>Grade 8 Integrated Science fixtures</span></div>
+    <div class="fact"><strong>9 resources</strong><span>one official excerpt + eight synthetic supports</span></div>
+    <div class="fact"><strong>1 live target</strong><span>Grade 8 Integrated Science · CBC</span></div>
     <div class="fact"><strong>BGE-small</strong><span>384-d vectors · local cache · pgvector</span></div>
     <div class="fact"><strong>Mock default</strong><span>works without a provider key</span></div>
   </div>
@@ -106,10 +106,10 @@ apps/playground/src/  offline/live CLI + eval tooling</div>
   <section class="section">
     <div class="section-head"><h2>What is verified now</h2><p>Signals from current code and completed local runs.</p></div>
     <div class="evidence">
-      <div class="proof"><strong>66</strong><p>automated tests passed across playground and API suites</p></div>
-      <div class="proof"><strong>4/4</strong><p>shared, playground, API and web production builds pass</p></div>
-      <div class="proof"><strong>4:13</strong><p>narrated personal preview, including invalid-QA rejection</p></div>
-      <div class="proof"><strong>DeepSeek</strong><p>live generation/review through the configured LiteLLM path</p></div>
+      <div class="proof"><strong>52 + 19 + 5</strong><p>playground, API unit, and database-backed API tests passed</p></div>
+      <div class="proof"><strong>5/5</strong><p>shared package, model runtime, playground, API, and web builds pass</p></div>
+      <div class="proof"><strong>8/8</strong><p>Compose app and observability endpoints pass health checks</p></div>
+      <div class="proof"><strong>Loom</strong><p>human-recorded submission remains pending</p></div>
     </div>
   </section>
 
@@ -117,9 +117,9 @@ apps/playground/src/  offline/live CLI + eval tooling</div>
     <div class="eyebrow">Scope and handoff</div><h2 style="margin-top:7px">Intentionally bounded</h2>
     <ul>
       <li>CBC only; Cambridge coverage removed from the current task slice.</li>
-      <li>Baseten DeepSeek is the validation model. Model comparison stays deferred.</li>
-      <li>Playground stays internal; tester BYOK is a later product requirement.</li>
-      <li>Local MP4 is a personal preview. Human-recorded Loom submission remains separate.</li>
+      <li>The demo catalogue has nine short source resources. Only Grade 8 Integrated Science 1.2(a) has official grounding; the other CBC paths are browse-only.</li>
+      <li>The curriculum library displays hierarchy, provenance, source revisions, and readiness. Source authoring stays outside the UI; ingestion is a documented future extension.</li>
+      <li>Playground stays internal. Provider credentials remain server-side, and the recorded submission is for the human author to make.</li>
     </ul>
   </section>
 

@@ -24,9 +24,11 @@ The current server configuration supports separate model names:
 
 `LLM_MODEL` and `LITELLM_MODEL` remain compatibility fallbacks. Both routes use the same OpenAI-compatible chat-completions adapter; the endpoint profile selects direct access or a proxy. The two keys are different credentials because they belong to different services. LiteLLM's upstream Baseten key stays a server-side proxy setting and is not a playground key. LiteLLM aliases can point to different underlying models and spend policies. The scoped proxy key includes both configured role aliases. Model names are recorded with each run so reports and traces identify which role made the call.
 
-## BYOK tester flow
+## Future tester BYOK flow
 
-## Local demo mode
+The product app does not accept tester keys today. Live calls use server-side `.env.local` settings; the profile flow below is a future design.
+
+## Current local demo mode
 
 Start the Compose demo with `pnpm demo:up`. The command prepares local secrets, builds and starts the app plus shared services, migrates and seeds the database, checks health, and prints access URLs. `pnpm demo:check` reruns the health check and URL summary.
 

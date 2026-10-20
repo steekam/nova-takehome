@@ -11,6 +11,8 @@
     "openapi:export": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && pnpm build && env NODE_ENV=development node dist/src/openapi.export.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:e2e": "tsc --noEmit -p test/tsconfig.json",
+    "test": "pnpm test:unit && pnpm test:e2e",
+    "test:unit": "env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-unit.json --runInBand --no-watchman",
     "test:e2e": "env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json --runInBand --no-watchman",
     "db:generate": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && drizzle-kit generate",
     "db:migrate": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && drizzle-kit migrate",

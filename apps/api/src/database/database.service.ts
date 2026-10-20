@@ -10,7 +10,7 @@ export class DatabaseService implements OnApplicationShutdown {
   private readonly pool: Pool
 
   constructor() {
-    this.pool = new Pool({ connectionString: process.env.DATABASE_URL })
+    this.pool = new Pool({ connectionString: process.env.DATABASE_URL, max: Number(process.env.DATABASE_POOL_MAX ?? 10) })
     this.db = drizzle(this.pool, { schema })
   }
 

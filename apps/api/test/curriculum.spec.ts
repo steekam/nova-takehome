@@ -3,7 +3,7 @@ import type { ConfigService } from '@nestjs/config'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { hasValidReturnComment, type ApiPrincipal, type CurriculumOutcomeDto, type LessonPlanContent } from '@nova/shared'
+import { hasValidReturnComment, type ApiPrincipal, type CurriculumOutcomeDto, type CurriculumSourceDto, type LessonPlanContent } from '@nova/shared'
 import { LessonPlanContentSchema } from '@nova/shared'
 import { assertCanReadPlan, assertTeacherOwns, citationsWithinCandidateSet, formatLessonPlanSchemaIssues, planDurationMatches, transitionPlanStatus, validatePlanQa, validateReviewComment } from '../src/curriculum/curriculum.service'
 import { createEmbeddingEncoder, EmbeddingError, embeddingCacheKey, retryEmbeddingOperation } from '../src/curriculum/embedding.adapter'
@@ -16,14 +16,28 @@ import { z } from 'zod'
 const teacher: ApiPrincipal = { subject: 'teacher-1', roles: ['teacher'], permissions: [] }
 const lead: ApiPrincipal = { subject: 'lead-1', roles: ['curriculum_lead'], permissions: [] }
 const outcome: CurriculumOutcomeDto = {
-  id: '00000000-0000-4000-8000-000000000001', targetId: '00000000-0000-4000-8000-000000000002',
-  title: 'Changes of state', subject: 'Science', grade: 'Primary 5', content: 'Explain changes of state in water.',
+  id: '00000000-0000-4000-8000-000000000001',
+  designVersionId: '00000000-0000-4000-8000-000000000004',
+  offeringId: '00000000-0000-4000-8000-000000000005',
+  kind: 'specific_learning_outcome',
+  title: 'Changes of state', subject: 'Science', grade: 'Primary 5', programme: 'Primary', framework: 'CBC',
+  editionLabel: 'April 2024', locator: 'Strand 1 / Outcome 1', content: 'Explain changes of state in water.',
+  sourceCount: 1, generationReady: true,
+}
+const source: CurriculumSourceDto = {
+  linkId: '00000000-0000-4000-8000-000000000006',
+  documentId: '00000000-0000-4000-8000-000000000007',
+  resourceRevisionId: '00000000-0000-4000-8000-000000000008', revisionNumber: 1,
+  chunkId: '00000000-0000-4000-8000-000000000002', resourceType: 'curriculum_design',
+  title: 'Changes of state excerpt', subject: 'Science', grade: 'Primary 5',
+  content: 'Official excerpt defining the selected target.', authority: 'official', editionLabel: 'April 2024',
+  sourceUrl: 'https://example.test/cbc', locator: 'Page 3', synthetic: false, role: 'defines_target', status: 'published',
 }
 const plan: LessonPlanContent = {
   title: 'Water changes state', subject: 'Science', grade: 'Primary 5', learningOutcome: outcome.content,
   durationMinutes: 40, objectives: ['Explain the change'], materials: ['Water'], starter: 'Observe water.',
   activities: [{ title: 'Practice', description: outcome.content, durationMinutes: 40 }],
-  checkForUnderstanding: 'Explain the change.', sources: [{ documentId: outcome.id, chunkId: outcome.targetId }],
+  checkForUnderstanding: 'Explain the change.', sources: [{ documentId: source.documentId, chunkId: source.chunkId }],
 }
 
 describe('curriculum workflow invariants', () => {
@@ -110,12 +124,12 @@ describe('curriculum workflow invariants', () => {
   })
 
   it('validates lesson structure, time totals, and source grounding', () => {
-    expect(() => validateGeneratedPlan(LessonPlanContentSchema.parse(plan), outcome, [outcome], 40)).not.toThrow()
-    const relatedOutcome = { ...outcome, id: '00000000-0000-4000-8000-000000000010', targetId: '00000000-0000-4000-8000-000000000011' }
-    expect(() => validateGeneratedPlan(LessonPlanContentSchema.parse(plan), outcome, [outcome, relatedOutcome], 40)).not.toThrow()
+    expect(() => validateGeneratedPlan(LessonPlanContentSchema.parse(plan), outcome, [source], 40)).not.toThrow()
+    const relatedSource: CurriculumSourceDto = { ...source, documentId: '00000000-0000-4000-8000-000000000010', chunkId: '00000000-0000-4000-8000-000000000011', role: 'teaching_support', resourceType: 'teaching_note', authority: 'school' }
+    expect(() => validateGeneratedPlan(LessonPlanContentSchema.parse(plan), outcome, [source, relatedSource], 40)).not.toThrow()
     const badDuration = { ...plan, activities: [{ ...plan.activities[0], durationMinutes: 39 }] }
     expect(planDurationMatches(badDuration)).toBe(false)
-    expect(() => validateGeneratedPlan(badDuration, outcome, [outcome], 40)).toThrow()
+    expect(() => validateGeneratedPlan(badDuration, outcome, [source], 40)).toThrow()
     try {
       validatePlanQa(badDuration, true, true)
       throw new Error('Expected submission QA to reject the plan')
@@ -123,8 +137,8 @@ describe('curriculum workflow invariants', () => {
       expect(error).toHaveProperty('status', 422)
       expect((error as { getResponse(): { code: string } }).getResponse().code).toBe('LESSON_PLAN_QA_FAILED')
     }
-    expect(() => validateGeneratedPlan({ ...plan, sources: [{ documentId: outcome.id, chunkId: '00000000-0000-4000-8000-000000000003' }] }, outcome, [outcome], 40)).toThrow()
-    expect(() => validateGeneratedPlan({ ...plan, sources: [{ documentId: relatedOutcome.id, chunkId: relatedOutcome.targetId }] }, outcome, [outcome, relatedOutcome], 40)).toThrow()
+    expect(() => validateGeneratedPlan({ ...plan, sources: [{ documentId: source.documentId, chunkId: '00000000-0000-4000-8000-000000000003' }] }, outcome, [source], 40)).toThrow()
+    expect(() => validateGeneratedPlan({ ...plan, sources: [{ documentId: relatedSource.documentId, chunkId: relatedSource.chunkId }] }, outcome, [source, relatedSource], 40)).toThrow()
     expect(citationsWithinCandidateSet(plan.sources, plan.sources)).toBe(true)
     expect(citationsWithinCandidateSet([{ documentId: outcome.id, chunkId: '00000000-0000-4000-8000-000000000003' }], plan.sources)).toBe(false)
   })
@@ -160,7 +174,7 @@ describe('curriculum workflow invariants', () => {
     })
     const generator = new LessonPlanGenerator(new OpenAiCompatibleLessonPlanProvider(providerConfig() as ConfigService))
     try {
-      await expect(generator.generate(outcome, [outcome], 40)).resolves.toEqual(plan)
+      await expect(generator.generate(outcome, [source], 40)).resolves.toEqual(plan)
       expect(requests).toHaveLength(2)
       const secondBody = JSON.parse(requests[1].body as string) as { messages: { content: string }[] }
       expect(secondBody.messages.at(-1)?.content).toContain('durationMinutes must match')
@@ -171,12 +185,12 @@ describe('curriculum workflow invariants', () => {
 
   it('returns a stable provider error after one failed correction', async () => {
     const invalid = { ...plan, durationMinutes: 35 }
-    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(
       JSON.stringify({ choices: [{ message: { content: JSON.stringify(invalid) } }] }), { status: 200 },
     ))
     const generator = new LessonPlanGenerator(new OpenAiCompatibleLessonPlanProvider(providerConfig() as ConfigService))
     try {
-      await expect(generator.generate(outcome, [outcome], 40)).rejects.toMatchObject({
+      await expect(generator.generate(outcome, [source], 40)).rejects.toMatchObject({
         status: 503,
         response: {
           code: 'LLM_INVALID_RESPONSE',

@@ -1,6 +1,8 @@
 # Lesson-plan tabletop
 
-**Purpose:** Walk one CBC subject through corpus retrieval, teacher authoring, AI drafting, QA, edits, and lead review before implementing the workflow.
+**Status:** Historical preimplementation design exercise. Its three target fixtures and proposed lesson-content shape are not the current product schema. Use the [current schema diagram](system-data-schema.html), [implemented domain model](domain-model-and-grounding.md), and [README click-through](../README.md) for the working app.
+
+**Purpose:** Simulate one CBC subject through corpus retrieval, AI drafting, QA, edits, and lead review before implementation.
 
 **Performance-brief boundary:** I checked the instructions in `nova-fullstack-performance-task.pdf`. They explicitly ask for AI during grounded plan generation, then teacher editing and Curriculum Lead approval into the lesson bank. A second AI Review/Jev call is not required by the brief; it is an optional design extension in this tabletop. The teacher-only authoring path is another optional product path, using the same content schema and checks.
 

@@ -10,8 +10,8 @@ import { apiRequest } from '../lib/api-request'
 import { requireUser } from '../lib/route-auth'
 import { route as rootRoute } from './root'
 
-type Plan = { id: string; teacherId: string; status: LessonPlanStatus; content: LessonPlanContent; version: number; updatedAt: string }
-type Source = { documentId: string; chunkId: string; documentType: string; title: string; subject: string; grade: string; content: string }
+type Plan = { id: string; teacherId: string; targetRevisionId: string | null; versionId: string; status: LessonPlanStatus; content: LessonPlanContent; version: number; updatedAt: string }
+type Source = { documentId: string; chunkId: string; resourceType: string; title: string; subject: string; grade: string; content: string }
 type Detail = { plan: Plan; reviews: PlanReview[]; versions: LessonPlanVersion[] }
 const unwrap = <T,>(value: T[] | { items: T[] }) => Array.isArray(value) ? value : value.items
 
@@ -26,8 +26,8 @@ function PublishedPlans() {
         <div><h1 className="text-3xl font-semibold tracking-tight">Lesson Plans</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground">Published plans for teachers and curriculum leads.</p></div>
         {user.roles.includes('teacher') && <Link className={buttonVariants()} to="/teacher/plans/new"><Plus aria-hidden="true" /> Create plan</Link>}
       </header>
-      {plans.error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">Published plans could not be loaded: {plans.error.message}</p>}
-      {plans.isLoading ? <div role="status" aria-label="Loading published plans" className="h-32 animate-pulse rounded-xl border bg-card" /> : <LessonPlanTable plans={toTableItems(published)} actionLabel="View" emptyMessage="No published plans yet." renderAction={plan => <Link className={buttonVariants({ variant: 'outline', size: 'sm' })} to="/lesson-plans/$planId" params={{ planId: plan.id }}>View plan<ArrowRight aria-hidden="true" /></Link>} />}
+      {plans.error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">Published plans could not be loaded: {plans.error.message} <button type="button" className="underline" onClick={() => void plans.refetch()}>Try again</button></p>}
+      {plans.isLoading ? <div role="status" aria-label="Loading published plans" className="h-32 animate-pulse rounded-xl border bg-card" /> : plans.isError ? null : <LessonPlanTable plans={toTableItems(published)} actionLabel="View" emptyMessage="No published plans yet." renderAction={plan => <Link className={buttonVariants({ variant: 'outline', size: 'sm' })} to="/lesson-plans/$planId" params={{ planId: plan.id }}>View plan<ArrowRight aria-hidden="true" /></Link>} />}
     </div>
   </AppShell>
 }
@@ -50,7 +50,7 @@ function PublishedPlanPage() {
     <div className="space-y-7">
       <header className="space-y-3 border-b border-primary/15 pb-6">
         <Link to="/lesson-plans" className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"><ArrowLeft aria-hidden="true" className="size-4" />Lesson Plans</Link>
-        <div><p className="text-sm font-medium text-primary">{content.subject} · Grade {content.grade} · {content.durationMinutes} minutes</p><h1 className="mt-1 text-3xl font-semibold tracking-tight">{content.title}</h1><p className="mt-3 max-w-4xl text-sm leading-6">{content.learningOutcome}</p></div>
+        <div><p className="text-sm font-medium text-primary">{content.subject} · Grade {content.grade} · {content.durationMinutes} minutes</p><h1 className="mt-1 text-3xl font-semibold tracking-tight">{content.title}</h1><p className="mt-3 max-w-4xl text-sm leading-6">{content.learningOutcome}</p>{plan.targetRevisionId && <Link to="/library/targets/$targetRevisionId" params={{ targetRevisionId: plan.targetRevisionId }} className="mt-2 inline-flex text-sm font-medium text-primary hover:underline">View exact curriculum target</Link>}</div>
       </header>
       <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.7fr)]">
         <main className="min-w-0 space-y-7">
@@ -59,7 +59,7 @@ function PublishedPlanPage() {
           <section className="rounded-xl border bg-card p-5 md:p-6"><h2 className="text-lg font-semibold">Assessment</h2><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{content.checkForUnderstanding}</p></section>
         </main>
         <aside className="space-y-7 xl:sticky xl:top-6">
-          <section className="space-y-3"><h2 className="text-lg font-semibold">Curriculum sources</h2>{sources.isLoading ? <p role="status" className="text-sm text-muted-foreground">Loading source details…</p> : sources.error ? <p role="alert" className="text-sm text-destructive">Source details could not be loaded: {sources.error.message}</p> : references.length ? references.map(({ source, detail }, index) => <article key={`${source.documentId}-${source.chunkId}`} className="rounded-xl border bg-card p-4"><h3 className="font-semibold">{detail?.title ?? `Source ${index + 1}`}</h3>{detail && <p className="mt-1 text-xs text-muted-foreground">{detail.documentType} · {detail.subject} · Grade {detail.grade}</p>}<p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{detail?.content ?? `Source reference ${source.documentId} · ${source.chunkId}`}</p></article>) : <p className="text-sm text-muted-foreground">No curriculum sources attached.</p>}</section>
+          <section className="space-y-3"><h2 className="text-lg font-semibold">Curriculum sources</h2>{sources.isLoading ? <p role="status" className="text-sm text-muted-foreground">Loading source details…</p> : sources.error ? <p role="alert" className="text-sm text-destructive">Source details could not be loaded: {sources.error.message}</p> : references.length ? references.map(({ source, detail }, index) => <article key={`${source.documentId}-${source.chunkId}`} className="rounded-xl border bg-card p-4"><h3 className="font-semibold">{detail?.title ?? `Source ${index + 1}`}</h3>{detail && <p className="mt-1 text-xs text-muted-foreground">{detail.resourceType} · {detail.subject} · Grade {detail.grade}</p>}<p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{detail?.content ?? `Source reference ${source.documentId} · ${source.chunkId}`}</p></article>) : <p className="text-sm text-muted-foreground">No curriculum sources attached.</p>}</section>
           <PlanVersionHistory versions={versions} currentVersion={plan.version} />
           <PlanReviewHistory reviews={reviews} />
         </aside>

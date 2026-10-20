@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 const EnvironmentSchema = z.object({
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
   LLM_PROVIDER: z.enum(['mock', 'openai-compatible']).default('mock'),
   LLM_BASE_URL: z.string().url().optional(),
   LLM_API_KEY: z.string().optional(),

@@ -1,52 +1,60 @@
 # Curriculum Design Hub
 
-Full-stack CBC lesson-planning task. Teachers generate a grounded draft, edit and submit it; a curriculum lead returns it with feedback or publishes it.
+Full-stack Kenya CBC lesson planning. Teachers create grounded drafts, edit and submit them; a Curriculum Lead returns a draft with feedback or publishes it to the shared lesson bank.
 
-## Stack
+## Run the demo
 
-- `apps/web`: React, TypeScript, TanStack Router.
-- `apps/api`: NestJS, TypeScript, Fastify, Drizzle, PostgreSQL + pgvector.
-- `packages/shared`: lesson-plan schemas and transport types.
-- `apps/playground`: internal corpus, retrieval, generation, review, and evaluation CLI. It is not part of the product walkthrough.
-- LiteLLM, Langfuse, OpenTelemetry, Collector, Grafana, Tempo, Prometheus, and Loki support local verification and telemetry.
-
-See [architecture](docs/architecture.md), [observability setup](docs/observability.md), [the reviewer checklist](docs/performance-checklist.md), and the [shared data-service migration record](docs/local-state-migration.md).
-
-## Run locally
-
-For the tester run, install Node 24 and pnpm, run `pnpm install`, then start the full demo with:
+Use Node 24, pnpm 12.11.2, and Docker. From the repository root:
 
 ```sh
+pnpm install
 pnpm demo:up
+pnpm demo:check
 ```
 
-This creates `.env.local` from `.env.example` if needed, generates local service secrets, builds the web and API containers, migrates and seeds PostgreSQL, starts Compose services, checks their health, and prints the URLs. Run `pnpm demo:check` later to recheck services and print the summary. The first build may take a few minutes.
+`demo:up` creates `.env.local` from `.env.example` when needed, prepares local service secrets, builds and starts Compose, migrates and seeds PostgreSQL, waits for health, then prints URLs. Keep `.env.local` private. `demo:check` rechecks the running services and prints the current startup mode.
 
-The seed is additive and creates two demo accounts, both with password `NovaLocal123!`:
+Sign in from the Teacher or Curriculum Lead demo button. Manual credentials:
 
-- `teacher@example.test`
-- `curriculum-lead@example.test`
+| Role | Email | Password |
+| --- | --- | --- |
+| Teacher | `teacher@example.test` | `NovaLocal123!` |
+| Curriculum Lead | `curriculum-lead@example.test` | `NovaLocal123!` |
 
-Mock generation is the default and needs no model key. Change the **LLM mode** selector in the app header to switch between mock and the server-configured live provider without restarting. For live mode, set `LLM_PROVIDER=openai-compatible`, `LLM_API_KEY`, `LLM_GENERATOR_MODEL`, and `COMPOSE_LLM_BASE_URL` in `.env.local`, then start or restart the API. The default Compose URL is `http://litellm:4000/v1`. If credentials are missing, the app lists the required variable names and stays in mock mode. Provider credentials stay server-side. See [tester BYOK design](docs/tester-byok.md).
+The web app is at `http://localhost:5173/login`. `demo:check` also prints API readiness and local observability URLs.
 
-For host-based development, install packages and use `pnpm dev`; `pnpm dev:mock` forces mock generation. See the [tester BYOK design](docs/tester-byok.md) for model configuration details.
+Mock generation is the default and needs no provider key. To enable the server-configured live provider, set `LLM_PROVIDER=openai-compatible`, `LLM_API_KEY`, `LLM_GENERATOR_MODEL`, and `COMPOSE_LLM_BASE_URL` in `.env.local`, then start or restart the API. The default Compose URL is `http://litellm:4000/v1`. The app names missing settings when live mode is unavailable; provider credentials stay server-side. The app header switches between mock and configured live mode. See [model configuration](docs/tester-byok.md).
 
-## Workflow rules
+For host development, use `pnpm dev` or `pnpm dev:mock`. Node 24 is declared in `.nvmrc` and `mise.toml`; pnpm is pinned in `package.json`.
 
-The API enforces these transitions:
+## Suggested click-through
 
-```text
-Draft --submit after QA--> Submitted --lead returns with feedback--> Returned --teacher edit--> Draft
-                                      `--lead publishes------------> Published
-```
+1. Sign in as the Teacher. Open **Curriculum Library**, then inspect Grade 8 Integrated Science, July 2024, outcome `1.2(a)`.
+2. Open **Create lesson plan**, select the source-backed outcome and a duration, then generate a mock draft. Inspect quality checks and source references.
+3. Edit and save the draft, then submit it.
+4. Sign in as the Curriculum Lead. Open the submitted plan, add a return comment, and return it.
+5. Sign in as the Teacher, edit the returned plan, and resubmit it. The first edit creates a new Draft version.
+6. Sign in as the Curriculum Lead and publish the resubmitted version. The plan is then visible in the shared lesson bank and its history records the reviewed version.
 
-Returned plans require resubmission after an edit. Published plans are read-only. Each teacher edit creates an immutable version. Submit checks the shared lesson schema, activity-time totals, and citations against existing curriculum chunks and the plan's original retrieval candidates. Invalid transitions return `409 PLAN_TRANSITION_INVALID`; QA failures return `422 LESSON_PLAN_QA_FAILED` with the failed checks. See [the full state and error rules](docs/architecture.md#lesson-plan-workflow).
+To show QA feedback, change activity minutes so they no longer sum to the lesson duration and save. The API rejects the update with the failed check and keeps the saved version unchanged.
 
-## Internal playground
+## Curriculum and generation
 
-The internal playground supports corpus, retrieval, generation, review, and evaluation work. It is excluded from the product walkthrough. See [apps/playground/README.md](apps/playground/README.md).
+The demo catalogue has five CBC grade/subject offerings. It seeds nine short source resources across six types: one official KICD curriculum excerpt and eight clearly labelled synthetic teaching supports. Grade 8 Integrated Science is the only generation-ready target; the other seeded paths are browse-only. The current library lets users browse hierarchy, revisions, references, and readiness. Source authoring and publishing are not available in the UI; seed/import data populates the catalogue. The proposed upload and review workflow is documented in [source ingestion extension](docs/source-ingestion-extension.md).
 
-## Verification
+The API embeds the selected target's linked sources with BGE-small (384 dimensions) and stores vectors in pgvector. Retrieval pins the official target-defining excerpt and selects supporting material from that target. Generation returns a strict shared lesson schema: target and duration, objectives, materials, starter, timed activities, assessment check, and source IDs. Before saving, the API checks schema, selected target, exact duration, activity-time total, official target citation, and citation membership in the frozen retrieval set. Missing target sources, invalid model output, and failed QA return stable errors without creating or changing a plan.
+
+The shared package owns transport schemas and the plan transition table. The API owns authorization, row-locked state changes, immutable versions, reviews, and persistence. See [architecture and invariants](docs/architecture.md), the [implemented domain model](docs/domain-model-and-grounding.md), and the [project glossary](GLOSSARY.md).
+
+## Repository map
+
+- `apps/web` — React, TypeScript, TanStack Router screens.
+- `apps/api` — NestJS, Fastify, Drizzle, authentication, retrieval, generation, validation, and workflow.
+- `apps/playground` — internal corpus, retrieval, prompt, provider, and evaluation CLI; not part of the product walkthrough.
+- `packages/shared` — lesson schemas, transport types, and workflow transitions.
+- `packages/model-runtime` — shared provider and embedding runtime primitives.
+
+## Checks
 
 ```sh
 pnpm typecheck
@@ -54,8 +62,14 @@ pnpm test
 pnpm build
 ```
 
-`pnpm test` covers playground behavior and API workflow/role invariants. Verified behavior and remaining work are tracked in [performance-checklist.md](docs/performance-checklist.md).
+The API database-backed HTTP workflow test also runs when `TEST_DATABASE_URL` points at a migrated and seeded disposable database:
 
-## Walkthrough
+```sh
+env TEST_DATABASE_URL=postgresql://… pnpm --filter @nova/api test:e2e
+```
 
-The 4:13 narrated local video is a personal preview, not the submission recording. Record and upload the Loom walkthrough yourself, then add its share link here.
+See the [reviewer checklist](docs/performance-checklist.md), [embedding and corpus notes](docs/playground/embedding-corpus-guide.md), and [observability setup](docs/observability.md). The [data schema](docs/system-data-schema.html), [curriculum library walkthrough](docs/curriculum-library-walkthrough.html), and [work overview](docs/work-overview.html) are visual review aids.
+
+## Submission walkthrough
+
+The submission Loom remains for the human author to record and upload. Add its share link here after recording. Required walkthrough: teacher generation and QA, teacher edits and submission, lead return with feedback, teacher revision and resubmission, lead publication, and one generation or save failure with its visible error.

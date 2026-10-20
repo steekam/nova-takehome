@@ -34,11 +34,10 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const body: Record<string, unknown> = { statusCode: status, message, requestId }
     const response = exception instanceof HttpException ? exception.getResponse() : undefined
     if (status < 500 && typeof response === 'object' && response !== null && 'code' in response) {
+      if (typeof response.code === 'string' && this.isClientErrorCode(response.code)) body.code = response.code
       if (response.code === 'VALIDATION_ERROR' && 'errors' in response && this.isValidationIssues(response.errors)) {
-        body.code = response.code
         body.errors = response.errors
       } else if (response.code === 'LESSON_PLAN_QA_FAILED' && 'errors' in response && this.isLessonPlanIssues(response.errors)) {
-        body.code = response.code
         body.errors = response.errors
       }
     }
@@ -67,8 +66,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
     if (!(exception instanceof HttpException)) return false
     const response = exception.getResponse()
     return typeof response === 'object' && response !== null && 'code' in response &&
-      typeof response.code === 'string' && (/^(LLM_(PROVIDER_|INVALID_RESPONSE|CREDENTIALS_MISSING)|EMBEDDING_)/.test(response.code) ||
-        ['PLAN_TRANSITION_INVALID', 'LESSON_PLAN_QA_FAILED', 'REVIEW_COMMENT_REQUIRED'].includes(response.code))
+      typeof response.code === 'string' && /^(LLM_(PROVIDER_|INVALID_RESPONSE|CREDENTIALS_MISSING)|EMBEDDING_)/.test(response.code)
+  }
+
+  private isClientErrorCode(code: string) {
+    return /^[A-Z][A-Z0-9_]{2,63}$/.test(code)
   }
 
   private isValidationIssues(value: unknown): value is ValidationIssue[] {

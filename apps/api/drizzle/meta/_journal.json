@@ -15,6 +15,20 @@
       "when": 1792419221853,
       "tag": "0001_panoramic_post",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792484283341,
+      "tag": "0002_nifty_unicorn",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792490775470,
+      "tag": "0003_lush_pepper_potts",
+      "breakpoints": true
     }
   ]
 }

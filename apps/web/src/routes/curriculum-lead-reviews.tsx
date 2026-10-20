@@ -1,4 +1,4 @@
-import { createRoute, Link } from '@tanstack/react-router'
+import { createRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ArrowRight, CheckCircle2, XCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -13,6 +13,8 @@ import { route as curriculumLeadRoute } from './curriculum-lead'
 type Plan = {
   id: string
   teacherId: string
+  targetRevisionId: string | null
+  versionId: string
   status: LessonPlanStatus
   content: LessonPlanContent
   version: number
@@ -21,10 +23,15 @@ type Plan = {
 }
 type Qa = { passed: boolean; checks: { code: string; passed: boolean; message: string }[] }
 type Detail = { plan: Plan; reviews: PlanReview[]; versions: LessonPlanVersion[]; qa?: Qa }
-type CurriculumSource = { documentId: string; chunkId: string; documentType: string; title: string; subject: string; grade: string; content: string }
+type CurriculumSource = { documentId: string; chunkId: string; resourceType: string; title: string; subject: string; grade: string; content: string }
 
 function SelectedPlan() {
   const { planId } = planRoute.useParams()
+  return <PlanReviewPage key={planId} planId={planId} />
+}
+
+function PlanReviewPage({ planId }: { planId: string }) {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const announcementRef = useRef<HTMLParagraphElement>(null)
   const [comment, setComment] = useState('')
@@ -47,10 +54,12 @@ function SelectedPlan() {
       setComment('')
       setConfirmPublish(false)
       setAnnouncement(decision === 'published' ? 'Lesson plan published.' : 'Lesson plan returned for revision.')
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['lesson-plans'] }),
-        queryClient.invalidateQueries({ queryKey: ['lesson-plan', planId] }),
-      ])
+      await queryClient.invalidateQueries({ queryKey: ['lesson-plans'] })
+      if (decision === 'returned') {
+        await navigate({ to: '/curriculum-lead' })
+        return
+      }
+      await queryClient.invalidateQueries({ queryKey: ['lesson-plan', planId] })
     },
   })
 
@@ -74,7 +83,7 @@ function SelectedPlan() {
   return <div className="space-y-7">
     <header className="space-y-3 border-b border-primary/15 pb-6">
       <Link to="/curriculum-lead" className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"><ArrowLeft className="size-4" aria-hidden="true" />Overview</Link>
-      <div><h1 className="text-3xl font-semibold tracking-tight">{content.title}</h1><p className="mt-2 text-sm text-muted-foreground">Review submission · {content.subject} · {content.grade} · {content.durationMinutes} minutes</p></div>
+      <div><h1 className="text-3xl font-semibold tracking-tight">{content.title}</h1><p className="mt-2 text-sm text-muted-foreground">Review submission · {content.subject} · {content.grade} · {content.durationMinutes} minutes</p>{plan.targetRevisionId && <Link to="/library/targets/$targetRevisionId" params={{ targetRevisionId: plan.targetRevisionId }} className="mt-2 inline-flex text-sm font-medium text-primary hover:underline">View exact curriculum target</Link>}</div>
     </header>
     {announcement && <p ref={announcementRef} tabIndex={-1} role="status" className="rounded-lg bg-[#e9f0f2] p-3 text-sm font-medium text-primary">{announcement}</p>}
     <article className="rounded-xl border bg-card">
@@ -109,7 +118,7 @@ function SelectedPlan() {
             <h3 id="sources-heading" className="font-semibold">Curriculum references</h3>
             {sources.isLoading ? <p role="status" className="mt-2 text-sm text-muted-foreground">Loading source details…</p> : sources.error ? <p role="alert" className="mt-2 text-sm text-destructive">Source details could not be loaded: {sources.error.message}</p> : content.sources.length ? <div className="mt-3 space-y-3">{sourceDetails.map(({ source, detail }) => <article key={`${source.documentId}-${source.chunkId}`} className="rounded-lg border p-4">
               <h4 className="font-medium">{detail?.title ?? 'Curriculum source'}</h4>
-              <p className="mt-1 text-xs text-muted-foreground">{detail ? `${detail.documentType} · ${detail.subject} · ${detail.grade}` : `Reference ${source.documentId} · ${source.chunkId}`}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{detail ? `${detail.resourceType} · ${detail.subject} · ${detail.grade}` : `Reference ${source.documentId} · ${source.chunkId}`}</p>
               {detail && <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{detail.content}</p>}
             </article>)}</div> : <p className="mt-2 text-sm text-muted-foreground">No curriculum references attached.</p>}
           </section>

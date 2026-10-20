@@ -39,16 +39,16 @@ function CurriculumLeadHome() {
         <p className="max-w-2xl text-muted-foreground">Review submitted plans and publish work ready for teachers.</p>
       </header>
 
-      {queue.error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">Lesson plans could not be loaded: {queue.error.message}</p>}
+      {queue.error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">Lesson plans could not be loaded: {queue.error.message} <button type="button" className="underline" onClick={() => void queue.refetch()}>Try again</button></p>}
 
       <section aria-label="Plan totals" className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border bg-card px-5 py-4"><p className="text-sm text-muted-foreground">Awaiting review</p><p className="mt-2 text-3xl font-semibold tabular-nums">{queue.isLoading ? '—' : submitted.length}</p></div>
-        <div className="rounded-xl border bg-card px-5 py-4"><p className="text-sm text-muted-foreground">Published plans</p><p className="mt-2 text-3xl font-semibold tabular-nums">{queue.isLoading ? '—' : published.length}</p></div>
+        <div className="rounded-xl border bg-card px-5 py-4"><p className="text-sm text-muted-foreground">Awaiting review</p><p className="mt-2 text-3xl font-semibold tabular-nums">{queue.isLoading || queue.isError ? '—' : submitted.length}</p></div>
+        <div className="rounded-xl border bg-card px-5 py-4"><p className="text-sm text-muted-foreground">Published plans</p><p className="mt-2 text-3xl font-semibold tabular-nums">{queue.isLoading || queue.isError ? '—' : published.length}</p></div>
       </section>
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold">Review queue</h2>
-        {queue.isLoading ? <div role="status" aria-label="Loading submitted plans" className="h-32 animate-pulse rounded-xl border bg-card" /> : <LessonPlanTable plans={toTableItems(submitted)} actionLabel="Review" emptyMessage="No plans are waiting for review." renderAction={plan => <Link className={buttonVariants({ variant: 'outline', size: 'sm' })} to="/curriculum-lead/reviews/$planId" params={{ planId: plan.id }}>Review plan<ArrowRight aria-hidden="true" /></Link>} />}
+        {queue.isLoading ? <div role="status" aria-label="Loading submitted plans" className="h-32 animate-pulse rounded-xl border bg-card" /> : queue.isError ? null : <LessonPlanTable plans={toTableItems(submitted)} actionLabel="Review" emptyMessage="No plans are waiting for review." renderAction={plan => <Link className={buttonVariants({ variant: 'outline', size: 'sm' })} to="/curriculum-lead/reviews/$planId" params={{ planId: plan.id }}>Review plan<ArrowRight aria-hidden="true" /></Link>} />}
       </section>
   </div>
 }

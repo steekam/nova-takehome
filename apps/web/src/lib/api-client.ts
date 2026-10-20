@@ -30,6 +30,17 @@ export class ApiError extends Error {
   }
 }
 
+let onUnauthorized: (() => void) | undefined
+
+export function setUnauthorizedHandler(handler: () => void) {
+  onUnauthorized = handler
+}
+
+export async function apiResponseError(response: Response): Promise<ApiError> {
+  if (response.status === 401 && !new URL(response.url, window.location.origin).pathname.startsWith('/api/auth/')) onUnauthorized?.()
+  return toApiError(response)
+}
+
 const apiBaseUrl = (import.meta.env.VITE_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '')
 
 const requestIdMiddleware: Middleware = {
@@ -38,7 +49,7 @@ const requestIdMiddleware: Middleware = {
     return request
   },
   async onResponse({ response }) {
-    if (!response.ok) throw await toApiError(response.clone())
+    if (!response.ok) throw await apiResponseError(response.clone())
     return response
   },
 }

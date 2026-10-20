@@ -118,6 +118,9 @@ function classifyModelError(error: unknown): ModelRuntimeError {
   if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
     return new ModelRuntimeError('PROVIDER_TIMEOUT', 'The model request timed out.', true)
   }
+  if (error instanceof TypeError) {
+    return new ModelRuntimeError('PROVIDER_UNAVAILABLE', safeMessage('PROVIDER_UNAVAILABLE'), true)
+  }
   return new ModelRuntimeError('PROVIDER_INVALID_RESPONSE', safeMessage('PROVIDER_INVALID_RESPONSE'), true)
 }
 

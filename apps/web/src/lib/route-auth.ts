@@ -16,7 +16,7 @@ export function safeRedirectTarget(target: unknown): string | undefined {
 }
 
 export async function requireUser(returnTo?: string) {
-  const user = await queryClient.ensureQueryData(currentUserQuery)
+  const user = await queryClient.fetchQuery(currentUserQuery)
   if (!user) throw redirect({ to: '/login', search: { redirect: returnTo } })
   return user
 }

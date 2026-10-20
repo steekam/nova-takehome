@@ -29,7 +29,7 @@ Teachers work with drafts, returned plans, and plans published by curriculum lea
 - Curriculum leads review submitted plans, publish them, or return them with feedback.
 - Submission and publication depend on lesson-plan quality checks, including valid structure, matching activity durations, and citations from the plan's retrieved source set.
 - Returned plans need an edit and resubmission before another review.
-- The API exposes existing outcomes, curriculum sources, plans, plan details, updates, submissions, and review decisions. It does not expose curriculum-management APIs.
+- The web library is browse-and-inspect only. The API has curriculum-lead source ingestion and publishing endpoints for seeded/imported data; the product UI does not expose those controls.
 - The web app uses role guards for teacher and curriculum-lead routes.
 
 ## Brand Commitments

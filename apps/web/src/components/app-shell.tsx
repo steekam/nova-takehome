@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
-import { BookOpenCheck, LayoutDashboard } from 'lucide-react'
+import { BookOpenCheck, LayoutDashboard, LibraryBig } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import type { UserRole } from '@nova/shared'
 import { Button } from './ui/button'
 import { apiClient } from '../lib/api-client'
@@ -9,7 +10,7 @@ import { apiRequest } from '../lib/api-request'
 
 type LlmMode = 'mock' | 'live'
 type LlmModeStatus = { mode: LlmMode; liveAvailable: boolean; missing: string[] }
-type NavItem = { to: '/teacher' | '/curriculum-lead' | '/lesson-plans'; label: string; icon: typeof LayoutDashboard }
+type NavItem = { to: '/teacher' | '/curriculum-lead' | '/lesson-plans' | '/library'; label: string; icon: LucideIcon }
 
 function LlmModeControl() {
   const queryClient = useQueryClient()
@@ -39,17 +40,19 @@ function navFor(role: UserRole): NavItem[] {
   return role === 'teacher'
     ? [
         { to: '/teacher', label: 'Overview', icon: LayoutDashboard },
+        { to: '/library', label: 'Curriculum Library', icon: LibraryBig },
         { to: '/lesson-plans', label: 'Lesson Plans', icon: BookOpenCheck },
       ]
     : [
         { to: '/curriculum-lead', label: 'Overview', icon: LayoutDashboard },
+        { to: '/library', label: 'Curriculum Library', icon: LibraryBig },
         { to: '/lesson-plans', label: 'Lesson Plans', icon: BookOpenCheck },
       ]
 }
 
 function isActiveItem(pathname: string, item: NavItem) {
   if (pathname === item.to) return true
-  if (item.to === '/teacher' || item.to === '/curriculum-lead') return pathname.startsWith(`${item.to}/`)
+  if (item.to === '/teacher' || item.to === '/curriculum-lead' || item.to === '/library') return pathname.startsWith(`${item.to}/`)
   return false
 }
 
@@ -61,11 +64,13 @@ export function AppShell({ role, children }: AppShellProps) {
   const roleLabel = isTeacher ? 'Teacher' : 'Curriculum lead'
   const items = navFor(role)
 
-  async function signOut() {
-    await apiClient.POST('/api/auth/logout').catch(() => undefined)
-    queryClient.clear()
-    await navigate({ to: '/login' })
-  }
+  const signOut = useMutation({
+    mutationFn: () => apiClient.POST('/api/auth/logout'),
+    onSuccess: async () => {
+      queryClient.clear()
+      await navigate({ to: '/login' })
+    },
+  })
 
   function Navigation({ mobile = false }: { mobile?: boolean }) {
     return <nav aria-label={mobile ? 'Main navigation' : 'Main navigation'} className={mobile ? 'flex min-w-max gap-1 px-3 py-2' : 'space-y-1 p-3'}>
@@ -93,15 +98,16 @@ export function AppShell({ role, children }: AppShellProps) {
       <div className="mt-auto space-y-3 border-t border-white/15 p-4">
         <div className="flex items-center justify-between gap-2">
           <p className="truncate text-sm font-medium text-white">{roleLabel}</p>
-          <Button size="sm" variant="ghost" className="text-sky-100 hover:bg-white/10 hover:text-white" onClick={signOut}>Sign out</Button>
+          <Button size="sm" variant="ghost" className="text-sky-100 hover:bg-white/10 hover:text-white" disabled={signOut.isPending} onClick={() => signOut.mutate()}>{signOut.isPending ? 'Signing out…' : 'Sign out'}</Button>
         </div>
       </div>
     </aside>
     <div className="md:pl-64">
       <header className="flex min-h-16 flex-wrap items-center justify-end gap-3 border-b bg-card px-5 py-2 md:px-8">
         <div className="flex items-center gap-3">
+          {signOut.error && <p role="alert" className="text-sm text-destructive">Sign out failed: {signOut.error.message}</p>}
           <LlmModeControl />
-          <Button className="md:hidden" size="sm" variant="outline" onClick={signOut}>Sign out</Button>
+          <Button className="md:hidden" size="sm" variant="outline" disabled={signOut.isPending} onClick={() => signOut.mutate()}>{signOut.isPending ? 'Signing out…' : 'Sign out'}</Button>
         </div>
       </header>
       <div className="sticky top-0 z-20 border-b bg-card md:hidden"><Navigation mobile /></div>

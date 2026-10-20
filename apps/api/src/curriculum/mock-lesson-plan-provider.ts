@@ -5,8 +5,8 @@ import type { LessonPlanCompletionRequest, LessonPlanProvider } from './llm-prov
 export class MockLessonPlanProvider implements LessonPlanProvider {
   async complete(request: LessonPlanCompletionRequest): Promise<string> {
     const input = JSON.parse(request.user) as {
-      outcome: { id: string; targetId: string; title: string; subject: string; grade: string; content: string }
-      sources: Array<{ id: string; targetId: string }>
+      outcome: { id: string; title: string; subject: string; grade: string; content: string }
+      sources: Array<{ documentId: string; chunkId: string; role: string }>
       durationMinutes: number
     }
     const { outcome, sources, durationMinutes } = input
@@ -24,7 +24,7 @@ export class MockLessonPlanProvider implements LessonPlanProvider {
       materials: ['Board', 'Learner notebooks'], starter: `Discuss: ${outcome.content}`,
       activities,
       checkForUnderstanding: `Ask learners to explain how their work meets: ${outcome.content}`,
-      sources: sources.map((source) => ({ documentId: source.id, chunkId: source.targetId })),
+      sources: sources.map((source) => ({ documentId: source.documentId, chunkId: source.chunkId })),
     })
   }
 }

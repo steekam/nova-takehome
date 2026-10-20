@@ -11,6 +11,8 @@ apps/playground Internal corpus and model evaluation CLI; excluded from product 
 
 The browser presents actions. The API checks identity, ownership, transitions, curriculum references, and lesson-plan invariants. Drizzle stores plans, immutable versions, reviews, curriculum chunks, and pgvector embeddings.
 
+The curriculum library UI is browse-and-inspect only. Catalogue data comes from seed/import paths; curriculum-lead source endpoints remain available for controlled ingestion. The full extraction and approval workflow is a proposed extension, not part of the current screens.
+
 ## Lesson-plan workflow
 
 ```mermaid
@@ -40,6 +42,8 @@ Every other state/action pair is rejected before mutation. State changes and ver
 
 Each teacher edit creates a new immutable version. Submit validates the latest version in the same transaction as the state change. QA requires a valid shared schema, activity minutes that sum to the lesson length, existing curriculum chunk references, and citations drawn from the generation run's frozen candidate set. Failures return `422 LESSON_PLAN_QA_FAILED` with the checks to fix.
 
+Generation stores unique candidate chunk IDs as provenance. Retiring a source removes it from future retrieval; it does not invalidate existing lesson versions or erase their citations. Source revisions and chunks remain available for audit.
+
 Teachers can read their own plans and any published plan. Curriculum leads can read submitted plans. The lead queue contains submitted plans only. The web app clears the selected detail after a lead decision because returned and published plans leave that queue.
 
 ## Generation and grounding
@@ -47,6 +51,8 @@ Teachers can read their own plans and any published plan. Curriculum leads can r
 The teacher selects a CBC outcome and lesson length. The API pins that outcome, retrieves related chunks by BGE-small embeddings and pgvector cosine distance within the same subject and grade, and sends the selected outcome plus candidate sources to an OpenAI-compatible provider. LiteLLM is the local gateway. The API validates output before saving a Draft; failed generation leaves no plan behind.
 
 `LessonPlanGenerator` owns prompting, the single correction attempt, schema checks, and grounding checks. Configuration selects either the deterministic mock adapter or the OpenAI-compatible HTTP adapter; provider transport and response parsing stay behind that interface. Embeddings use a separate adapter. Local BGE weights live under `TRANSFORMERS_CACHE_DIR`; content-addressed vectors live under `EMBEDDING_CACHE_DIR`. The internal playground has its own evaluation workflows and does not control product plan state.
+
+For the proposed document upload, extraction, approval, and indexing workflow, see the [source ingestion pipeline extension](source-ingestion-extension.md).
 
 ## Error behavior
 
