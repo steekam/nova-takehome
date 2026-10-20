@@ -1,4 +1,4 @@
-@import '@fontsource-variable/geist';
+@import '@fontsource-variable/montserrat/wght.css';
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
@@ -6,29 +6,29 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --background: oklch(0.975 0.012 89);
+  --foreground: oklch(0.22 0.035 238);
+  --card: oklch(0.995 0.005 89);
+  --card-foreground: oklch(0.22 0.035 238);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.34 0.075 238);
+  --primary-foreground: oklch(0.99 0.005 89);
+  --secondary: oklch(0.93 0.035 220);
+  --secondary-foreground: oklch(0.27 0.055 238);
+  --muted: oklch(0.945 0.015 89);
+  --muted-foreground: oklch(0.43 0.035 238);
+  --accent: oklch(0.9 0.08 82);
+  --accent-foreground: oklch(0.25 0.04 238);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.87 0.018 225);
+  --input: oklch(0.83 0.025 225);
+  --ring: oklch(0.58 0.11 225);
   --radius: 0.625rem;
 }
 
 @theme inline {
-  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Montserrat Variable', ui-sans-serif, system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -57,6 +57,8 @@
   * { @apply border-border; }
   body { @apply bg-background font-sans text-foreground antialiased; margin: 0; min-width: 320px; }
   button, a { -webkit-tap-highlight-color: transparent; }
+  ::selection { background: oklch(0.82 0.11 82); color: oklch(0.22 0.035 238); }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 }
 
 .route-state { @apply mx-auto mt-16 max-w-lg rounded-xl border bg-card p-8 shadow-sm; }

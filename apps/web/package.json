@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
-    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/montserrat": "^5.3.0",
     "@nova/shared": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-query": "^5.104.4",

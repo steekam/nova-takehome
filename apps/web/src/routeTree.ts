@@ -3,5 +3,9 @@ import { route as homeRoute } from './routes/index'
 import { route as loginRoute } from './routes/login'
 import { route as teacherRoute } from './routes/teacher'
 import { route as curriculumLeadRoute } from './routes/curriculum-lead'
+import { planRoute } from './routes/curriculum-lead-reviews'
+import { route as publishedRoute, detailRouteForPublishedPlan } from './routes/published'
 
-export const routeTree = rootRoute.addChildren([homeRoute, teacherRoute, curriculumLeadRoute, loginRoute])
+const curriculumLeadTree = curriculumLeadRoute.addChildren([planRoute])
+
+export const routeTree = rootRoute.addChildren([homeRoute, teacherRoute, curriculumLeadTree, publishedRoute, detailRouteForPublishedPlan, loginRoute])
