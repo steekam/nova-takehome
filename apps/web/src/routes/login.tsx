@@ -1,8 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { createRoute, redirect, useNavigate, useRouter } from '@tanstack/react-router'
-import { BookOpen } from 'lucide-react'
 import { Button } from '../components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Separator } from '../components/ui/separator'
 import { ApiError, apiClient } from '../lib/api-client'
 import { currentUserQuery } from '../lib/current-user'
@@ -19,13 +18,12 @@ function LoginPage() {
   const [error, setError] = useState<string>()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function signIn(credentials: { email: string; password: string }) {
     setError(undefined)
     setIsSubmitting(true)
 
     try {
-      const { data } = await apiClient.POST('/api/auth/login', { body: { email, password } })
+      const { data } = await apiClient.POST('/api/auth/login', { body: credentials })
       if (!data) throw new Error('The server returned an empty login response.')
       queryClient.clear()
       queryClient.setQueryData(['auth', 'me'], data.user)
@@ -33,23 +31,46 @@ function LoginPage() {
       if (target) router.history.push(target)
       else await navigate({ to: homeForUser(data.user) })
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : 'Unable to sign in. Try again.')
+      setError(cause instanceof ApiError ? cause.message : 'Could not reach Curriculum Design Hub. Check your connection and try again.')
     } finally {
       setIsSubmitting(false)
     }
   }
 
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    await signIn({ email, password })
+  }
+
+  async function signInAsDemoAccount(account: 'teacher' | 'curriculum-lead') {
+    await signIn({
+      email: account === 'teacher' ? 'teacher@example.test' : 'curriculum-lead@example.test',
+      password: 'NovaLocal123!',
+    })
+  }
+
   return (
     <div className="flex min-h-svh items-center justify-center bg-muted/30 p-5">
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <span className="mx-auto flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <BookOpen className="size-5" aria-hidden="true" />
-          </span>
-          <CardTitle>Sign in to Nova</CardTitle>
-          <CardDescription>Use your Nova account to continue.</CardDescription>
+          <img src="/brand/nova-pioneer-mark.svg" alt="Nova Pioneer" className="mx-auto size-14 object-contain" />
+          <CardTitle>Curriculum Design Hub</CardTitle>
         </CardHeader>
         <CardContent>
+          <section aria-labelledby="demo-accounts-title" className="mb-5 space-y-3">
+            <div>
+              <h2 id="demo-accounts-title" className="text-sm font-semibold">Try a demo account</h2>
+              <p className="mt-1 text-xs text-muted-foreground">One click signs you in with sample data.</p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button disabled={isSubmitting} onClick={() => signInAsDemoAccount('teacher')} type="button" variant="outline">
+                {isSubmitting ? 'Signing in…' : 'Continue as teacher'}
+              </Button>
+              <Button disabled={isSubmitting} onClick={() => signInAsDemoAccount('curriculum-lead')} type="button" variant="outline">
+                {isSubmitting ? 'Signing in…' : 'Continue as curriculum lead'}
+              </Button>
+            </div>
+          </section>
           <Separator className="mb-5" />
           <form className="space-y-4" onSubmit={submit}>
             <label className="block space-y-1.5 text-sm font-medium">
