@@ -43,7 +43,7 @@ Export generation snapshots with `pnpm playground -- dataset export`. Replay inp
 
 Unrecoverable command failures also write a classified JSON artifact under `.cache/playground/errors/`. It records command, trace ID, stage, error code, and whether retry may help. The command span and Loki event carry the same classification; Prometheus counts failures by command, stage, code, and retryability. Embedding configuration, model load, inference, invalid output, and cache persistence have separate codes. Transient model-load or inference failures get one retry; spans record retry events and total attempts. The local report remains available when Langfuse or OTLP delivery fails.
 
-The Nest API is not routed through LiteLLM yet. After the playground workflow is accepted, the API adapter should call the same aliases and propagate W3C trace context.
+The API can use the OpenAI-compatible adapter with LiteLLM's `lesson-planner` alias. Keep its `LLM_API_KEY` separate from the internal playground key; `pnpm litellm:api-key` creates a 30-day key limited to that alias with a $0.50 budget. The API generation span is parent to the auto-instrumented HTTP call, so LiteLLM's model, token and cost attributes join the same W3C trace. The 20 October live check passed deterministic plan QA and appeared in Tempo, Loki and Prometheus; API trace ingestion in Langfuse still needs a direct check.
 
 ## Instrumentation rules
 
@@ -61,7 +61,7 @@ The Nest API is not routed through LiteLLM yet. After the playground workflow is
 1. ✅ Configure LiteLLM with DeepSeek and GLM aliases, a scoped playground key, persistent spend storage, and demo budgets.
 2. ✅ Add playground spans for retrieval, generation, review, and validation; configure LiteLLM OTEL and Prometheus callbacks.
 3. ✅ Add retrieval evaluation, deterministic verification scores, labelled LLM-judge review evaluation, dataset JSONL export, and saved-run cost summaries.
-4. [ ] Verify live traces, judge evaluation scores, dataset sync, Loki events, and Grafana/Prometheus signals locally before using those views as supporting evidence in the product walkthrough.
+4. ✅ Verified a live API generation in Langfuse with the scoped `nova-api` key alias, model, token usage, and LiteLLM cost. Its `trace_id` appears on the matching Loki request, the Prometheus generation outcome increments, and Grafana serves the 15-panel API/model dashboard. Playground judge scores and both Langfuse datasets are synced.
 
 This is a demo layer after the core generation and access-control path. If time is tight, keep auto-instrumented API traces, LiteLLM usage/cost, and one Langfuse prompt trace; defer a polished dashboard and broader eval suite.
 

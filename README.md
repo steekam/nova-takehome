@@ -1,4 +1,4 @@
-# Nova Curriculum Hub
+# Curriculum Design Hub
 
 Full-stack CBC lesson-planning task. Teachers generate a grounded draft, edit and submit it; a curriculum lead returns it with feedback or publishes it.
 
@@ -14,21 +14,22 @@ See [architecture](docs/architecture.md), [observability setup](docs/observabili
 
 ## Run locally
 
-Use Node 24 with `nvm install && nvm use` or `mise install`. Install packages with `pnpm install`. Varlock reads `.env.schema` plus ignored `.env.local`; `pnpm exec varlock load` validates the configuration without printing secrets.
-
-Prepare local secrets and start PostgreSQL, Redis, LiteLLM, and observability services with `pnpm local:prepare` and `pnpm exec varlock run -- docker compose --profile litellm up -d`. Apply the schema and seed local accounts/corpus:
+For the tester run, install Node 24 and pnpm, run `pnpm install`, then start the full demo with:
 
 ```sh
-pnpm db:migrate
-env NODE_ENV=development pnpm db:seed
+pnpm demo:up
 ```
+
+This creates `.env.local` from `.env.example` if needed, generates local service secrets, builds the web and API containers, migrates and seeds PostgreSQL, starts Compose services, checks their health, and prints the URLs. Run `pnpm demo:check` later to recheck services and print the summary. The first build may take a few minutes.
 
 The seed is additive and creates two demo accounts, both with password `NovaLocal123!`:
 
 - `teacher@example.test`
 - `curriculum-lead@example.test`
 
-Run `pnpm dev`. Mock generation is the default, so no model key is needed. For LiteLLM-backed generation, set `LLM_PROVIDER=openai-compatible`, `LLM_BASE_URL=http://localhost:4000/v1`, `LLM_MODEL=lesson-planner`, and `LLM_API_KEY` in `.env.local`. Provider credentials stay server-side.
+Mock generation is the default and needs no model key. Change the **LLM mode** selector in the app header to switch between mock and the server-configured live provider without restarting. For live mode, set `LLM_PROVIDER=openai-compatible`, `LLM_API_KEY`, `LLM_GENERATOR_MODEL`, and `COMPOSE_LLM_BASE_URL` in `.env.local`, then start or restart the API. The default Compose URL is `http://litellm:4000/v1`. If credentials are missing, the app lists the required variable names and stays in mock mode. Provider credentials stay server-side. See [tester BYOK design](docs/tester-byok.md).
+
+For host-based development, install packages and use `pnpm dev`; `pnpm dev:mock` forces mock generation. See the [tester BYOK design](docs/tester-byok.md) for model configuration details.
 
 ## Workflow rules
 
@@ -54,3 +55,7 @@ pnpm build
 ```
 
 `pnpm test` covers playground behavior and API workflow/role invariants. Verified behavior and remaining work are tracked in [performance-checklist.md](docs/performance-checklist.md).
+
+## Walkthrough
+
+The 4:13 narrated local video is a personal preview, not the submission recording. Record and upload the Loom walkthrough yourself, then add its share link here.

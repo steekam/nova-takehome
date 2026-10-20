@@ -19,6 +19,80 @@ services:
       timeout: 5s
       retries: 10
 
+  api-bootstrap:
+    image: nova-takehome:local
+    build: .
+    restart: "no"
+    command: ["sh", "-c", "pnpm --filter @nova/api db:migrate && pnpm --filter @nova/api db:seed"]
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/nova_hub
+      SEED_ALLOW_COMPOSE_DATABASE: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: nova-takehome:local
+    build: .
+    restart: unless-stopped
+    command: ["node", "apps/api/dist/src/main.js"]
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/nova_hub
+      PORT: "3001"
+      AUTH_SECRET: ${AUTH_SECRET:-nova-local-auth-secret-change-before-deploy-2026}
+      CORS_ORIGIN: http://localhost:5173
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_BASE_URL: ${COMPOSE_LLM_BASE_URL:-http://litellm:4000/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_GENERATOR_MODEL: ${LLM_GENERATOR_MODEL:-lesson-planner}
+      LLM_REVIEWER_MODEL: ${LLM_REVIEWER_MODEL:-lesson-planner}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-Xenova/bge-small-en-v1.5}
+      EMBEDDING_MODEL_REVISION: ${EMBEDDING_MODEL_REVISION:-main}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-384}
+      EMBEDDING_CACHE_ENABLED: ${EMBEDDING_CACHE_ENABLED:-true}
+      EMBEDDING_CACHE_DIR: /workspace/.cache/embeddings
+      TRANSFORMERS_CACHE_DIR: /workspace/.cache/transformers
+      OTEL_ENABLED: ${OTEL_ENABLED:-true}
+      OTEL_SERVICE_NAME: nova-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - nova-model-cache:/workspace/.cache
+    depends_on:
+      api-bootstrap:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+      start_period: 20s
+
+  web:
+    image: nova-takehome:local
+    build: .
+    restart: unless-stopped
+    command: ["pnpm", "--filter", "@nova/web", "dev", "--host", "0.0.0.0"]
+    environment:
+      VITE_API_URL: http://localhost:3001
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+      start_period: 15s
+
   litellm:
     profiles: [litellm]
     image: ghcr.io/berriai/litellm:v1.106.0
@@ -234,12 +308,9 @@ services:
 
 volumes:
   nova-postgres-data:
-  # Retained source volumes from the former dedicated services; remove only after owner sign-off.
-  litellm-postgres-data:
-  langfuse-postgres-data:
+  nova-model-cache:
   langfuse-clickhouse-data:
   langfuse-clickhouse-logs:
-  langfuse-redis-data:
   shared-redis-data:
   langfuse-minio-data:
   nova-tempo-data:

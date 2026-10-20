@@ -59,14 +59,14 @@
     {
       "id": 4,
       "type": "timeseries",
-      "title": "LiteLLM spend",
+      "title": "LiteLLM spend by key and model",
       "gridPos": { "h": 10, "w": 8, "x": 8, "y": 10 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (requested_model) (litellm_spend_metric_total)",
-          "legendFormat": "{{requested_model}}"
+          "expr": "sum by (api_key_alias, requested_model) (litellm_spend_metric_total)",
+          "legendFormat": "{{api_key_alias}} · {{requested_model}}"
         }
       ],
       "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
@@ -214,6 +214,22 @@
         }
       ],
       "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "API generation outcomes (30m)",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 80 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status_code) (increase(nova_api_http_requests_total{route=\"/api/lesson-plans/generate\"}[30m]))",
+          "legendFormat": "HTTP {{status_code}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
     }
   ]

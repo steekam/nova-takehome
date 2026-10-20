@@ -17,7 +17,10 @@ async function seed(): Promise<void> {
     throw new Error('Set NODE_ENV=development or test to create local seed accounts')
   }
   const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl || !['localhost', '127.0.0.1', '::1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
+  const databaseHost = databaseUrl ? new URL(databaseUrl).hostname : undefined
+  const localHost = databaseHost && ['localhost', '127.0.0.1', '::1', '[::1]'].includes(databaseHost)
+  const composeHost = databaseHost === 'postgres' && process.env.SEED_ALLOW_COMPOSE_DATABASE === 'true'
+  if (!localHost && !composeHost) {
     throw new Error('Local seed accounts can only be created in a database on this machine')
   }
 

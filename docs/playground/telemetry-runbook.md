@@ -13,7 +13,7 @@ pnpm install
 pnpm local:prepare
 ```
 
-Set `BASETEN_API_KEY` in `.env.local`, start the local services and LiteLLM through Varlock, then provision the scoped playground key:
+Set `BASETEN_API_KEY` for LiteLLM's upstream connection in `.env.local`, start the local services and LiteLLM through Varlock, then provision the scoped OpenAI-compatible proxy key:
 
 ```sh
 pnpm exec varlock run -- docker compose up -d
