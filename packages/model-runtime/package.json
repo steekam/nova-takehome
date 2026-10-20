@@ -1,0 +1,16 @@
+{
+  "name": "@nova/model-runtime",
+  "private": true,
+  "version": "0.1.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.71",
+    "ai": "^7.0.143",
+    "zod": "^4.0.0"
+  }
+}

@@ -7,25 +7,36 @@ import { generate, ProviderError } from './provider.js'
 const candidate: Candidate = {
   id: 'baseten-deepseek',
   provider: 'baseten',
+  connectionId: 'direct',
   model: 'deepseek/test',
   displayName: 'Baseten DeepSeek',
+}
+const proxyCandidate: Candidate = {
+  id: 'litellm-deepseek',
+  provider: 'litellm',
+  connectionId: 'proxy',
+  model: 'lesson-planner',
+  displayName: 'DeepSeek via proxy',
 }
 
 async function withProviderStub(fetchStub: typeof fetch, operation: () => Promise<void>): Promise<void> {
   const previousFetch = globalThis.fetch
-  const previousKey = process.env.BASETEN_API_KEY
-  const previousBaseUrl = process.env.OPENAI_COMPATIBLE_BASE_URL
+  const previous = Object.fromEntries([
+    'OPENAI_COMPATIBLE_API_KEY', 'OPENAI_COMPATIBLE_BASE_URL',
+    'OPENAI_COMPATIBLE_PROXY_API_KEY', 'OPENAI_COMPATIBLE_PROXY_BASE_URL',
+    'BASETEN_API_KEY', 'LITELLM_API_KEY', 'LITELLM_BASE_URL',
+  ].map((name) => [name, process.env[name]]))
   globalThis.fetch = fetchStub
-  process.env.BASETEN_API_KEY = 'test-key'
+  process.env.OPENAI_COMPATIBLE_API_KEY = 'test-key'
   process.env.OPENAI_COMPATIBLE_BASE_URL = 'https://provider.test/v1'
   try {
     await operation()
   } finally {
     globalThis.fetch = previousFetch
-    if (previousKey === undefined) delete process.env.BASETEN_API_KEY
-    else process.env.BASETEN_API_KEY = previousKey
-    if (previousBaseUrl === undefined) delete process.env.OPENAI_COMPATIBLE_BASE_URL
-    else process.env.OPENAI_COMPATIBLE_BASE_URL = previousBaseUrl
+    for (const [name, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[name]
+      else process.env[name] = value
+    }
   }
 }
 
@@ -64,6 +75,18 @@ test('records the model returned by an OpenAI-compatible provider', async () => 
   })
 })
 
+test('uses the generic proxy credential and endpoint for LiteLLM', async () => {
+  await withProviderStub(async (input, init) => {
+    assert.equal(input, 'https://proxy.test/v1/chat/completions')
+    assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer proxy-key')
+    return Response.json({ choices: [{ message: { content: '{"ok":true}' }, finish_reason: 'stop' }] })
+  }, async () => {
+    process.env.OPENAI_COMPATIBLE_PROXY_API_KEY = 'proxy-key'
+    process.env.OPENAI_COMPATIBLE_PROXY_BASE_URL = 'https://proxy.test/v1'
+    await generate(proxyCandidate, 'prompt')
+  })
+})
+
 test('labels a configured LiteLLM alias with the selected model name', () => {
-  assert.equal(modelLabel({ ...candidate, provider: 'litellm', model: 'lesson-planner', displayName: 'DeepSeek V4.1 Flash via LiteLLM' }, 'lesson-planner'), 'DeepSeek V4.1 Flash')
+  assert.equal(modelLabel({ ...candidate, provider: 'litellm', connectionId: 'proxy', model: 'lesson-planner', displayName: 'DeepSeek V4.1 Flash via LiteLLM' }, 'lesson-planner'), 'DeepSeek V4.1 Flash')
 })

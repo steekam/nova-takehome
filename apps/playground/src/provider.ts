@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { callModel, ModelRuntimeError } from '@nova/model-runtime'
 import type { Candidate } from './domain.js'
 import type { JsonSchemaNode } from './prompt.js'
 import { lessonTiming } from './prompt.js'
@@ -30,98 +31,57 @@ export async function generate(
   allowedChunkIds: string[] = [],
   structuredOutput?: { name: string; schema: JsonSchemaNode; mockContent?: string; durationMinutes?: number },
 ): Promise<ProviderResponse> {
-  if (candidate.provider === 'mock') return { content: structuredOutput?.mockContent ?? mockOutput(candidate.model, allowedChunkIds, structuredOutput?.durationMinutes) }
-  if (candidate.provider === 'baseten') return generateBaseten(candidate, prompt, structuredOutput)
-  if (candidate.provider === 'litellm') return generateLiteLLM(candidate, prompt, structuredOutput)
-  return generateOpenCode(candidate, prompt)
+  if (candidate.connectionId === 'mock') return { content: structuredOutput?.mockContent ?? mockOutput(candidate.model, allowedChunkIds, structuredOutput?.durationMinutes) }
+  if (candidate.connectionId === 'opencode_cli') return generateOpenCode(candidate, prompt)
+  return generateCompatible(candidate, prompt, structuredOutput)
 }
 
-async function generateBaseten(candidate: Candidate, prompt: string, structuredOutput?: { name: string; schema: JsonSchemaNode; mockContent?: string }): Promise<ProviderResponse> {
-  const apiKey = process.env.OPENAI_COMPATIBLE_API_KEY ?? process.env.BASETEN_API_KEY
-  if (!apiKey) throw new ProviderError('PROVIDER_AUTH_ERROR', 'OPENAI_COMPATIBLE_API_KEY or BASETEN_API_KEY is missing.')
-  const baseUrl = (process.env.OPENAI_COMPATIBLE_BASE_URL ?? process.env.BASETEN_BASE_URL ?? 'https://inference.baseten.co/v1').replace(/\/$/, '')
-  return generateOpenAICompatible('Baseten', baseUrl, apiKey, candidate, prompt, structuredOutput)
-}
-
-async function generateLiteLLM(candidate: Candidate, prompt: string, structuredOutput?: { name: string; schema: JsonSchemaNode; mockContent?: string }): Promise<ProviderResponse> {
-  const apiKey = process.env.LITELLM_API_KEY
-  if (!apiKey) throw new ProviderError('PROVIDER_AUTH_ERROR', 'LITELLM_API_KEY is missing. Run pnpm litellm:key after starting the local proxy.')
-  const baseUrl = (process.env.LITELLM_BASE_URL ?? 'http://localhost:4000/v1').replace(/\/$/, '')
-  return generateOpenAICompatible('LiteLLM', baseUrl, apiKey, candidate, prompt, structuredOutput)
-}
-
-async function generateOpenAICompatible(
-  providerName: string,
-  baseUrl: string,
-  apiKey: string,
+async function generateCompatible(
   candidate: Candidate,
   prompt: string,
   structuredOutput?: { name: string; schema: JsonSchemaNode; mockContent?: string },
 ): Promise<ProviderResponse> {
-  let response: Response
+  const connectionId = candidate.connectionId
+  const direct = connectionId === 'direct'
+  const apiKey = direct
+    ? process.env.OPENAI_COMPATIBLE_API_KEY || process.env.BASETEN_API_KEY
+    : process.env.OPENAI_COMPATIBLE_PROXY_API_KEY || process.env.LITELLM_API_KEY
+  if (!apiKey) {
+    const variable = direct ? 'OPENAI_COMPATIBLE_API_KEY' : 'OPENAI_COMPATIBLE_PROXY_API_KEY'
+    throw new ProviderError('PROVIDER_AUTH_ERROR', `${variable} is missing.`)
+  }
+  const baseUrl = direct
+    ? process.env.OPENAI_COMPATIBLE_BASE_URL || process.env.BASETEN_BASE_URL || 'https://inference.baseten.co/v1'
+    : process.env.OPENAI_COMPATIBLE_PROXY_BASE_URL || process.env.LITELLM_BASE_URL || 'http://localhost:4000/v1'
   try {
-    response = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: candidate.model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.2,
-        max_tokens: 2200,
-        response_format: structuredOutput
-          ? { type: 'json_schema', json_schema: { name: structuredOutput.name, strict: true, schema: structuredOutput.schema } }
-          : { type: 'json_object' },
-        chat_template_kwargs: { thinking: false },
-      }),
-      signal: AbortSignal.timeout(90_000),
+    const response = await callModel({
+      connection: { id: connectionId, baseUrl, apiKey },
+      model: candidate.model,
+      prompt,
+      output: structuredOutput
+        ? { type: 'json-schema', name: structuredOutput.name, schema: structuredOutput.schema }
+        : { type: 'json-object' },
+      timeoutMs: 90_000,
+      temperature: 0.2,
+      maxOutputTokens: 2200,
+      disableThinking: true,
+      ...(connectionId === 'proxy' ? { reportedCostHeader: 'x-litellm-response-cost' } : {}),
     })
-  } catch (error) {
-    if (error instanceof Error && error.name === 'TimeoutError') throw new ProviderError('PROVIDER_TIMEOUT', `${providerName} request timed out.`, true)
-    throw new ProviderError('PROVIDER_UNAVAILABLE', `Could not connect to ${providerName}.`, true)
-  }
-  if (!response.ok) {
-    let message = ''
-    try {
-      message = (await response.text()).slice(0, 500)
-    } catch {
-      message = 'Response body could not be read.'
+    return {
+      content: response.content,
+      responseModel: response.responseModel,
+      finishReason: response.finishReason,
+      usage: response.usage ? {
+        promptTokens: response.usage.inputTokens,
+        cachedPromptTokens: response.usage.cachedInputTokens,
+        completionTokens: response.usage.outputTokens,
+        totalTokens: response.usage.totalTokens,
+      } : undefined,
+      reportedCostUsd: response.reportedCostUsd,
     }
-    const retryable = response.status === 429 || response.status >= 500
-    const code = response.status === 401 || response.status === 403 ? 'PROVIDER_AUTH_ERROR'
-      : response.status === 429 ? 'PROVIDER_RATE_LIMITED'
-        : response.status >= 500 ? 'PROVIDER_UNAVAILABLE' : 'PROVIDER_REQUEST_REJECTED'
-    throw new ProviderError(code, `${providerName} returned HTTP ${response.status}: ${message}`, retryable)
-  }
-  let body: unknown
-  try {
-    body = await response.json()
   } catch (error) {
-    if (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name)) throw new ProviderError('PROVIDER_TIMEOUT', `${providerName} response timed out.`, true)
-    throw new ProviderError('PROVIDER_INVALID_RESPONSE', `${providerName} returned an invalid JSON response.`, true)
-  }
-  if (!isRecord(body) || !Array.isArray(body.choices) || !isRecord(body.choices[0])) {
-    throw new ProviderError('PROVIDER_INVALID_RESPONSE', `${providerName} returned an invalid response envelope.`, true)
-  }
-  const choice = body.choices[0]
-  const message = choice.message
-  if (!isRecord(message) || typeof message.content !== 'string' || !message.content.trim()) {
-    throw new ProviderError('PROVIDER_INVALID_RESPONSE', `${providerName} returned no valid message content.`, true)
-  }
-  const rawUsage = body.usage
-  const usage = isRecord(rawUsage) ? {
-    promptTokens: typeof rawUsage.prompt_tokens === 'number' ? rawUsage.prompt_tokens : undefined,
-    cachedPromptTokens: isRecord(rawUsage.prompt_tokens_details) && typeof rawUsage.prompt_tokens_details.cached_tokens === 'number' ? rawUsage.prompt_tokens_details.cached_tokens : undefined,
-    completionTokens: typeof rawUsage.completion_tokens === 'number' ? rawUsage.completion_tokens : undefined,
-    totalTokens: typeof rawUsage.total_tokens === 'number' ? rawUsage.total_tokens : undefined,
-  } : undefined
-  const costHeader = response.headers.get('x-litellm-response-cost')
-  const reportedCostUsd = costHeader === null ? undefined : Number(costHeader)
-  return {
-    content: message.content,
-    responseModel: typeof body.model === 'string' ? body.model : undefined,
-    finishReason: typeof choice.finish_reason === 'string' ? choice.finish_reason : undefined,
-    usage,
-    reportedCostUsd: reportedCostUsd !== undefined && Number.isFinite(reportedCostUsd) && reportedCostUsd >= 0 ? reportedCostUsd : undefined,
+    if (error instanceof ModelRuntimeError) throw new ProviderError(error.code, error.message, error.retryable)
+    throw error
   }
 }
 
