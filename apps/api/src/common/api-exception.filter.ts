@@ -37,6 +37,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
       if (response.code === 'VALIDATION_ERROR' && 'errors' in response && this.isValidationIssues(response.errors)) {
         body.code = response.code
         body.errors = response.errors
+      } else if (response.code === 'LESSON_PLAN_QA_FAILED' && 'errors' in response && this.isLessonPlanIssues(response.errors)) {
+        body.code = response.code
+        body.errors = response.errors
       }
     }
     if (this.hasStableErrorCode(exception)) {
@@ -64,7 +67,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
     if (!(exception instanceof HttpException)) return false
     const response = exception.getResponse()
     return typeof response === 'object' && response !== null && 'code' in response &&
-      typeof response.code === 'string' && (/^(LLM_(PROVIDER_|INVALID_RESPONSE)|EMBEDDING_)/.test(response.code) ||
+      typeof response.code === 'string' && (/^(LLM_(PROVIDER_|INVALID_RESPONSE|CREDENTIALS_MISSING)|EMBEDDING_)/.test(response.code) ||
         ['PLAN_TRANSITION_INVALID', 'LESSON_PLAN_QA_FAILED', 'REVIEW_COMMENT_REQUIRED'].includes(response.code))
   }
 
@@ -77,6 +80,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
       'constraints' in issue &&
       this.isStringArray(issue.constraints),
     )
+  }
+
+  private isLessonPlanIssues(value: unknown): value is { field: string; message: string }[] {
+    return Array.isArray(value) && value.every((issue) => typeof issue === 'object' && issue !== null &&
+      'field' in issue && typeof issue.field === 'string' && 'message' in issue && typeof issue.message === 'string')
   }
 
   private isStringArray(value: unknown): value is string[] {

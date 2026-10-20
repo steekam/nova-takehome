@@ -25,7 +25,7 @@ export class CurriculumController {
   @Post('lesson-plans/generate')
   @Roles('teacher')
   async generate(@CurrentUser() principal: ApiPrincipal, @Body() body: unknown) {
-    const input = parse(GenerateSchema, body)
+    const input = parseRequest(GenerateSchema, body)
     const plan = await this.curriculum.generate(principal, input.targetId, input.durationMinutes)
     return { plan, qa: qaFor(plan.content, await this.curriculum.citationsExist(plan.content), await this.curriculum.citationsAllowed(plan.id, plan.content)) }
   }
@@ -33,14 +33,14 @@ export class CurriculumController {
   @Get('lesson-plans/:id')
   async get(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal) {
     const plan = await this.curriculum.get(id, principal)
-    const reviews = await this.curriculum.reviews(id)
-    return { plan, reviews, qa: qaFor(plan.content, await this.curriculum.citationsExist(plan.content), await this.curriculum.citationsAllowed(plan.id, plan.content)) }
+    const [reviews, versions] = await Promise.all([this.curriculum.reviews(id), this.curriculum.versions(id)])
+    return { plan, reviews, versions, qa: qaFor(plan.content, await this.curriculum.citationsExist(plan.content), await this.curriculum.citationsAllowed(plan.id, plan.content)) }
   }
 
   @Patch('lesson-plans/:id')
   @Roles('teacher')
   async edit(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal, @Body() body: unknown) {
-    const input = parse(EditSchema, body)
+    const input = parseRequest(EditSchema, body)
     const plan = await this.curriculum.edit(id, principal, input.content)
     return { plan, qa: qaFor(plan.content, await this.curriculum.citationsExist(plan.content), await this.curriculum.citationsAllowed(plan.id, plan.content)) }
   }
@@ -55,15 +55,24 @@ export class CurriculumController {
   @Post('lesson-plans/:id/reviews')
   @Roles('curriculum_lead')
   async review(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal, @Body() body: unknown) {
-    const input = parse(ReviewSchema, body)
+    const input = parseRequest(ReviewSchema, body)
     const { plan, review } = await this.curriculum.review(id, principal, input.decision, input.comment)
     return { plan, review: { ...review, createdAt: review.createdAt.toISOString() } }
   }
 }
 
-function parse<T extends z.ZodType>(schema: T, body: unknown): z.infer<T> {
+export function parseRequest<T extends z.ZodType>(schema: T, body: unknown): z.infer<T> {
   const result = schema.safeParse(body)
-  if (!result.success) throw new BadRequestException('Invalid request body')
+  if (!result.success) {
+    throw new BadRequestException({
+      code: 'VALIDATION_ERROR',
+      message: 'Correct the listed request fields and try again.',
+      errors: result.error.issues.map((issue) => ({
+        field: issue.path.join('.') || 'body',
+        constraints: [issue.message],
+      })),
+    })
+  }
   return result.data
 }
 

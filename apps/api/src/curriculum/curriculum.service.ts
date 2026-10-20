@@ -1,13 +1,14 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { UnprocessableEntityException } from '@nestjs/common'
 import { desc, eq } from 'drizzle-orm'
-import { CurriculumOutcomeDtoSchema, CurriculumSourceDtoSchema, LessonPlanContentSchema, type ApiPrincipal, type LessonPlanContent, type LessonPlanStatus } from '@nova/shared'
+import { CurriculumOutcomeDtoSchema, CurriculumSourceDtoSchema, hasValidReturnComment, LessonPlanContentSchema, transitionLessonPlan, type ApiPrincipal, type LessonPlanAction, type LessonPlanContent, type LessonPlanStatus } from '@nova/shared'
 import { DatabaseService } from '../database/database.service'
 import { lessonPlanVersions, lessonPlans, planReviews } from '../database/schema'
 import { LessonPlanGenerator } from './lesson-plan-generator'
 import { CurriculumRepository } from './curriculum.repository'
 import { EmbeddingAdapter } from './embedding.service'
 import { EmbeddingError } from './embedding.adapter'
+import type { ZodIssue } from 'zod'
 
 @Injectable()
 export class CurriculumService {
@@ -39,6 +40,11 @@ export class CurriculumService {
     return this.repository.reviews(id)
   }
 
+  async versions(id: string) {
+    return this.database.db.select({ version: lessonPlanVersions.version, content: lessonPlanVersions.content, createdBy: lessonPlanVersions.createdBy, createdAt: lessonPlanVersions.createdAt })
+      .from(lessonPlanVersions).where(eq(lessonPlanVersions.lessonPlanId, id)).orderBy(desc(lessonPlanVersions.version))
+  }
+
   async generate(principal: ApiPrincipal, targetId: string, durationMinutes: number) {
     const [row] = await this.repository.outcomeForTarget(targetId)
     if (!row) throw new NotFoundException('Curriculum outcome not found')
@@ -64,7 +70,10 @@ export class CurriculumService {
       this.assertTeacherOwns(plan.teacherId, principal)
       const nextStatus = transitionPlanStatus(plan.status, 'edit')
       const valid = LessonPlanContentSchema.safeParse(content)
-      if (!valid.success) throw new UnprocessableEntityException({ code: 'LESSON_PLAN_QA_FAILED', message: 'Plan content does not match the lesson plan schema.' })
+      if (!valid.success) {
+        const errors = formatLessonPlanSchemaIssues(valid.error.issues)
+        throw new UnprocessableEntityException({ code: 'LESSON_PLAN_QA_FAILED', message: `Fix these lesson plan fields before saving: ${errors.map(({ field, message }) => `${field}: ${message}`).join('; ')}.`, errors })
+      }
       await this.assertPlanQa(id, valid.data)
       const [latest] = await tx.select().from(lessonPlanVersions).where(eq(lessonPlanVersions.lessonPlanId, id)).orderBy(desc(lessonPlanVersions.version)).limit(1)
       await tx.insert(lessonPlanVersions).values({ lessonPlanId: id, version: (latest?.version ?? 0) + 1, content: valid.data, createdBy: principal.subject })
@@ -94,6 +103,11 @@ export class CurriculumService {
       if (!plan) throw new NotFoundException('Lesson plan not found')
       const nextStatus = transitionPlanStatus(plan.status, decision)
       const normalizedComment = validateReviewComment(decision, comment)
+      if (decision === 'published') {
+        const [latest] = await tx.select().from(lessonPlanVersions).where(eq(lessonPlanVersions.lessonPlanId, id)).orderBy(desc(lessonPlanVersions.version)).limit(1)
+        if (!latest) throw new NotFoundException('Lesson plan content not found')
+        await this.assertPlanQa(id, latest.content)
+      }
       await tx.update(lessonPlans).set({ status: nextStatus, updatedAt: new Date() }).where(eq(lessonPlans.id, id))
       const [created] = await tx.insert(planReviews).values({ lessonPlanId: id, curriculumLeadId: principal.subject, decision, comment: normalizedComment }).returning()
       return [created]
@@ -159,35 +173,22 @@ export function assertCanReadPlan(owner: string, status: string, principal: ApiP
   throw new ForbiddenException()
 }
 
-export function transitionPlanStatus(status: string, action: 'edit' | 'submit' | 'returned' | 'published'): LessonPlanStatus {
-  const transitions: Record<string, Partial<Record<typeof action, LessonPlanStatus>>> = {
-    draft: { edit: 'draft', submit: 'submitted' },
-    submitted: { returned: 'returned', published: 'published' },
-    returned: { edit: 'draft', submit: 'submitted' },
-    published: {},
-  }
-  const next = transitions[status]?.[action]
-  if (!next) throw new ConflictException({ code: 'PLAN_TRANSITION_INVALID', message: invalidTransitionMessage(status, action) })
-  return next
-}
-
-function invalidTransitionMessage(status: string, action: 'edit' | 'submit' | 'returned' | 'published') {
-  if (status === 'published') return 'Published lesson plans are read-only.'
-  if (status === 'submitted') return action === 'edit'
-    ? 'This lesson plan is under review. Wait for the curriculum lead before editing.'
-    : 'This lesson plan is already awaiting review.'
-  if (status === 'returned') return 'Returned lesson plans must be edited and resubmitted before review.'
-  return action === 'returned' || action === 'published'
-    ? 'Only a submitted lesson plan can be reviewed.'
-    : 'This lesson plan cannot take that action in its current state.'
+export function transitionPlanStatus(status: LessonPlanStatus, action: LessonPlanAction): LessonPlanStatus {
+  const result = transitionLessonPlan(status, action)
+  if (!result.ok) throw new ConflictException({ code: result.code, message: result.message })
+  return result.status
 }
 
 export function validateReviewComment(decision: 'returned' | 'published', comment?: string) {
   const normalized = comment?.trim()
-  if (decision === 'returned' && (!normalized || normalized.length < 8)) {
-    throw new BadRequestException({ code: 'REVIEW_COMMENT_REQUIRED', message: 'Add a short, actionable reason before returning this lesson plan.' })
+  if (decision === 'returned' && (!normalized || !hasValidReturnComment(normalized))) {
+    throw new BadRequestException({ code: 'REVIEW_COMMENT_REQUIRED', message: 'Add an actionable return reason with at least eight non-space characters.' })
   }
   return normalized || undefined
+}
+
+export function formatLessonPlanSchemaIssues(issues: readonly ZodIssue[]) {
+  return issues.map(({ path, message }) => ({ field: path.length ? path.join('.') : 'content', message }))
 }
 
 export function planDurationMatches(content: LessonPlanContent) {

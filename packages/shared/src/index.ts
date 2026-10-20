@@ -26,13 +26,19 @@ export const LessonPlanContentSchema = z.object({
 }).strict()
 
 export const LessonPlanStatusSchema = z.enum(['draft', 'submitted', 'returned', 'published'])
+export const LessonPlanActionSchema = z.enum(['edit', 'submit', 'returned', 'published'])
 export const userRoles = ['teacher', 'curriculum_lead'] as const
 export const UserRoleSchema = z.enum(userRoles)
 
 export type LessonPlanContent = z.infer<typeof LessonPlanContentSchema>
 export type LessonPlanSource = z.infer<typeof LessonPlanSourceSchema>
 export type LessonPlanStatus = z.infer<typeof LessonPlanStatusSchema>
+export type LessonPlanAction = z.infer<typeof LessonPlanActionSchema>
 export type UserRole = z.infer<typeof UserRoleSchema>
+
+export function hasValidReturnComment(comment: string): boolean {
+  return comment.replace(/\s/g, '').length >= 8
+}
 
 export const LessonPlanDtoSchema = z.object({
   id: z.string().uuid(), teacherId: z.string().uuid(), status: LessonPlanStatusSchema,
@@ -62,4 +68,24 @@ export interface ApiPrincipal {
   subject: string
   roles: UserRole[]
   permissions: string[]
+}
+
+const lessonPlanTransitions: Record<LessonPlanStatus, Partial<Record<LessonPlanAction, LessonPlanStatus>>> = {
+  draft: { edit: 'draft', submit: 'submitted' },
+  submitted: { returned: 'returned', published: 'published' },
+  returned: { edit: 'draft' },
+  published: {},
+}
+
+export function transitionLessonPlan(status: LessonPlanStatus, action: LessonPlanAction):
+  | { ok: true; status: LessonPlanStatus }
+  | { ok: false; code: 'PLAN_TRANSITION_INVALID'; message: string } {
+  const next = lessonPlanTransitions[status][action]
+  if (next) return { ok: true, status: next }
+  if (status === 'published') return { ok: false, code: 'PLAN_TRANSITION_INVALID', message: 'Published lesson plans are read-only.' }
+  if (status === 'submitted') return { ok: false, code: 'PLAN_TRANSITION_INVALID', message: action === 'edit'
+    ? 'This lesson plan is under review. Wait for the curriculum lead before editing.'
+    : 'This lesson plan is already awaiting review.' }
+  if (status === 'returned') return { ok: false, code: 'PLAN_TRANSITION_INVALID', message: 'Returned lesson plans must be edited before they can be resubmitted.' }
+  return { ok: false, code: 'PLAN_TRANSITION_INVALID', message: 'Only a submitted lesson plan can be reviewed.' }
 }
