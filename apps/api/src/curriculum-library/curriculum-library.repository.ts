@@ -4,9 +4,7 @@ import { DatabaseService } from '../database/database.service'
 import type { DbExecutor } from '../database/executor'
 import {
   curriculumDesignVersions,
-  curriculumFrameworks,
   curriculumLevels,
-  curriculumNodes,
   curriculumOfferings,
   curriculumProgrammes,
   curriculumSourceLinks,
@@ -22,34 +20,69 @@ export class CurriculumLibraryRepository {
   constructor(private readonly database: DatabaseService) {}
 
   async catalogue(includeDraft: boolean) {
-    const offerings = await this.database.db.select({
-      id: curriculumOfferings.id,
-      frameworkId: curriculumFrameworks.id,
-      framework: curriculumFrameworks.name,
-      programmeId: curriculumProgrammes.id,
-      programme: curriculumProgrammes.name,
-      levelId: curriculumLevels.id,
-      level: curriculumLevels.label,
-      subjectId: curriculumSubjects.id,
-      subject: curriculumSubjects.name,
-      externalCode: curriculumOfferings.externalCode,
-    }).from(curriculumOfferings)
-      .innerJoin(curriculumProgrammes, eq(curriculumOfferings.programmeId, curriculumProgrammes.id))
-      .innerJoin(curriculumFrameworks, eq(curriculumProgrammes.frameworkId, curriculumFrameworks.id))
-      .leftJoin(curriculumLevels, eq(curriculumOfferings.levelId, curriculumLevels.id))
-      .innerJoin(curriculumSubjects, eq(curriculumOfferings.subjectId, curriculumSubjects.id))
+    const rows = await this.database.db.query.curriculumOfferings.findMany({
+      with: {
+        programme: { with: { framework: true } },
+        level: true,
+        subject: true,
+        designs: {
+          where: includeDraft ? undefined : eq(curriculumDesignVersions.status, 'published'),
+          with: {
+            nodes: true,
+            targets: {
+              with: {
+                sourceLinks: {
+                  where: includeDraft ? undefined : eq(curriculumSourceLinks.status, 'published'),
+                  with: {
+                    resourceRevision: {
+                      with: { resource: true, chunks: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    })
 
-    const designs = await this.database.db.select().from(curriculumDesignVersions)
-      .where(includeDraft ? undefined : eq(curriculumDesignVersions.status, 'published'))
-    const designIds = designs.map((design) => design.id)
-    const nodes = designIds.length
-      ? await this.database.db.select().from(curriculumNodes).where(inArray(curriculumNodes.designVersionId, designIds))
-      : []
-    const targets = designIds.length
-      ? await this.database.db.select().from(curriculumTargetRevisions).where(inArray(curriculumTargetRevisions.designVersionId, designIds))
-      : []
-    const targetIds = targets.map((target) => target.id)
-    const sources = targetIds.length ? await this.sourceRows(targetIds, includeDraft) : []
+    const offerings = rows.map((offering) => ({
+      id: offering.id,
+      frameworkId: offering.programme.framework.id,
+      framework: offering.programme.framework.name,
+      programmeId: offering.programme.id,
+      programme: offering.programme.name,
+      levelId: offering.level?.id ?? null,
+      level: offering.level?.label ?? null,
+      subjectId: offering.subject.id,
+      subject: offering.subject.name,
+      externalCode: offering.externalCode,
+    }))
+    const designs = rows.flatMap((offering) => offering.designs)
+    const nodes = designs.flatMap((design) => design.nodes)
+    const targets = designs.flatMap((design) => design.targets)
+    const sources = rows.flatMap((offering) => offering.designs.flatMap((design) => design.targets.flatMap((target) =>
+      target.sourceLinks.flatMap((link) => (includeDraft || link.resourceRevision.status === 'published') ? link.resourceRevision.chunks.map((chunk) => ({
+        linkId: link.id,
+        targetRevisionId: target.id,
+        role: link.role,
+        linkStatus: link.status,
+        documentId: link.resourceRevision.resource.id,
+        resourceRevisionId: link.resourceRevision.id,
+        revisionNumber: link.resourceRevision.revisionNumber,
+        chunkId: chunk.id,
+        resourceType: link.resourceRevision.resource.resourceType,
+        title: link.resourceRevision.resource.title,
+        authority: link.resourceRevision.resource.authority,
+        editionLabel: link.resourceRevision.editionLabel,
+        sourceUrl: link.resourceRevision.sourceUrl,
+        subject: offering.subject.name,
+        grade: offering.level?.label ?? null,
+        locator: chunk.locator,
+        content: chunk.content,
+        revisionStatus: link.resourceRevision.status,
+      })) : []),
+    )))
 
     return {
       offerings,
