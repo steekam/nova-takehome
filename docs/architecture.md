@@ -1,63 +1,74 @@
 # Architecture
 
-## Package boundaries
+This page maps the running application for reviewers and contributors. The root
+[README](../README.md) covers local setup and the demo flow.
 
-```text
-apps/web       React screens, form state, API requests
-apps/api       NestJS auth, workflow, retrieval, generation, validation, persistence
-packages/shared Zod lesson-plan schemas and transport types
-apps/playground Internal corpus and model evaluation CLI; excluded from product walkthrough
+## Runtime shape
+
+```mermaid
+flowchart LR
+  Teacher[Teacher] --> Web[React + TanStack Router]
+  Lead[Curriculum Lead] --> Web
+  Web --> API[NestJS API]
+  API --> DB[(PostgreSQL + pgvector)]
+  API --> Cache[(Redis)]
+  API --> Proxy[OpenAI-compatible provider / LiteLLM]
+  API --> LF[Langfuse SDK]
+  API --> OTEL[OpenTelemetry]
+  OTEL --> Collector[Collector]
+  Collector --> Tempo[Tempo]
+  Collector --> Prom[Prometheus]
+  Collector --> Loki[Loki]
 ```
 
-The browser presents actions. The API checks identity, ownership, transitions, curriculum references, and lesson-plan invariants. Drizzle stores plans, immutable versions, reviews, curriculum chunks, and pgvector embeddings.
+## Code boundaries
 
-The curriculum library UI is browse-and-inspect only. Catalogue data comes from seed/import paths; curriculum-lead source endpoints remain available for controlled ingestion. The full extraction and approval workflow is a proposed extension, not part of the current screens.
+- `apps/web` owns screens, forms, routing, and typed HTTP calls.
+- `apps/api` owns authentication, authorization, HTTP validation, use cases,
+  database access, retrieval, model calls, and workflow transitions.
+- `packages/shared` owns Zod contracts shared across the API and web app.
+- `packages/model-runtime` owns provider and embedding adapters shared by the
+  API and internal playground.
+- `apps/playground` is an internal CLI for corpus and model experiments. It is
+  separate from the product workflow.
+
+Database table definitions live in feature-oriented files under
+`apps/api/src/database/schema`. Feature repositories use Drizzle. HTTP request
+and response contracts live in `packages/shared` and are used to generate the
+OpenAPI description and web client types.
 
 ## Lesson-plan workflow
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Draft: teacher authors or AI generates
-  Draft --> Draft: teacher edits; save new version
-  Draft --> Submitted: submit after QA
-  Submitted --> Returned: lead returns with comment
-  Submitted --> Published: lead publishes
-  Returned --> Draft: teacher edits
+  [*] --> Draft
+  Draft --> Draft: Teacher edits; save immutable version
+  Draft --> Submitted: Teacher submits
+  Submitted --> Returned: Lead returns with comment
+  Submitted --> Published: Lead publishes
+  Returned --> Draft: Teacher edits; save immutable version
   Published --> [*]
 ```
 
-The shared package owns the transition table used by the API and playground. The playground also validates saved status, version, and event history as one state-machine record. The API locks the plan row while changing state; an invalid action returns `409 PLAN_TRANSITION_INVALID` without changing the plan. A return needs at least eight non-space characters of feedback. A returned plan becomes Draft on its first edit, then needs another submit. Published plans are terminal.
+The shared package defines the allowed transitions. The API checks role,
+ownership, status, and deterministic content rules before committing changes.
+Review decisions reference the exact immutable lesson version. A returned plan
+must be edited and submitted again. Published plans are terminal.
 
-The playground's file-backed plan store is a single-process development tool. Its per-plan mutation queue serializes calls in one process; the API is the concurrent multi-user workflow and uses database row locks.
+Generation is a use case: resolve the selected curriculum target, retrieve its
+eligible sources, call the configured provider, parse and validate the output,
+then persist a Draft and its provenance. One corrective model attempt follows
+deterministic validation failure. If both attempts fail, no plan is saved.
 
-| Current state | Action | Next state | Guard |
-|---|---|---|---|
-| Draft | Edit | Draft | Teacher owns the plan; content passes deterministic QA; save a new version |
-| Draft | Submit | Submitted | Latest version passes deterministic QA |
-| Submitted | Return | Returned | Lead decision; comment has at least eight non-space characters |
-| Submitted | Publish | Published | Lead decision; latest version still passes QA |
-| Returned | Edit | Draft | Teacher owns the plan; first edit creates a new version |
+The teacher can run rubric QA separately on a saved version. Rubric QA is
+advisory; deterministic checks govern workflow validity. A new edit creates a
+new version, so QA attached to an earlier version remains an auditable result
+for that version.
 
-Every other state/action pair is rejected before mutation. State changes and version/review writes share a database transaction; concurrent decisions serialize on the plan row. Clients receive a stable error code and a message that names the next correction: `PLAN_TRANSITION_INVALID` (409), `REVIEW_COMMENT_REQUIRED` (400), or `LESSON_PLAN_QA_FAILED` (422 with failed checks). A returned plan cannot be silently republished: it must be edited and resubmitted.
+## Change guide
 
-Each teacher edit creates a new immutable version. Submit validates the latest version in the same transaction as the state change. QA requires a valid shared schema, activity minutes that sum to the lesson length, existing curriculum chunk references, and citations drawn from the generation run's frozen candidate set. Failures return `422 LESSON_PLAN_QA_FAILED` with the checks to fix.
-
-Generation stores unique candidate chunk IDs as provenance. Retiring a source removes it from future retrieval; it does not invalidate existing lesson versions or erase their citations. Source revisions and chunks remain available for audit.
-
-Teachers can read their own plans and any published plan. Curriculum leads can read submitted plans. The lead queue contains submitted plans only. The web app clears the selected detail after a lead decision because returned and published plans leave that queue.
-
-## Generation and grounding
-
-The teacher selects a CBC outcome and lesson length. The API pins that outcome, retrieves related chunks by BGE-small embeddings and pgvector cosine distance within the same subject and grade, and sends the selected outcome plus candidate sources to an OpenAI-compatible provider. LiteLLM is the local gateway. The API validates output before saving a Draft; failed generation leaves no plan behind.
-
-`LessonPlanGenerator` owns prompting, the single correction attempt, schema checks, and citation-provenance checks. These deterministic checks do not prove semantic claim support. Configuration selects either the deterministic mock adapter or the OpenAI-compatible HTTP adapter; provider transport and response parsing stay behind that interface. Embeddings use a separate adapter. Local BGE weights live under `TRANSFORMERS_CACHE_DIR`; content-addressed vectors live under `EMBEDDING_CACHE_DIR`. The product makes no AI review call: the Curriculum Lead reviews the submitted plan. The internal playground has separate evaluation workflows and does not control product plan state.
-
-For the proposed document upload, extraction, approval, and indexing workflow, see the [source ingestion pipeline extension](source-ingestion-extension.md).
-
-## Error behavior
-
-API errors carry a stable `code`, useful message, and request ID. Workflow state and QA errors are listed above. Provider and embedding failures use `LLM_*` and `EMBEDDING_*` codes; unavailable generation returns a retryable service error without saving a draft. Logs and traces carry request and trace IDs, not provider keys.
-
-## Telemetry
-
-The API and LiteLLM emit OpenTelemetry signals. The Collector routes traces to Tempo and Langfuse; Prometheus scrapes metrics; Loki stores structured logs. LiteLLM owns provider routing, usage, cost, and budgets. Langfuse stores prompts, traces, and evaluations. See [observability.md](observability.md) and the [playground telemetry runbook](playground/telemetry-runbook.md).
+When adding a workflow, define its contract in `packages/shared`, add the API
+use case and persistence path, expose it through the controller, then connect
+the web screen. Keep state changes and their version/review records in one
+database transaction. Add telemetry at the AI workflow boundary only for
+AI-related traces; ordinary HTTP and database traces remain in OpenTelemetry.

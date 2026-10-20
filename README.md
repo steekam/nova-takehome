@@ -23,7 +23,7 @@ Sign in from the Teacher or Curriculum Lead demo button. Manual credentials:
 
 The web app is at `http://localhost:5173/login`. `demo:check` also prints API readiness and local observability URLs.
 
-Mock generation is the default and needs no provider key. To enable the server-configured live provider, set `LLM_PROVIDER=openai-compatible`, `LLM_API_KEY`, `LLM_GENERATOR_MODEL`, and `COMPOSE_LLM_BASE_URL` in `.env.local`, then start or restart the API. The default Compose URL is `http://litellm:4000/v1`. The app names missing settings when live mode is unavailable; provider credentials stay server-side. The app header switches between mock and configured live mode. See [model configuration](docs/tester-byok.md).
+Mock generation is the default and needs no provider key. To enable the server-configured live provider, set `LLM_PROVIDER=openai-compatible`, `LLM_API_KEY`, `LLM_GENERATOR_MODEL`, and `COMPOSE_LLM_BASE_URL` in `.env.local`, then start or restart the API. The default Compose URL is `http://litellm:4000/v1`. The app names missing settings when live mode is unavailable; provider credentials stay server-side. The app header switches between mock and configured live mode.
 
 For host development, use `pnpm dev` or `pnpm dev:mock`. Node 24 is declared in `.nvmrc` and `mise.toml`; pnpm is pinned in `package.json`.
 
@@ -40,11 +40,11 @@ To show QA feedback, change activity minutes so they no longer sum to the lesson
 
 ## Curriculum and generation
 
-The demo catalogue has five CBC grade/subject offerings. It seeds nine short source resources across six types: one official KICD curriculum excerpt and eight clearly labelled synthetic teaching supports. Grade 8 Integrated Science is the only generation-ready target; the other seeded paths are browse-only. The current library lets users browse hierarchy, revisions, references, and readiness. Source authoring and publishing are not available in the UI; seed/import data populates the catalogue. The proposed upload and review workflow is documented in [source ingestion extension](docs/source-ingestion-extension.md).
+The demo catalogue has five CBC grade/subject offerings. It seeds nine short source resources across six types: one official KICD curriculum excerpt and eight clearly labelled synthetic teaching supports. Grade 8 Integrated Science is the only generation-ready target; the other seeded paths are browse-only. The current library lets users browse hierarchy, revisions, references, and readiness. Seed/import data populates the catalogue; source authoring and publishing are not available in the UI.
 
 The API embeds the selected target's linked sources with BGE-small (384 dimensions) and stores vectors in pgvector. Retrieval pins the official target-defining excerpt and selects supporting material from that target. Generation returns a strict shared lesson schema: target and duration, objectives, materials, starter, timed activities, assessment check, and source IDs. Before saving, the API checks schema, selected target, exact duration, activity-time total, official target citation, and citation membership in the frozen retrieval set. These deterministic checks prove structure and source provenance; they do not assess whether each claim is supported by its citation. Missing target sources, invalid model output, and failed QA return stable errors without creating or changing a plan.
 
-The shared package owns transport schemas and the plan transition table. The API owns authorization, row-locked state changes, immutable versions, reviews, and persistence. See [architecture and invariants](docs/architecture.md), the [implemented domain model](docs/domain-model-and-grounding.md), and the [project glossary](GLOSSARY.md).
+The shared package owns transport schemas and the plan transition table. The API owns authorization, row-locked state changes, immutable versions, reviews, and persistence. See the [architecture](docs/architecture.md), [domain model](docs/domain-model.md), and [project glossary](GLOSSARY.md).
 
 ## Repository map
 
@@ -68,4 +68,4 @@ The API database-backed HTTP workflow test runs when `TEST_DATABASE_URL` points 
 env TEST_DATABASE_URL=postgresql://… pnpm --filter @nova/api test:e2e
 ```
 
-See the [reviewer checklist](docs/performance-checklist.md), [embedding and corpus notes](docs/playground/embedding-corpus-guide.md), and [observability guide](docs/observability.md). The [system data schema](docs/system-data-schema.html), [curriculum library walkthrough](docs/curriculum-library-walkthrough.html), and [work overview](docs/work-overview.html) are visual review aids.
+See [observability](docs/observability.md) for AI traces, prompt management, and local telemetry destinations. The API contracts and database schemas are maintained in code; the [domain model](docs/domain-model.md) summarizes their relationships.

@@ -246,9 +246,9 @@ async function runCommand(traceId?: string): Promise<void> {
       ['review-report.schema.json', reviewOutputSchema],
       ['cbc-corpus.schema.json', z.toJSONSchema(CorpusDataSchema)],
     ] as const
-    await mkdir(path.resolve('docs/playground'), { recursive: true })
+    await mkdir(path.resolve('.cache/playground/schemas'), { recursive: true })
     for (const [filename, schema] of schemas) {
-      const schemaPath = path.resolve('docs/playground', filename)
+      const schemaPath = path.resolve('.cache/playground/schemas', filename)
       await writeFile(schemaPath, `${JSON.stringify(schema, null, 2)}\n`)
       process.stdout.write(`${schemaPath}\n`)
     }

@@ -125,6 +125,5 @@ References:
 - [KICD Grade 8 Integrated Science design, April 2024](https://kicd.ac.ke/wp-content/uploads/2024/06/Integrated-Science-Grade-8-Design-Formatted-April-2024.pdf)
 - [Performance task brief](nova-fullstack-performance-task.pdf)
 - [Architecture](docs/architecture.md)
-- [Reviewer checklist](docs/performance-checklist.md)
-- [Observability plan](docs/observability.md)
-- [Curriculum domain model and grounding](docs/domain-model-and-grounding.md)
+- [Domain model](docs/domain-model.md)
+- [Observability](docs/observability.md)

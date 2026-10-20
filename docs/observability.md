@@ -1,64 +1,79 @@
 # Observability
 
-## Local stack
+This page explains where to inspect lesson-plan AI runs and system health. Run
+`pnpm demo:up` to start the local stack and `pnpm demo:check` to print its
+health and URLs.
 
-Run `pnpm demo:up`. It starts the web app, API, PostgreSQL, Redis, LiteLLM, Langfuse, and the telemetry services. `pnpm demo:check` reports health and URLs.
+## Where signals go
 
-| Tool | URL | What to inspect |
-| --- | --- | --- |
-| Grafana | `http://localhost:3000` | **Nova API and model telemetry** dashboard: HTTP traffic, generation outcomes and latency, deterministic QA failures, correction turns, reported cost. |
-| Langfuse | `http://localhost:3002` | Lesson-plan AI workflow and model-call traces; prompt and response capture is off by default. |
-| LiteLLM | `http://localhost:4000/ui` | Proxy requests, model usage, spend and budget. |
-| Prometheus | `http://localhost:9091` | API, playground and LiteLLM metrics. |
-| Tempo | `http://localhost:3200` | Distributed traces. |
-| Loki | `http://localhost:3100/ready` | Structured API and playground logs. |
+```mermaid
+flowchart LR
+  API[API] -->|AI workflow spans| Langfuse[Langfuse SDK → Langfuse]
+  API -->|traces| Collector[OpenTelemetry Collector]
+  API -->|metrics and logs| Collector
+  Collector --> Tempo[Tempo: traces]
+  Collector --> Prom[Prometheus: metrics]
+  Collector --> Loki[Loki: logs]
+  Prom --> Grafana[Grafana dashboards]
+  Proxy[LiteLLM] --> Prom
+```
+
+Langfuse receives lesson-plan generation and rubric-QA traces through its SDK.
+The Collector sends distributed traces to Tempo, metrics to Prometheus, and
+structured logs to Loki. Grafana displays metrics. LiteLLM reports provider
+usage, cost, and budgets for proxied calls.
+
+`pnpm demo:check` prints service URLs. The default local endpoints include
+Grafana at `http://localhost:3000`, Langfuse at `http://localhost:3002`,
+LiteLLM at `http://localhost:4000/ui`, Prometheus at
+`http://localhost:9091`, Tempo at `http://localhost:3200`, and Loki at
+`http://localhost:3100/ready`.
+
+## AI workflow trace
+
+Generation creates a `curriculum.lesson_plan.generate` Langfuse trace. It
+records the selected target, retrieved source context, model request and
+response, deterministic checks, correction attempt, usage, reported cost, and
+final result. Rubric validation uses a separate
+`curriculum.lesson_plan.qa.rubric` trace and records the exact plan version,
+rubric/prompt versions, reviewer model, structured result, and status.
+
+Request IDs propagate as searchable Langfuse metadata and to the provider as
+`X-Request-Id`. W3C trace context preserves distributed trace correlation.
+Provider attempts, retry outcomes, latency, token counts, and reported cost
+also feed bounded-cardinality metrics. Plan IDs, target IDs, and request IDs
+stay on traces rather than metric labels.
+
+Prompt input/output capture is controlled by `LANGFUSE_CAPTURE_PROMPTS`.
+Prompt bodies can contain curriculum excerpts and generated lesson content;
+enable capture only in a suitable development environment. The default
+`.env.schema` setting is off.
 
 ## Prompt management
 
-`pnpm demo:up` creates the generation and rubric prompts in Langfuse when they are missing, using their initial source in [prompt-definitions.ts](../apps/api/src/lesson-planning/prompt-definitions.ts). Startup leaves existing Langfuse prompts alone so UI edits remain in control. Run `pnpm langfuse:prompts:sync` to add any missing prompt. To publish code-defined prompt changes deliberately, run `pnpm langfuse:prompts:publish`.
+The API uses Langfuse prompts named `nova-lesson-plan-generate` and
+`nova-lesson-plan-rubric-review`. `LANGFUSE_PROMPT_LABEL` selects the label,
+which defaults to `production`. The prompt's Langfuse model config can select
+the LiteLLM model alias; otherwise the API uses its configured generator or
+reviewer model.
 
-The API fetches each prompt by `LANGFUSE_PROMPT_LABEL` (default `production`), with SDK caching. Langfuse shows the prompt name and version on the matching model generation, so prompt metrics and evals can be grouped by version. Each prompt's Langfuse config can set its LiteLLM model alias; this takes precedence over `LLM_GENERATOR_MODEL` or `LLM_REVIEWER_MODEL`. Change `model` to `lesson-planner` (DeepSeek) or `lesson-planner-glm` (GLM) to compare models, then publish a prompt edit to a separate Langfuse label to compare versions without changing code. The initial prompts ship with the `production` label and use `lesson-planner`.
+`pnpm demo:up` creates missing prompts without overwriting existing edits. Use
+`pnpm langfuse:prompts:sync` to add missing prompts. Use
+`pnpm langfuse:prompts:publish` to publish code-defined prompt changes. If
+managed prompts are disabled or unavailable, the API uses its source prompt
+fallback.
 
-If prompt management is disabled or credentials are missing, the API uses the source prompts. If Langfuse cannot serve a prompt, its SDK fallback serves the source text; fallback use is marked on the trace. Prompt bodies in traces still depend on `LANGFUSE_CAPTURE_PROMPTS`.
+## Reading the signals
 
-## Product generation signals
+- Use Langfuse to inspect prompt versions, model inputs and outputs, rubric
+  results, and workflow failures.
+- Use LiteLLM to inspect proxy spend, model routing, and budgets.
+- Use Grafana to compare request volume, latency, generation outcomes, QA
+  failures, correction attempts, tokens, and reported cost.
+- Use Tempo for API and infrastructure spans outside the AI-specific Langfuse
+  view; use Loki for correlated service logs.
 
-```text
-Teacher request
-    │
-    ▼
-API generation span ── provider call span ── LiteLLM
-    │                         │
-    ├── AI workflow ── Langfuse SDK ── Langfuse
-    ├── all traces ──┐
-    ├── metrics ─────┤
-    └── logs ────────┤
-                     ▼
-              OTEL Collector
-              ├── traces ── Tempo
-              ├── metrics ─ Prometheus ─ Grafana
-              └── logs ──── Loki
-```
-
-The API records provider attempts, failures, duration, generation outcome, total duration, correction turns, token usage when returned, and reported cost when the proxy returns `x-litellm-response-cost`. Deterministic generation checks emit pass/fail counts by stable check code. Traces include configured and response model names and usage details. Metrics use bounded labels; model, target, and request IDs stay on traces.
-
-The API generation trace contains the `curriculum.lesson_plan.workflow.generate` span with target resolution, query embedding, retrieval, model generation, deterministic QA results, and persistence. When `LANGFUSE_CAPTURE_PROMPTS=true`, the workflow and model spans set separate Langfuse input/output fields: request parameters, curriculum target and retrieved excerpts, model messages, generated plan, and deterministic QA results. The local `.env.local` enables capture for this development stack; `.env.schema` keeps it off by default. Restart the API after changing it.
-
-The QA checks verify schema, selected curriculum fields, duration, activity timing, official target citation, and citation provenance. They do not prove that each claim follows from its cited passage. A Curriculum Lead still reviews lesson quality. Lead review makes no model call, so it creates no LLM trace.
-
-Langfuse receives lesson-plan AI workflow and model-call spans through its SDK. Generation and rubric prompts are Langfuse-managed and linked to their model generation observations. API check results appear in Grafana metrics; the internal playground emits Langfuse evaluation scores and dataset records. The playground is a developer tool, not part of the teacher or Curriculum Lead workflow. LiteLLM remains the source for proxy spend; Nova's cost metric appears only when the gateway reports a cost header.
-
-## Internal evaluation
-
-The playground records retrieval rankings, embedding cache behavior, generation reports, advisory review results, labelled evaluations, and dataset exports. Use its [README](../apps/playground/README.md) for commands and the [telemetry runbook](playground/telemetry-runbook.md) to populate Langfuse and Grafana during development. Its evaluation results describe the small synthetic fixture; they are not broad CBC quality claims.
-
-The system uses BGE-small with 384-dimensional pgvector embeddings. See [embedding and corpus notes](playground/embedding-corpus-guide.md) for retrieval signals and tuning.
-## Telemetry routing
-
-The API's Langfuse SDK processor exports its own observations, GenAI spans, and the named `curriculum.lesson_plan.*` workflow spans directly to Langfuse. The OpenTelemetry Collector sends the full trace stream to Tempo. HTTP, Nest, database, and unrelated service spans stay in Tempo. Metrics still go to Prometheus; logs still go to Loki.
-
-API request IDs are accepted from `X-Request-Id` (or generated), returned in the response header, attached to Langfuse observations as `metadata.requestId`, and forwarded to the model endpoint as `X-Request-Id`. Langfuse metadata and baggage propagate within the workflow and outbound call. Incoming W3C trace context remains the trace ID, linking API, AI spans, and provider calls across services. Look up the Langfuse trace by request ID metadata or its W3C trace ID.
-
-This follows Langfuse's [TypeScript SDK instrumentation guidance](https://langfuse.com/docs/observability/sdk/instrumentation) and [trace ID guidance](https://langfuse.com/docs/observability/features/trace-ids-and-distributed-tracing). The SDK's default span filter is extended only for this API's named lesson-plan workflow spans. A valid incoming W3C trace ID remains the distributed trace ID; the external request ID is propagated as searchable metadata and baggage.
-
-`LLM_MAX_OUTPUT_TOKENS` controls the requested model output limit. It defaults to 8192 and accepts integers from 1 to 16384. The 1M-token DeepSeek context window describes input context, not response output; this setting controls the response ceiling.
+Deterministic QA verifies structure, target, timing, and citation provenance.
+Rubric QA offers model-generated guidance; it does not decide whether a plan
+can be submitted or published. Human Curriculum Lead review remains the
+publication decision.
