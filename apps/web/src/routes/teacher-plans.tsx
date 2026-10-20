@@ -82,11 +82,13 @@ function PlanEditor({ initial, sources, sourcesLoading, sourcesError }: { initia
   const plan = initial.plan
   const [content, setContent] = useState(plan.content)
   const [versions, setVersions] = useState(initial.versions)
+  const [qa, setQa] = useState(initial.qa)
+  const [qaStale, setQaStale] = useState(false)
   const [submittedPlan, setSubmittedPlan] = useState<Plan | null>(null)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const save = useMutation({
     mutationFn: (value: LessonPlanContent) => apiRequest<PlanUpdate>(`/api/lesson-plans/${plan.id}`, { method: 'PATCH', body: JSON.stringify({ content: value }) }),
-    onSuccess: async result => { setContent(result.plan.content); setVersions(current => withLatestVersion(current, result.plan)); await Promise.all([queryClient.invalidateQueries({ queryKey: ['lesson-plan', plan.id] }), queryClient.invalidateQueries({ queryKey: ['lesson-plans'] })]) },
+    onSuccess: async result => { setContent(result.plan.content); setQa(result.qa); setQaStale(false); setVersions(current => withLatestVersion(current, result.plan)); await Promise.all([queryClient.invalidateQueries({ queryKey: ['lesson-plan', plan.id] }), queryClient.invalidateQueries({ queryKey: ['lesson-plans'] })]) },
   })
   const submit = useMutation({
     mutationFn: async (value: LessonPlanContent) => {
@@ -94,6 +96,9 @@ function PlanEditor({ initial, sources, sourcesLoading, sourcesError }: { initia
       try { return await apiRequest<PlanUpdate>(`/api/lesson-plans/${plan.id}/submit`, { method: 'POST' }) }
       catch (error) {
         setContent(saved.plan.content)
+        setQa(saved.qa)
+        setQaStale(false)
+        setVersions(current => withLatestVersion(current, saved.plan))
         queryClient.setQueryData(['lesson-plan', plan.id], { ...initial, ...saved, reviews: initial.reviews })
         await Promise.all([queryClient.invalidateQueries({ queryKey: ['lesson-plan', plan.id] }), queryClient.invalidateQueries({ queryKey: ['lesson-plans'] })])
         throw new Error(`Changes were saved, but submission failed: ${error instanceof Error ? error.message : 'Request failed.'}`)
@@ -103,7 +108,7 @@ function PlanEditor({ initial, sources, sourcesLoading, sourcesError }: { initia
   })
   useEffect(() => { if (validationErrors.length) errorsRef.current?.focus() }, [validationErrors])
   useEffect(() => { if (save.isSuccess || submit.isSuccess) feedbackRef.current?.focus() }, [save.isSuccess, submit.isSuccess])
-  function update<K extends keyof LessonPlanContent>(key: K, value: LessonPlanContent[K]) { setContent(existing => ({ ...existing, [key]: value })); setValidationErrors([]); save.reset(); submit.reset() }
+  function update<K extends keyof LessonPlanContent>(key: K, value: LessonPlanContent[K]) { setContent(existing => ({ ...existing, [key]: value })); setQaStale(true); setValidationErrors([]); save.reset(); submit.reset() }
   function validate() { const result = LessonPlanContentSchema.safeParse(content); if (!result.success) { setValidationErrors(result.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`)); return null } setValidationErrors([]); return result.data }
   const sourceContent: Detail = { ...initial, versions, plan: { ...plan, content } }
   if (submittedPlan) return <PlanContent detail={{ ...initial, plan: submittedPlan, versions, qa: submit.data?.qa }} sources={sources} sourcesLoading={sourcesLoading} sourcesError={sourcesError} />
@@ -114,13 +119,13 @@ function PlanEditor({ initial, sources, sourcesLoading, sourcesError }: { initia
     {validationErrors.length > 0 && <div ref={errorsRef} tabIndex={-1} role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"><p className="font-medium">Fix these fields before saving:</p><ul className="mt-2 list-inside list-disc">{validationErrors.map(error => <li key={error}>{error}</li>)}</ul></div>}
     <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.7fr)]">
       <fieldset disabled={save.isPending || submit.isPending} className="min-w-0 space-y-7">
-        <Card><CardHeader><CardTitle>Plan details</CardTitle></CardHeader><CardContent className="space-y-4"><TextField label="Title" value={content.title} onChange={value => update('title', value)} /><div className="grid gap-4 sm:grid-cols-2"><TextField label="Subject" value={content.subject} onChange={value => update('subject', value)} /><TextField label="Grade" value={content.grade} onChange={value => update('grade', value)} /></div><TextAreaField label="Learning outcome" value={content.learningOutcome} onChange={value => update('learningOutcome', value)} /><ListEditor label="Objectives" values={content.objectives} onChange={values => update('objectives', values)} /></CardContent></Card>
+        <Card><CardHeader><CardTitle>Plan details</CardTitle></CardHeader><CardContent className="space-y-4"><TextField label="Title" value={content.title} onChange={value => update('title', value)} /><div className="grid gap-4 sm:grid-cols-2"><TextField label="Subject" readOnly={!!plan.targetRevisionId} value={content.subject} onChange={value => update('subject', value)} /><TextField label="Grade" readOnly={!!plan.targetRevisionId} value={content.grade} onChange={value => update('grade', value)} /></div><TextAreaField label="Learning outcome" readOnly={!!plan.targetRevisionId} value={content.learningOutcome} onChange={value => update('learningOutcome', value)} />{plan.targetRevisionId && <p className="text-sm text-muted-foreground">The curriculum target fixes the subject, grade and learning outcome. <Link to="/teacher/plans/new" className="font-medium text-primary underline">Create a new plan</Link> to choose another target.</p>}<ListEditor label="Objectives" values={content.objectives} onChange={values => update('objectives', values)} /></CardContent></Card>
         <Card><CardHeader><CardTitle>Lesson sequence</CardTitle></CardHeader><CardContent className="space-y-5"><ListEditor label="Materials" values={content.materials} onChange={values => update('materials', values)} allowEmpty /><TextAreaField label="Starter" value={content.starter} onChange={value => update('starter', value)} /><ActivitiesEditor activities={content.activities} onChange={activities => update('activities', activities)} /></CardContent></Card>
         <Card><CardHeader><CardTitle>Assessment</CardTitle></CardHeader><CardContent><TextAreaField label="Check for understanding" value={content.checkForUnderstanding} onChange={value => update('checkForUnderstanding', value)} /></CardContent></Card>
       </fieldset>
       <aside className="space-y-6 xl:sticky xl:top-6">
         <PlanContext detail={sourceContent} sources={sources} sourcesLoading={sourcesLoading} sourcesError={sourcesError} />
-        {initial.qa && <QualityReport qa={initial.qa} />}
+        {qaStale ? <p role="status" className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Quality checks need to be rerun after your edits. Save the draft to check the current plan.</p> : qa && <QualityReport qa={qa} />}
         <div className="rounded-xl border bg-card p-4"><h2 className="font-semibold">Ready to send?</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">Save your draft as you work. Submit when the plan is ready for curriculum review.</p><div className="mt-4 flex flex-wrap gap-2"><Button variant="outline" disabled={save.isPending || submit.isPending} onClick={() => { const valid = validate(); if (valid) save.mutate(valid) }}>{save.isPending ? 'Saving…' : 'Save draft'}</Button><Button disabled={submit.isPending || save.isPending} onClick={() => { const valid = validate(); if (valid) submit.mutate(valid) }}>{submit.isPending ? 'Submitting…' : 'Submit for review'}</Button></div></div>
       </aside>
     </div>
@@ -152,11 +157,11 @@ function PlanContext({ detail, sources, sourcesLoading, sourcesError }: { detail
   return <section className="space-y-4" aria-labelledby="plan-context-heading"><h2 id="plan-context-heading" className="text-lg font-semibold">Plan context</h2><div className="rounded-xl border bg-card p-4"><h3 className="text-sm font-semibold">Selected curriculum target</h3>{detail.plan.targetRevisionId ? <Link to="/library/targets/$targetRevisionId" params={{ targetRevisionId: detail.plan.targetRevisionId }} className="mt-2 inline-flex text-sm font-medium text-primary hover:underline">{content.subject} · {content.grade} · View exact target</Link> : <p className="mt-2 text-sm text-muted-foreground">This is a legacy plan without a linked catalogue target.</p>}</div><div className="rounded-xl border bg-card p-4"><h3 className="text-sm font-semibold">Curriculum sources</h3>{sourcesError ? <p role="alert" className="mt-3 text-sm text-destructive">Source details could not be loaded: {sourcesError}</p> : sourcesLoading && <p role="status" className="mt-3 text-sm text-muted-foreground">Loading source details…</p>}{!sourcesLoading && !sourcesError && references.length === 0 && <p className="mt-3 text-sm text-muted-foreground">No source references were attached.</p>}{!sourcesLoading && !sourcesError && <div className="mt-3 space-y-4">{references.map(({ source, match }) => <article key={`${source.documentId}-${source.chunkId}`} className="border-t pt-3 first:border-0 first:pt-0"><h4 className="font-medium">{match?.title ?? 'Curriculum source'}</h4>{match && <p className="mt-1 text-xs text-muted-foreground">{match.resourceType} · {match.subject} · {match.grade}</p>}<p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{match?.content ?? `Source reference ${source.documentId} · ${source.chunkId}`}</p></article>)}</div>}</div></section>
 }
 
-function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="block space-y-1.5 text-sm font-medium">{label}<input className="h-10 w-full rounded-md border bg-background px-3 font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={value} onChange={event => onChange(event.target.value)} /></label>
+function TextField({ label, value, onChange, readOnly = false }: { label: string; value: string; readOnly?: boolean; onChange: (value: string) => void }) {
+  return <label className="block space-y-1.5 text-sm font-medium">{label}<input className="h-10 w-full rounded-md border bg-background px-3 font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={value} readOnly={readOnly} onChange={event => onChange(event.target.value)} /></label>
 }
-function TextAreaField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="block space-y-1.5 text-sm font-medium">{label}<textarea className="min-h-24 w-full rounded-md border bg-background p-3 font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={value} onChange={event => onChange(event.target.value)} /></label>
+function TextAreaField({ label, value, onChange, readOnly = false }: { label: string; value: string; readOnly?: boolean; onChange: (value: string) => void }) {
+  return <label className="block space-y-1.5 text-sm font-medium">{label}<textarea className="min-h-24 w-full rounded-md border bg-background p-3 font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={value} readOnly={readOnly} onChange={event => onChange(event.target.value)} /></label>
 }
 function ListEditor({ label, values, onChange, allowEmpty = false }: { label: string; values: string[]; onChange: (values: string[]) => void; allowEmpty?: boolean }) {
   return <fieldset className="space-y-2"><legend className="mb-2 text-sm font-semibold">{label}</legend>{values.map((value, index) => <div key={`${label}-${index}`} className="flex gap-2"><input aria-label={`${label} item ${index + 1}`} className="h-10 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm" value={value} onChange={event => onChange(values.map((item, i) => i === index ? event.target.value : item))} />{allowEmpty || values.length > 1 ? <Button type="button" variant="outline" size="sm" aria-label={`Remove ${label.toLowerCase()} item ${index + 1}`} onClick={() => onChange(values.filter((_, i) => i !== index))}>Remove</Button> : null}</div>)}<Button type="button" variant="outline" size="sm" onClick={() => onChange([...values, ''])}>Add item</Button></fieldset>

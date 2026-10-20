@@ -1,8 +1,12 @@
 import { Injectable, OnApplicationShutdown } from '@nestjs/common'
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres'
-import { sql } from 'drizzle-orm'
 import { Pool } from 'pg'
 import * as schema from './schema'
+
+export type DatabaseReadiness =
+  | { status: 'ready' }
+  | { status: 'database-unavailable' }
+  | { status: 'migrations-required' }
 
 @Injectable()
 export class DatabaseService implements OnApplicationShutdown {
@@ -19,11 +23,17 @@ export class DatabaseService implements OnApplicationShutdown {
   }
 
   async isReady(): Promise<boolean> {
+    return (await this.readiness()).status === 'ready'
+  }
+
+  async readiness(): Promise<DatabaseReadiness> {
     try {
-      await this.db.execute(sql`select 1`)
-      return true
+      const result = await this.pool.query<{ schema_ready: boolean }>(
+        "select to_regclass('public.lesson_plan_retrieval_candidates') is not null as schema_ready",
+      )
+      return result.rows[0]?.schema_ready ? { status: 'ready' } : { status: 'migrations-required' }
     } catch {
-      return false
+      return { status: 'database-unavailable' }
     }
   }
 }

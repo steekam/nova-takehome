@@ -46,17 +46,19 @@ function readLocalConfig() {
 
 function printSummary() {
   const config = readLocalConfig()
-  const requestedLive = config.get('LLM_PROVIDER') === 'openai-compatible'
+  const configured = (key) => process.env[key]?.trim() || config.get(key)
+  const modeSource = process.env.LLM_PROVIDER?.trim() ? 'command environment' : '.env.local'
+  const requestedLive = configured('LLM_PROVIDER') === 'openai-compatible'
   const missing = [
-    ...(!config.get('LLM_BASE_URL') ? ['LLM_BASE_URL'] : []),
-    ...(!config.get('LLM_GENERATOR_MODEL') && !config.get('LLM_MODEL') ? ['LLM_GENERATOR_MODEL'] : []),
-    ...(!config.get('LLM_API_KEY') ? ['LLM_API_KEY'] : []),
+    ...(!configured('LLM_BASE_URL') ? ['LLM_BASE_URL'] : []),
+    ...(!configured('LLM_GENERATOR_MODEL') && !configured('LLM_MODEL') ? ['LLM_GENERATOR_MODEL'] : []),
+    ...(!configured('LLM_API_KEY') ? ['LLM_API_KEY'] : []),
   ]
   const provider = requestedLive && missing.length === 0 ? 'live' : 'mock'
   process.stdout.write('\nNova demo is ready\n')
   process.stdout.write('------------------\n')
   for (const { name, url } of urls) process.stdout.write(`${name.padEnd(20)} ${url}\n`)
-  process.stdout.write(`LLM startup mode     ${provider} (change it in the app header; resets when the API restarts)\n`)
+  process.stdout.write(`LLM config default   ${provider} (${modeSource}; app header shows current runtime mode)\n`)
   if (requestedLive && missing.length > 0) process.stdout.write(`Live mode unavailable ${missing.join(', ')} missing in .env.local; add values and restart to enable it.\n`)
   process.stdout.write('\nSign in with the Teacher or Curriculum lead demo button. Manual login password: NovaLocal123!\n')
   process.stdout.write('Langfuse login: admin@example.test; generated password is in .env.local.\n')
@@ -79,7 +81,16 @@ async function checkServices(wait) {
     if (pending.length > 0 && attempt + 1 < attempts) await new Promise((done) => setTimeout(done, 2000))
   }
   if (pending.length > 0) {
-    process.stderr.write(`\nHealth check failed: ${pending.map(({ name }) => name).join(', ')} did not respond.\n`)
+    process.stderr.write(`\nHealth check failed: ${pending.map(({ name }) => name).join(', ')} are not healthy.\n`)
+    for (const service of pending) {
+      try {
+        const response = await fetch(service.healthUrl ?? service.url, { signal: AbortSignal.timeout(2500) })
+        const details = (await response.text()).trim()
+        if (details) process.stderr.write(`${service.name} returned HTTP ${response.status}: ${details}\n`)
+      } catch (error) {
+        if (error instanceof Error) process.stderr.write(`${service.name}: ${error.message}\n`)
+      }
+    }
     process.stderr.write('Inspect service state with: pnpm exec varlock run -- docker compose --profile litellm ps\n')
     process.stderr.write('Inspect logs with: pnpm exec varlock run -- docker compose --profile litellm logs --tail=100\n')
     process.exit(1)

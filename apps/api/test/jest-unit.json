@@ -1,6 +1,7 @@
 {
   "rootDir": ".",
   "testRegex": ".spec.ts$",
+  "testPathIgnorePatterns": ["/node_modules/", "\\.e2e-spec\\.ts$"],
   "transform": {
     "^.+\\.ts$": "ts-jest"
   },

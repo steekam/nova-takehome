@@ -6,6 +6,7 @@ import { hasValidReturnComment, type LessonPlanContent, type LessonPlanStatus } 
 import { Button } from '../components/ui/button'
 import { Card, CardContent } from '../components/ui/card'
 import { PlanReviewHistory, PlanVersionHistory, type LessonPlanVersion, type PlanReview } from '../components/plan-history'
+import { ApiError } from '../lib/api-client'
 import { apiRequest } from '../lib/api-request'
 import { requireRole } from '../lib/route-auth'
 import { route as curriculumLeadRoute } from './curriculum-lead'
@@ -46,20 +47,23 @@ function PlanReviewPage({ planId }: { planId: string }) {
     queryFn: async () => (await apiRequest<{ items: CurriculumSource[] }>('/api/sources')).items,
   })
   const review = useMutation({
-    mutationFn: (decision: 'returned' | 'published') => apiRequest(`/api/lesson-plans/${planId}/reviews`, {
+    mutationFn: (decision: 'returned' | 'published') => apiRequest<{ plan: Plan; review: PlanReview }>(`/api/lesson-plans/${planId}/reviews`, {
       method: 'POST',
       body: JSON.stringify({ decision, ...(comment.trim() ? { comment: comment.trim() } : {}) }),
     }),
-    onSuccess: async (_data, decision) => {
+    onSuccess: async (data, decision) => {
+      queryClient.setQueryData<Detail>(['lesson-plan', planId], current => current ? { ...current, plan: data.plan, reviews: [data.review, ...current.reviews] } : undefined)
       setComment('')
       setConfirmPublish(false)
       setAnnouncement(decision === 'published' ? 'Lesson plan published.' : 'Lesson plan returned for revision.')
-      await queryClient.invalidateQueries({ queryKey: ['lesson-plans'] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['lesson-plans'] }),
+        queryClient.invalidateQueries({ queryKey: ['lesson-plan', planId], refetchType: decision === 'returned' ? 'none' : 'active' }),
+      ])
       if (decision === 'returned') {
         await navigate({ to: '/curriculum-lead' })
         return
       }
-      await queryClient.invalidateQueries({ queryKey: ['lesson-plan', planId] })
     },
   })
 
@@ -135,11 +139,11 @@ function PlanReviewPage({ planId }: { planId: string }) {
 
           {plan.status === 'submitted' ? <section className="space-y-3 border-t pt-5" aria-labelledby="decision-heading">
             <h3 id="decision-heading" className="font-semibold">Make a decision</h3>
-            <label className="block space-y-1 text-sm font-medium">Feedback for the teacher<textarea className="min-h-28 w-full rounded-md border bg-background p-3 font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={comment} onChange={event => setComment(event.target.value)} /></label>
+            <label className="block space-y-1 text-sm font-medium">Feedback for the teacher<textarea maxLength={2000} disabled={review.isPending} className="min-h-28 w-full rounded-md border bg-background p-3 font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={comment} onChange={event => setComment(event.target.value)} /></label>
             {confirmPublish && <div className="rounded-lg bg-[#f8efcf] p-3 text-sm"><p className="font-semibold">Publish “{content.title}”?</p><p className="mt-1">The plan will be approved and locked for editing.</p><div className="mt-3 flex flex-wrap gap-2"><Button type="button" size="sm" disabled={review.isPending} onClick={() => review.mutate('published')}>{review.isPending ? 'Publishing…' : 'Confirm publish'}</Button><Button type="button" size="sm" variant="outline" disabled={review.isPending} onClick={() => setConfirmPublish(false)}>Cancel</Button></div></div>}
             <div className="flex flex-wrap gap-2">{!confirmPublish && <Button type="button" disabled={review.isPending} onClick={() => setConfirmPublish(true)}><CheckCircle2 aria-hidden="true" />Publish plan</Button>}<Button type="button" variant="outline" disabled={review.isPending || !returnCommentValid} onClick={() => review.mutate('returned')}>Return for revision <ArrowRight aria-hidden="true" /></Button></div>
             {!returnCommentValid && <p className="text-xs text-muted-foreground">Add at least eight characters of feedback to return this plan.</p>}
-            {review.error && <p role="alert" className="text-sm text-destructive">Decision failed: {review.error.message}</p>}
+            {review.error && <div role="alert" className="text-sm text-destructive"><p>Decision failed: {review.error.message}</p>{review.error instanceof ApiError && review.error.errors && <ul className="mt-2 list-inside list-disc">{review.error.errors.map(issue => <li key={issue.field}>{issue.field}: {issue.constraints.join('. ')}</li>)}</ul>}</div>}
           </section> : <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">{plan.status === 'returned' ? 'This plan has been returned for revision.' : plan.status === 'published' ? 'This plan is published and available to both roles.' : 'This plan has not been submitted for review.'}</p>}
         </aside>
       </div>

@@ -66,7 +66,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
     if (!(exception instanceof HttpException)) return false
     const response = exception.getResponse()
     return typeof response === 'object' && response !== null && 'code' in response &&
-      typeof response.code === 'string' && /^(LLM_(PROVIDER_|INVALID_RESPONSE|CREDENTIALS_MISSING)|EMBEDDING_)/.test(response.code)
+      typeof response.code === 'string' && /^(DATABASE_(UNAVAILABLE|MIGRATIONS_REQUIRED)|LLM_(PROVIDER_|INVALID_RESPONSE|CREDENTIALS_MISSING)|EMBEDDING_)/.test(response.code)
   }
 
   private isClientErrorCode(code: string) {

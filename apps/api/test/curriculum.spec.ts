@@ -9,7 +9,8 @@ import { assertCanReadPlan, assertTeacherOwns, citationsWithinCandidateSet, form
 import { createEmbeddingEncoder, EmbeddingError, embeddingCacheKey, retryEmbeddingOperation } from '../src/curriculum/embedding.adapter'
 import { LessonPlanGenerator, validateGeneratedPlan } from '../src/curriculum/lesson-plan-generator'
 import { OpenAiCompatibleLessonPlanProvider } from '../src/curriculum/llm-provider'
-import { parseRequest } from '../src/curriculum/curriculum.controller'
+import * as generationTelemetry from '../src/curriculum/generation-telemetry'
+import { buildLessonPlanQa, parseRequest } from '../src/curriculum/curriculum.controller'
 import { validateEnvironment } from '../src/configuration'
 import { z } from 'zod'
 
@@ -123,6 +124,12 @@ describe('curriculum workflow invariants', () => {
     expect(() => assertCanReadPlan('teacher-2', 'returned', teacher)).toThrow(ForbiddenException)
   })
 
+  it('labels citation checks as provenance and states their semantic limit', () => {
+    const qa = buildLessonPlanQa(plan, true, true)
+    expect(qa.checks.find(({ code }) => code === 'official-target-citation')?.passed).toBe(true)
+    expect(qa.checks.find(({ code }) => code === 'citation-source-membership')?.message).toContain('does not assess whether each claim is supported by the cited text')
+  })
+
   it('validates lesson structure, time totals, and source grounding', () => {
     expect(() => validateGeneratedPlan(LessonPlanContentSchema.parse(plan), outcome, [source], 40)).not.toThrow()
     const relatedSource: CurriculumSourceDto = { ...source, documentId: '00000000-0000-4000-8000-000000000010', chunkId: '00000000-0000-4000-8000-000000000011', role: 'teaching_support', resourceType: 'teaching_note', authority: 'school' }
@@ -153,12 +160,21 @@ describe('curriculum workflow invariants', () => {
     let requestBody: Record<string, unknown> | undefined
     const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
       requestBody = JSON.parse(init?.body as string) as Record<string, unknown>
-      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(plan) } }] }), { status: 200 })
+      return new Response(JSON.stringify({
+        model: 'provider-response-model',
+        choices: [{ message: { content: JSON.stringify(plan) } }],
+        usage: { prompt_tokens: 12, completion_tokens: 34, total_tokens: 46 },
+      }), { status: 200, headers: { 'x-litellm-response-cost': '0.0004' } })
     })
     const provider = new OpenAiCompatibleLessonPlanProvider({ get: (key: string) => key === 'LLM_BASE_URL' ? 'http://localhost:4000/v1' : key === 'LLM_GENERATOR_MODEL' ? 'lesson-generator-test' : undefined } as ConfigService)
     try {
-      await provider.complete({ system: 'Return JSON.', user: '{}' })
+      const result = await provider.complete({ system: 'Return JSON.', user: '{}' })
       expect(requestBody?.model).toBe('lesson-generator-test')
+      expect(result).toMatchObject({
+        content: JSON.stringify(plan), provider: 'openai-compatible', model: 'lesson-generator-test',
+        responseModel: 'provider-response-model', usage: { inputTokens: 12, outputTokens: 34, totalTokens: 46 },
+        reportedCostUsd: 0.0004, providerAttempts: 1,
+      })
     } finally {
       fetchMock.mockRestore()
     }
@@ -172,13 +188,16 @@ describe('curriculum workflow invariants', () => {
       const content = requests.length === 1 ? invalid : plan
       return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }), { status: 200 })
     })
+    const validationMetrics = jest.spyOn(generationTelemetry, 'recordGenerationValidation')
     const generator = new LessonPlanGenerator(new OpenAiCompatibleLessonPlanProvider(providerConfig() as ConfigService))
     try {
       await expect(generator.generate(outcome, [source], 40)).resolves.toEqual(plan)
       expect(requests).toHaveLength(2)
       const secondBody = JSON.parse(requests[1].body as string) as { messages: { content: string }[] }
       expect(secondBody.messages.at(-1)?.content).toContain('durationMinutes must match')
+      expect(validationMetrics).toHaveBeenCalledWith({ provider: 'openai-compatible', checkCode: 'OUTPUT_SCHEMA', passed: true })
     } finally {
+      validationMetrics.mockRestore()
       fetchMock.mockRestore()
     }
   })
@@ -188,6 +207,7 @@ describe('curriculum workflow invariants', () => {
     const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(
       JSON.stringify({ choices: [{ message: { content: JSON.stringify(invalid) } }] }), { status: 200 },
     ))
+    const generationMetric = jest.spyOn(generationTelemetry, 'recordGeneration')
     const generator = new LessonPlanGenerator(new OpenAiCompatibleLessonPlanProvider(providerConfig() as ConfigService))
     try {
       await expect(generator.generate(outcome, [source], 40)).rejects.toMatchObject({
@@ -198,7 +218,9 @@ describe('curriculum workflow invariants', () => {
         },
       })
       expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(generationMetric).toHaveBeenCalledWith(expect.objectContaining({ provider: 'openai-compatible', providerAttempts: 2, repairAttempts: 1 }))
     } finally {
+      generationMetric.mockRestore()
       fetchMock.mockRestore()
     }
   })
@@ -210,19 +232,27 @@ describe('curriculum workflow invariants', () => {
       .mockImplementationOnce(async () => { throw new TypeError('network unavailable') })
       .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }), { status: 200 }))
     try {
-      await expect(provider.complete(request)).resolves.toBe('{"ok":true}')
+      await expect(provider.complete(request)).resolves.toMatchObject({ content: '{"ok":true}', providerAttempts: 2 })
       expect(networkFailure).toHaveBeenCalledTimes(2)
     } finally {
       networkFailure.mockRestore()
     }
 
     const authFailure = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 401 }))
+    const generationMetric = jest.spyOn(generationTelemetry, 'recordGeneration')
     try {
       await expect(provider.complete(request)).rejects.toMatchObject({
+        provider: 'openai-compatible',
+        providerAttempts: 1,
         response: { code: 'LLM_PROVIDER_AUTH_FAILED' },
       })
       expect(authFailure).toHaveBeenCalledTimes(1)
+      const generator = new LessonPlanGenerator(provider)
+      await expect(generator.generate(outcome, [source], 40)).rejects.toMatchObject({ response: { code: 'LLM_PROVIDER_AUTH_FAILED' } })
+      expect(generationMetric).toHaveBeenCalledWith(expect.objectContaining({ provider: 'openai-compatible', outcome: 'provider_error', providerAttempts: 1 }))
+      expect(authFailure).toHaveBeenCalledTimes(2)
     } finally {
+      generationMetric.mockRestore()
       authFailure.mockRestore()
     }
   })

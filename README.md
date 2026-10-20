@@ -12,7 +12,7 @@ pnpm demo:up
 pnpm demo:check
 ```
 
-`demo:up` creates `.env.local` from `.env.example` when needed, prepares local service secrets, builds and starts Compose, migrates and seeds PostgreSQL, waits for health, then prints URLs. Keep `.env.local` private. `demo:check` rechecks the running services and prints the current startup mode.
+`demo:up` creates `.env.local` from `.env.example` when needed, prepares local service secrets, builds and starts Compose, migrates and seeds PostgreSQL, waits for health, then prints URLs. Keep `.env.local` private. `demo:check` reports the configured default; the app header shows the current runtime mode.
 
 Sign in from the Teacher or Curriculum Lead demo button. Manual credentials:
 
@@ -42,7 +42,7 @@ To show QA feedback, change activity minutes so they no longer sum to the lesson
 
 The demo catalogue has five CBC grade/subject offerings. It seeds nine short source resources across six types: one official KICD curriculum excerpt and eight clearly labelled synthetic teaching supports. Grade 8 Integrated Science is the only generation-ready target; the other seeded paths are browse-only. The current library lets users browse hierarchy, revisions, references, and readiness. Source authoring and publishing are not available in the UI; seed/import data populates the catalogue. The proposed upload and review workflow is documented in [source ingestion extension](docs/source-ingestion-extension.md).
 
-The API embeds the selected target's linked sources with BGE-small (384 dimensions) and stores vectors in pgvector. Retrieval pins the official target-defining excerpt and selects supporting material from that target. Generation returns a strict shared lesson schema: target and duration, objectives, materials, starter, timed activities, assessment check, and source IDs. Before saving, the API checks schema, selected target, exact duration, activity-time total, official target citation, and citation membership in the frozen retrieval set. Missing target sources, invalid model output, and failed QA return stable errors without creating or changing a plan.
+The API embeds the selected target's linked sources with BGE-small (384 dimensions) and stores vectors in pgvector. Retrieval pins the official target-defining excerpt and selects supporting material from that target. Generation returns a strict shared lesson schema: target and duration, objectives, materials, starter, timed activities, assessment check, and source IDs. Before saving, the API checks schema, selected target, exact duration, activity-time total, official target citation, and citation membership in the frozen retrieval set. These deterministic checks prove structure and source provenance; they do not assess whether each claim is supported by its citation. Missing target sources, invalid model output, and failed QA return stable errors without creating or changing a plan.
 
 The shared package owns transport schemas and the plan transition table. The API owns authorization, row-locked state changes, immutable versions, reviews, and persistence. See [architecture and invariants](docs/architecture.md), the [implemented domain model](docs/domain-model-and-grounding.md), and the [project glossary](GLOSSARY.md).
 
@@ -62,14 +62,10 @@ pnpm test
 pnpm build
 ```
 
-The API database-backed HTTP workflow test also runs when `TEST_DATABASE_URL` points at a migrated and seeded disposable database:
+The API database-backed HTTP workflow test runs when `TEST_DATABASE_URL` points at a migrated and seeded disposable database:
 
 ```sh
 env TEST_DATABASE_URL=postgresql://… pnpm --filter @nova/api test:e2e
 ```
 
-See the [reviewer checklist](docs/performance-checklist.md), [embedding and corpus notes](docs/playground/embedding-corpus-guide.md), and [observability setup](docs/observability.md). The [data schema](docs/system-data-schema.html), [curriculum library walkthrough](docs/curriculum-library-walkthrough.html), and [work overview](docs/work-overview.html) are visual review aids.
-
-## Submission walkthrough
-
-The submission Loom remains for the human author to record and upload. Add its share link here after recording. Required walkthrough: teacher generation and QA, teacher edits and submission, lead return with feedback, teacher revision and resubmission, lead publication, and one generation or save failure with its visible error.
+See the [reviewer checklist](docs/performance-checklist.md), [embedding and corpus notes](docs/playground/embedding-corpus-guide.md), and [observability guide](docs/observability.md). The [system data schema](docs/system-data-schema.html), [curriculum library walkthrough](docs/curriculum-library-walkthrough.html), and [work overview](docs/work-overview.html) are visual review aids.

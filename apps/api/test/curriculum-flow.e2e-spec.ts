@@ -1,22 +1,31 @@
 import 'reflect-metadata'
+import { randomUUID } from 'node:crypto'
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify'
 import { Test } from '@nestjs/testing'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import supertest = require('supertest')
 import { configureHttp } from '../src/configure-http'
 import { DatabaseService } from '../src/database/database.service'
-import { curriculumSourceLinks, lessonPlanRetrievalCandidates, users } from '../src/database/schema'
+import { curriculumSourceLinks, lessonPlanRetrievalCandidates, lessonPlanVersionSources, lessonPlanVersions, lessonPlans, planReviews, users } from '../src/database/schema'
+import { hashPassword } from '../src/auth/password'
 import { CurriculumLibraryRepository } from '../src/curriculum/curriculum-library.repository'
 import { EmbeddingAdapter } from '../src/curriculum/embedding.service'
 
 const databaseUrl = process.env.TEST_DATABASE_URL
 const describeWithDatabase = databaseUrl ? describe : describe.skip
+const llmEnvironmentKeys = ['LLM_PROVIDER', 'LLM_BASE_URL', 'LLM_API_KEY', 'LLM_MODEL', 'LLM_GENERATOR_MODEL', 'LLM_REVIEWER_MODEL'] as const
+const originalLlmEnvironment = new Map(llmEnvironmentKeys.map((key) => [key, process.env[key]]))
 
 describeWithDatabase('lesson plan HTTP workflow', () => {
   let app: NestFastifyApplication
   let database: DatabaseService
+  const otherTeacherId = randomUUID()
+  const otherTeacherEmail = `teacher-${otherTeacherId}@example.test`
+  const createdPlanIds: string[] = []
+  const createdSourceLinkIds: string[] = []
 
   beforeAll(async () => {
+    for (const key of llmEnvironmentKeys) delete process.env[key]
     process.env.DATABASE_URL = databaseUrl
     process.env.DATABASE_POOL_MAX = '1'
     process.env.NODE_ENV = 'test'
@@ -32,14 +41,36 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     await app.init()
     await app.getHttpAdapter().getInstance().ready()
     database = app.get(DatabaseService)
+    await database.db.insert(users).values({ id: otherTeacherId, email: otherTeacherEmail, role: 'teacher', passwordHash: await hashPassword('NovaLocal123!') })
   })
 
   afterAll(async () => {
-    if (app) await app.close()
+    try {
+      if (database) await database.db.transaction(async (tx) => {
+        if (createdPlanIds.length) {
+          const versions = await tx.select({ id: lessonPlanVersions.id }).from(lessonPlanVersions).where(inArray(lessonPlanVersions.lessonPlanId, createdPlanIds))
+          await tx.delete(planReviews).where(inArray(planReviews.lessonPlanId, createdPlanIds))
+          if (versions.length) await tx.delete(lessonPlanVersionSources).where(inArray(lessonPlanVersionSources.lessonPlanVersionId, versions.map((version) => version.id)))
+          await tx.delete(lessonPlanRetrievalCandidates).where(inArray(lessonPlanRetrievalCandidates.lessonPlanId, createdPlanIds))
+          await tx.delete(lessonPlanVersions).where(inArray(lessonPlanVersions.lessonPlanId, createdPlanIds))
+          await tx.delete(lessonPlans).where(inArray(lessonPlans.id, createdPlanIds))
+        }
+        if (createdSourceLinkIds.length) await tx.delete(curriculumSourceLinks).where(inArray(curriculumSourceLinks.id, createdSourceLinkIds))
+        await tx.delete(users).where(eq(users.id, otherTeacherId))
+      })
+    } finally {
+      if (app) await app.close()
+      for (const key of llmEnvironmentKeys) {
+        const value = originalLlmEnvironment.get(key)
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+      }
+    }
   })
 
   it('grounds a draft, enforces access, records immutable review versions, and publishes', async () => {
     const teacherCookie = await login('teacher@example.test')
+    const otherTeacherCookie = await login(otherTeacherEmail)
     const leadCookie = await login('curriculum-lead@example.test')
 
     const llmMode = await request<{ mode: string; liveAvailable: boolean; missing: string[] }>(teacherCookie, 'GET', '/api/runtime/llm')
@@ -74,7 +105,7 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     expect(supportingSource).toBeDefined()
     const duplicateRole = supportingSource!.role === 'teaching_support' ? 'guidance' : 'teaching_support'
     const [lead] = await database.db.select({ id: users.id }).from(users).where(eq(users.email, 'curriculum-lead@example.test')).limit(1)
-    await database.db.insert(curriculumSourceLinks).values({
+    const createdLinks = await database.db.insert(curriculumSourceLinks).values({
       targetRevisionId: target!.id,
       resourceRevisionId: supportingSource!.resourceRevisionId,
       role: duplicateRole,
@@ -82,13 +113,15 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
       addedBy: lead.id,
       publishedBy: lead.id,
       publishedAt: new Date(),
-    }).onConflictDoNothing()
+    }).onConflictDoNothing().returning({ id: curriculumSourceLinks.id })
+    createdSourceLinkIds.push(...createdLinks.map((link) => link.id))
 
     const generated = await request<{ plan: Plan; qa: { passed: boolean } }>(teacherCookie, 'POST', '/api/lesson-plans/generate', {
       targetRevisionId: target!.id,
       durationMinutes: 40,
     })
     expect(generated.statusCode).toBe(201)
+    createdPlanIds.push(generated.body.plan.id)
     expect(generated.body.qa.passed).toBe(true)
     expect(generated.body.plan.status).toBe('draft')
     const retrievalCandidates = await database.db.select({ resourceChunkId: lessonPlanRetrievalCandidates.resourceChunkId })
@@ -96,6 +129,7 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     expect(new Set(retrievalCandidates.map((candidate) => candidate.resourceChunkId)).size).toBe(retrievalCandidates.length)
 
     const original = generated.body.plan
+    expect((await request(otherTeacherCookie, 'GET', `/api/lesson-plans/${original.id}`)).statusCode).toBe(403)
     const leadCannotEdit = await request(leadCookie, 'PATCH', `/api/lesson-plans/${original.id}`, { content: original.content })
     expect(leadCannotEdit.statusCode).toBe(403)
     const targetSource = target!.sources.find((source) => source.role === 'defines_target' && source.authority === 'official')
@@ -133,6 +167,17 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     expect(submitted.statusCode).toBe(201)
     expect(submitted.body.plan.status).toBe('submitted')
     expect((await request(leadCookie, 'GET', `/api/lesson-plans/${original.id}`)).statusCode).toBe(200)
+    for (const decision of ['returned', 'published']) {
+      const deniedReview = await request(teacherCookie, 'POST', `/api/lesson-plans/${original.id}/reviews`, {
+        decision,
+        comment: 'Add a check for the particle size misconception.',
+      })
+      expect(deniedReview.statusCode).toBe(403)
+    }
+    const afterDeniedReviews = await request<{ plan: Plan; reviews: Review[] }>(teacherCookie, 'GET', `/api/lesson-plans/${original.id}`)
+    expect(afterDeniedReviews.statusCode).toBe(200)
+    expect(afterDeniedReviews.body.plan.status).toBe('submitted')
+    expect(afterDeniedReviews.body.reviews).toEqual([])
 
     const returned = await request<{ plan: Plan; review: Review }>(leadCookie, 'POST', `/api/lesson-plans/${original.id}/reviews`, {
       decision: 'returned',

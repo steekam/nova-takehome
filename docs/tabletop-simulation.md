@@ -300,4 +300,4 @@ Tabletop acceptance: a missing-grounding case blocks; an out-of-run citation fai
 - [Reviewer checklist](performance-checklist.md) for implementation invariants.
 - [KICD Grade Eight designs](https://kicd.ac.ke/cbc-materials/curriculum-designs/grade-eight-designs/) — links to the current Integrated Science Grade 8 design.
 - TypeSafe Jev docs: [Choice](https://docs.typesafe.ai/primitives/choice), [Score](https://docs.typesafe.ai/primitives/score), [Noul](https://docs.typesafe.ai/primitives/noul), [introduction](https://docs.typesafe.ai/introduction).
-- [Project glossary](../GLOSSARY.md) · [Domain model](domain-model-and-grounding.md) · [Visual model](domain-model-visual.html).
+- [Project glossary](../GLOSSARY.md) · [Domain model](domain-model-and-grounding.md).

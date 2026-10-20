@@ -22,7 +22,7 @@ Evidence for the implemented CBC slice, checked 20 October 2026. Keep the playgr
 ## UI and scope
 
 - [x] Teacher and Curriculum Lead sign-in, plan creation/editor, review queue, published lesson bank, and curriculum library are present.
-- [x] Browser walkthrough completed: teacher generation, edit, submit; lead return with feedback; teacher edit and resubmit; lead publish; history and QA visible.
+- [ ] Human completes the browser walkthrough: teacher generation, edit, submit; lead return with feedback; teacher edit and resubmit; lead publish; history and QA visible.
 - [x] Curriculum library is browse-and-inspect only. It shows hierarchy, revisions, source provenance, references, and readiness. Source authoring and publication remain seed/import capabilities; the upload/extraction/approval flow is documented as a future extension.
 - [x] UI failure feedback shows API validation details; failed saves keep the saved version unchanged.
 
@@ -30,12 +30,11 @@ Evidence for the implemented CBC slice, checked 20 October 2026. Keep the playgr
 
 - [x] Node 24 and pnpm workspace; Varlock validates `.env.schema`; secrets stay in ignored `.env.local`.
 - [x] Migrations enable pgvector. Compose uses one shared PostgreSQL service and one Redis service; migrated data and volumes were preserved. See [migration record](local-state-migration.md).
-- [x] `pnpm demo:check` verified all eight app and observability endpoints and printed URLs plus the active LLM mode.
-- [x] `pnpm typecheck` and `pnpm build` pass across the workspace. Build emits upstream Zod annotation notices and a Vite main-chunk warning (~553 kB, 170 kB gzip).
-- [x] `pnpm test`: 52 playground, 19 API unit, and 4 API HTTP tests passed; one unit test and the database workflow test were skipped because no test DB was set in that command.
-- [x] `TEST_DATABASE_URL=… pnpm --filter @nova/api test:e2e`: all five API e2e tests passed against the disposable migrated/seeded database, including the full HTTP workflow.
-- [x] Full seeded browser workflow completed against a disposable database. The existing Compose volumes and `nova_hub` data were left intact.
-- [ ] Human records and uploads the submission Loom, then adds its share link to the README.
+- [x] `pnpm demo:check` verified the app and observability URLs after an additive migration. API readiness, demo login, mock runtime mode, and Grafana dashboard provisioning were checked. Existing PostgreSQL and Redis volumes were preserved.
+- [x] `pnpm typecheck` passes across the workspace. `pnpm build` emits upstream Zod annotation notices and a Vite main-chunk warning (~554 kB, 170 kB gzip).
+- [x] `pnpm test`: 52 playground tests, 20 API unit tests, and 4 non-database API HTTP tests passed. The database workflow suite requires `TEST_DATABASE_URL`.
+- [x] The full API HTTP workflow passed all 5 tests against an isolated migrated and seeded database. It covers generation, access control, edits, return, resubmission, publication, and history. Generation used the mock provider.
+- [ ] Human records/uploads the submission video and adds its share link to the README.
 
 ## Known limits
 
@@ -44,6 +43,7 @@ Evidence for the implemented CBC slice, checked 20 October 2026. Keep the playgr
 - The library has no user-facing source authoring or upload workflow. The proposed pipeline is in [source ingestion extension](source-ingestion-extension.md).
 - The local retrieval labels are synthetic and small. Do not interpret their scores as a general embedding-quality guarantee.
 - The production web bundle still has a >500 kB Vite chunk warning.
+- API generation cost metrics appear only when the OpenAI-compatible proxy returns its reported-cost header. LiteLLM's spend data remains the proxy-level cost record.
 
 ## Reviewer questions
 
