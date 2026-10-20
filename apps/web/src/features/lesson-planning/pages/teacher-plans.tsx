@@ -2,32 +2,29 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft, ArrowRight, Check, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import type { ApiPrincipal, LessonPlanContent, LessonPlanStatus } from '@nova/shared'
+import type { ApiPrincipal } from '@nova/shared'
 import { LessonPlanContentSchema } from '@nova/shared'
-import { AppShell } from '../components/app-shell'
-import { Button } from '../components/ui/button'
-import { buttonVariants } from '../components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
-import { PlanReviewHistory, PlanVersionHistory, type LessonPlanVersion, type PlanReview } from '../components/plan-history'
-import { apiRequest } from '../lib/api-request'
+import { AppShell } from '../../../components/app-shell'
+import { Button } from '../../../components/ui/button'
+import { buttonVariants } from '../../../components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
+import { PlanReviewHistory, PlanVersionHistory, type LessonPlanVersion, type PlanReview } from '../../../components/plan-history'
+import { generateLessonPlan, getLessonPlan, lessonPlanningKeys, submitLessonPlan, updateLessonPlan, type LessonPlan, type LessonPlanContent, type LessonPlanDetails, type QualityReport } from '../api'
+import { curriculumLibraryKeys, listCurriculumOutcomes, listCurriculumSources, type CurriculumSource } from '../../curriculum-library/api'
 
-type Plan = { id: string; teacherId: string; targetRevisionId: string | null; versionId: string; status: LessonPlanStatus; content: LessonPlanContent; version: number; createdAt: string; updatedAt: string }
-type Qa = { passed: boolean; checks: { code: string; passed: boolean; message: string }[] }
-type Detail = { plan: Plan; reviews: PlanReview[]; versions: LessonPlanVersion[]; qa?: Qa }
-type PlanUpdate = { plan: Plan; qa?: Qa }
-type Outcome = { id: string; title: string; subject: string; grade: string; programme: string; framework: string; editionLabel: string; locator: string; content: string }
-type CurriculumSource = { documentId: string; chunkId: string; resourceType: string; title: string; subject: string; grade: string; content: string }
-const unwrap = <T,>(value: T[] | { items: T[] }) => Array.isArray(value) ? value : value.items
-const statusLabel: Record<LessonPlanStatus, string> = { draft: 'Draft', submitted: 'In review', returned: 'Returned', published: 'Published' }
+type Plan = LessonPlan
+type Detail = LessonPlanDetails
+type Qa = QualityReport
+const statusLabel: Record<Plan['status'], string> = { draft: 'Draft', submitted: 'In review', returned: 'Returned', published: 'Published' }
 
 export function GeneratePage({ user }: { user: ApiPrincipal }) {
   const queryClient = useQueryClient()
-  const outcomes = useQuery({ queryKey: ['outcomes'], queryFn: async () => unwrap<Outcome>(await apiRequest<Outcome[] | { items: Outcome[] }>('/api/outcomes')) })
+  const outcomes = useQuery({ queryKey: curriculumLibraryKeys.outcomes, queryFn: listCurriculumOutcomes })
   const [targetId, setTargetId] = useState('')
   const [durationMinutes, setDurationMinutes] = useState(45)
   const generate = useMutation({
-    mutationFn: () => apiRequest<{ plan: Plan; qa: Qa }>('/api/lesson-plans/generate', { method: 'POST', body: JSON.stringify({ targetRevisionId: targetId, durationMinutes }) }),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ['lesson-plans'] }),
+    mutationFn: () => generateLessonPlan({ targetRevisionId: targetId, durationMinutes }),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: lessonPlanningKeys.all }),
   })
   const selectedOutcome = outcomes.data?.find(outcome => outcome.id === targetId)
   return <AppShell role={user.roles[0]}>
@@ -48,8 +45,8 @@ export function GeneratePage({ user }: { user: ApiPrincipal }) {
 }
 
 export function PlanDetailPage({ user, planId }: { user: ApiPrincipal; planId: string }) {
-  const detail = useQuery({ queryKey: ['lesson-plan', planId], queryFn: () => apiRequest<Detail>(`/api/lesson-plans/${planId}`) })
-  const sources = useQuery({ queryKey: ['curriculum-sources'], queryFn: async () => (await apiRequest<{ items: CurriculumSource[] }>('/api/sources')).items })
+  const detail = useQuery({ queryKey: lessonPlanningKeys.detail(planId), queryFn: () => getLessonPlan(planId) })
+  const sources = useQuery({ queryKey: curriculumLibraryKeys.sources, queryFn: listCurriculumSources })
   if (detail.isLoading) return <ShellLoading user={user} label="Loading lesson plan" />
   if (detail.error) return <ShellError user={user} message={`This lesson plan could not be loaded: ${detail.error.message}`} />
   if (!detail.data) return null
@@ -58,8 +55,8 @@ export function PlanDetailPage({ user, planId }: { user: ApiPrincipal; planId: s
 }
 
 export function EditPlanPage({ user, planId }: { user: ApiPrincipal; planId: string }) {
-  const detail = useQuery({ queryKey: ['lesson-plan', planId], queryFn: () => apiRequest<Detail>(`/api/lesson-plans/${planId}`) })
-  const sources = useQuery({ queryKey: ['curriculum-sources'], queryFn: async () => (await apiRequest<{ items: CurriculumSource[] }>('/api/sources')).items })
+  const detail = useQuery({ queryKey: lessonPlanningKeys.detail(planId), queryFn: () => getLessonPlan(planId) })
+  const sources = useQuery({ queryKey: curriculumLibraryKeys.sources, queryFn: listCurriculumSources })
   if (detail.isLoading) return <ShellLoading user={user} label="Loading lesson plan editor" />
   if (detail.error) return <ShellError user={user} message={`This lesson plan could not be loaded: ${detail.error.message}`} />
   if (!detail.data) return null
@@ -87,31 +84,31 @@ function PlanEditor({ initial, sources, sourcesLoading, sourcesError }: { initia
   const [submittedPlan, setSubmittedPlan] = useState<Plan | null>(null)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const save = useMutation({
-    mutationFn: (value: LessonPlanContent) => apiRequest<PlanUpdate>(`/api/lesson-plans/${plan.id}`, { method: 'PATCH', body: JSON.stringify({ content: value }) }),
-    onSuccess: async result => { setContent(result.plan.content); setQa(result.qa); setQaStale(false); setVersions(current => withLatestVersion(current, result.plan)); await Promise.all([queryClient.invalidateQueries({ queryKey: ['lesson-plan', plan.id] }), queryClient.invalidateQueries({ queryKey: ['lesson-plans'] })]) },
+    mutationFn: (value: LessonPlanContent) => updateLessonPlan(plan.id, value),
+    onSuccess: async result => { setContent(result.plan.content); setQa(result.qa); setQaStale(false); setVersions(current => withLatestVersion(current, result.plan)); await Promise.all([queryClient.invalidateQueries({ queryKey: lessonPlanningKeys.detail(plan.id) }), queryClient.invalidateQueries({ queryKey: lessonPlanningKeys.all })]) },
   })
   const submit = useMutation({
     mutationFn: async (value: LessonPlanContent) => {
-      const saved = await apiRequest<PlanUpdate>(`/api/lesson-plans/${plan.id}`, { method: 'PATCH', body: JSON.stringify({ content: value }) })
-      try { return await apiRequest<PlanUpdate>(`/api/lesson-plans/${plan.id}/submit`, { method: 'POST' }) }
+      const saved = await updateLessonPlan(plan.id, value)
+      try { return await submitLessonPlan(plan.id) }
       catch (error) {
         setContent(saved.plan.content)
         setQa(saved.qa)
         setQaStale(false)
         setVersions(current => withLatestVersion(current, saved.plan))
-        queryClient.setQueryData(['lesson-plan', plan.id], { ...initial, ...saved, reviews: initial.reviews })
-        await Promise.all([queryClient.invalidateQueries({ queryKey: ['lesson-plan', plan.id] }), queryClient.invalidateQueries({ queryKey: ['lesson-plans'] })])
+        queryClient.setQueryData(lessonPlanningKeys.detail(plan.id), { ...initial, ...saved, reviews: initial.reviews })
+        await Promise.all([queryClient.invalidateQueries({ queryKey: lessonPlanningKeys.detail(plan.id) }), queryClient.invalidateQueries({ queryKey: lessonPlanningKeys.all })])
         throw new Error(`Changes were saved, but submission failed: ${error instanceof Error ? error.message : 'Request failed.'}`)
       }
     },
-    onSuccess: async result => { setSubmittedPlan(result.plan); setVersions(current => withLatestVersion(current, result.plan)); await Promise.all([queryClient.invalidateQueries({ queryKey: ['lesson-plan', plan.id] }), queryClient.invalidateQueries({ queryKey: ['lesson-plans'] })]) },
+    onSuccess: async result => { setSubmittedPlan(result.plan); setVersions(current => withLatestVersion(current, result.plan)); await Promise.all([queryClient.invalidateQueries({ queryKey: lessonPlanningKeys.detail(plan.id) }), queryClient.invalidateQueries({ queryKey: lessonPlanningKeys.all })]) },
   })
   useEffect(() => { if (validationErrors.length) errorsRef.current?.focus() }, [validationErrors])
   useEffect(() => { if (save.isSuccess || submit.isSuccess) feedbackRef.current?.focus() }, [save.isSuccess, submit.isSuccess])
   function update<K extends keyof LessonPlanContent>(key: K, value: LessonPlanContent[K]) { setContent(existing => ({ ...existing, [key]: value })); setQaStale(true); setValidationErrors([]); save.reset(); submit.reset() }
   function validate() { const result = LessonPlanContentSchema.safeParse(content); if (!result.success) { setValidationErrors(result.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`)); return null } setValidationErrors([]); return result.data }
   const sourceContent: Detail = { ...initial, versions, plan: { ...plan, content } }
-  if (submittedPlan) return <PlanContent detail={{ ...initial, plan: submittedPlan, versions, qa: submit.data?.qa }} sources={sources} sourcesLoading={sourcesLoading} sourcesError={sourcesError} />
+  if (submittedPlan) return <PlanContent detail={{ ...initial, plan: submittedPlan, versions, qa: submit.data?.qa ?? qa }} sources={sources} sourcesLoading={sourcesLoading} sourcesError={sourcesError} />
   return <div className="space-y-7">
     <header className="flex flex-col justify-between gap-4 border-b border-primary/15 pb-6 sm:flex-row sm:items-end"><div><Link to="/teacher/plans/$planId" params={{ planId: plan.id }} className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground"><ArrowLeft aria-hidden="true" className="size-4" /> View plan</Link><h1 className="text-3xl font-semibold tracking-tight">Edit lesson plan</h1><p className="mt-2 text-sm text-muted-foreground">Changes stay in draft until you submit for review.</p></div><span className="rounded-full bg-muted px-3 py-1.5 text-sm font-medium">{statusLabel[plan.status]}</span></header>
     {(save.isSuccess || submit.isSuccess) && <p ref={feedbackRef} tabIndex={-1} role="status" className="rounded-lg bg-primary/5 p-3 text-sm font-medium text-primary">{submit.isSuccess ? 'Submitted for curriculum review.' : 'Changes saved.'}</p>}

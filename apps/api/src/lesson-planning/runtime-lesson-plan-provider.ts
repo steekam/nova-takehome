@@ -1,11 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
+import type { LlmMode, RuntimeLlmModeStatus } from '@nova/shared'
 import type { LessonPlanCompletionRequest, LessonPlanCompletionResult, LessonPlanProvider } from './llm-provider'
 import { OpenAiCompatibleLessonPlanProvider } from './llm-provider'
 import { MockLessonPlanProvider } from './mock-lesson-plan-provider'
-
-export type LlmMode = 'mock' | 'live'
-export type LlmModeStatus = { mode: LlmMode; liveAvailable: boolean; missing: string[] }
 
 @Injectable()
 export class RuntimeLessonPlanProvider implements LessonPlanProvider {
@@ -19,12 +17,12 @@ export class RuntimeLessonPlanProvider implements LessonPlanProvider {
     this.mode = config.get<string>('LLM_PROVIDER', 'mock') === 'openai-compatible' && this.missingLiveSettings().length === 0 ? 'live' : 'mock'
   }
 
-  status(): LlmModeStatus {
+  status(): RuntimeLlmModeStatus {
     const missing = this.missingLiveSettings()
     return { mode: this.mode, liveAvailable: missing.length === 0, missing }
   }
 
-  setMode(mode: LlmMode): LlmModeStatus {
+  setMode(mode: LlmMode): RuntimeLlmModeStatus {
     const missing = mode === 'live' ? this.missingLiveSettings() : []
     if (missing.length > 0) {
       throw new BadRequestException({

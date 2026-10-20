@@ -522,7 +522,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeLlmModeStatus"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -548,7 +555,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/RuntimeLlmModeStatus"
                 }
               }
             }
@@ -3057,6 +3064,33 @@
         },
         "required": [
           "mode"
+        ],
+        "additionalProperties": false
+      },
+      "RuntimeLlmModeStatus": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "live"
+            ]
+          },
+          "liveAvailable": {
+            "type": "boolean"
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "mode",
+          "liveAvailable",
+          "missing"
         ],
         "additionalProperties": false
       },

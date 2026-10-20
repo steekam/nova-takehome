@@ -834,6 +834,12 @@ export interface components {
             /** @enum {string} */
             mode: "mock" | "live";
         };
+        RuntimeLlmModeStatus: {
+            /** @enum {string} */
+            mode: "mock" | "live";
+            liveAvailable: boolean;
+            missing: string[];
+        };
         ValidationErrorResponse: {
             statusCode: number;
             /** @enum {string} */
@@ -1271,7 +1277,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RuntimeLlmModeStatus"];
+                };
             };
         };
     };
@@ -1293,7 +1301,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["RuntimeLlmModeStatus"];
                 };
             };
             400: {

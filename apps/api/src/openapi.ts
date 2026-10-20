@@ -18,6 +18,7 @@ import {
   LessonPlanVersionDtoSchema,
   ReviewLessonPlanRequestSchema,
   RuntimeLlmModeRequestSchema,
+  RuntimeLlmModeStatusSchema,
   ValidationErrorResponseSchema,
 } from '@nova/shared'
 import { toOpenApiSchema } from './common/validation/openapi-schema'
@@ -50,6 +51,7 @@ export function createApiDocument(app: INestApplication) {
     LessonPlanVersion: toOpenApiSchema(LessonPlanVersionDtoSchema),
     ReviewLessonPlanRequest: toOpenApiSchema(ReviewLessonPlanRequestSchema),
     RuntimeLlmModeRequest: toOpenApiSchema(RuntimeLlmModeRequestSchema),
+    RuntimeLlmModeStatus: toOpenApiSchema(RuntimeLlmModeStatusSchema),
     ValidationErrorResponse: toOpenApiSchema(ValidationErrorResponseSchema),
     ApiErrorResponse: toOpenApiSchema(ApiErrorResponseSchema),
   }

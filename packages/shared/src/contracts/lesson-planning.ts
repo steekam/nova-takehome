@@ -42,8 +42,6 @@ export const ReviewLessonPlanRequestSchema = z.object({
   comment: z.string().max(2000).optional(),
 }).strict()
 
-export const RuntimeLlmModeRequestSchema = z.object({ mode: z.enum(['mock', 'live']) }).strict()
-
 export const LessonPlanQaCheckSchema = z.object({
   code: z.string(),
   passed: z.boolean(),

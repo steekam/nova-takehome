@@ -6,18 +6,15 @@ import type { LucideIcon } from 'lucide-react'
 import type { UserRole } from '@nova/shared'
 import { Button } from './ui/button'
 import { apiClient } from '../lib/api-client'
-import { apiRequest } from '../lib/api-request'
-
-type LlmMode = 'mock' | 'live'
-type LlmModeStatus = { mode: LlmMode; liveAvailable: boolean; missing: string[] }
+import { getRuntimeLlmMode, runtimeLlmKey, setRuntimeLlmMode, type LlmMode } from '../features/runtime-llm/api'
 type NavItem = { to: '/teacher' | '/curriculum-lead' | '/lesson-plans' | '/library'; label: string; icon: LucideIcon }
 
 function LlmModeControl() {
   const queryClient = useQueryClient()
-  const settings = useQuery({ queryKey: ['runtime-llm-mode'], queryFn: () => apiRequest<LlmModeStatus>('/api/runtime/llm') })
+  const settings = useQuery({ queryKey: runtimeLlmKey, queryFn: getRuntimeLlmMode })
   const updateMode = useMutation({
-    mutationFn: (mode: LlmMode) => apiRequest<LlmModeStatus>('/api/runtime/llm', { method: 'PUT', body: JSON.stringify({ mode }) }),
-    onSuccess: (status) => queryClient.setQueryData(['runtime-llm-mode'], status),
+    mutationFn: setRuntimeLlmMode,
+    onSuccess: (status) => queryClient.setQueryData(runtimeLlmKey, status),
   })
 
   return <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
