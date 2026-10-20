@@ -4,7 +4,7 @@ import type { FixtureId } from './corpus.js'
 import { LessonContentSchema, ParticleScoringSchema, ChangeScoringSchema } from './domain.js'
 import type { CorpusChunk } from './domain.js'
 
-export const PROMPT_VERSION = 'generate-lesson-v21'
+export const PROMPT_VERSION = 'generate-lesson-v22'
 export type JsonSchemaNode = { [key: string]: unknown }
 
 export function lessonTiming(durationMinutes: number): { starter: number; main: number; closing: number; model: number; practice: number; compare: number; share: number } {
@@ -98,9 +98,7 @@ export function makePrompt(sources: CorpusChunk[], repairErrors: string[] = [], 
   const requestedDuration = durationMinutes ?? fixture.scenario.durationMinutes
   if (fixture.id === 'changes') return makeChangePrompt(sources, repairErrors, requestedDuration)
   const schema = outputSchemaFor(sources)
-  const repair = repairErrors.length > 0
-    ? `\nFix these validation issues from your previous answer:\n${repairErrors.map((error) => `- ${error}`).join('\n')}\nUse objective-particles as the only objective ID. Copy citation IDs as literal strings from the enum values; never return numeric positions.`
-    : ''
+  const repair = repairInstructions(fixture.id, fixture.objectiveId, repairErrors)
   return `Draft one teacher-editable lesson plan from the supplied evidence. Return one JSON object matching the JSON Schema below, with no markdown or text outside it.
 
 This fixture combines one exact KICD learning outcome with synthetic supporting sources. The target's sourceReference identifies its authority and locator. The lessonFocus is a synthetic teaching emphasis, not official KICD wording. Use only the supplied evidence; do not invent curriculum claims or source IDs. Use the exact objective ID "objective-particles". Each sourceChunkIds value must be an exact string enum value in the schema, never a number or list position; for example, ["chunk-target-particles"]. Do not repeat a source ID within one sourceChunkIds list. Attach the target chunk to the objective. Cite synthetic teaching notes when using their particle-size emphasis, and do not attribute that emphasis to KICD. Every activity and check must cite supporting source IDs.
@@ -146,9 +144,7 @@ export function renderPromptTemplate(template: string, sources: CorpusChunk[], r
   const requestedDuration = durationMinutes ?? fixture.scenario.durationMinutes
   const { scenario, retrievalQuery, objectiveId } = fixture
   const schema = outputSchemaFor(sources)
-  const repair = repairErrors.length > 0
-    ? `\nFix these validation issues from your previous answer:\n${repairErrors.map((error) => `- ${error}`).join('\n')}\nUse ${objectiveId} as the only objective ID. Copy citation IDs as literal strings from the enum values; never return numeric positions.`
-    : ''
+  const repair = repairInstructions(fixture.id, objectiveId, repairErrors)
   const values: Record<string, string> = {
     scenario: JSON.stringify({ ...scenario, durationMinutes: requestedDuration, retrievalQuery }),
     allowed_source_chunks: JSON.stringify(sources.map(({ id, title, kind, text, targetId, sourceReference }) => ({ id, title, kind, text, targetId, sourceReference }))),
@@ -166,10 +162,10 @@ export function renderPromptTemplate(template: string, sources: CorpusChunk[], r
 
 function makeChangePrompt(sources: CorpusChunk[], repairErrors: string[], durationMinutes: number): string {
   const fixture = fixtureForSources(sources)
-  const repair = repairErrors.length ? `Fix these validation issues:\n${repairErrors.map((error) => `- ${error}`).join('\n')}` : ''
+  const repair = repairInstructions(fixture.id, fixture.objectiveId, repairErrors)
   return `Draft one teacher-editable CBC lesson plan from the supplied evidence. Return one JSON object matching the schema. This fixture combines an exact KICD outcome with clearly synthetic teaching cases and lead guidance. The four examples and eight-point rubric are local teaching choices, not KICD requirements. Cite only exact supplied chunk IDs; do not duplicate IDs in a citation list. Use objective-changes as the sole objective ID. Cite the target and teaching note on the objective. Every activity and check must cite its supporting sources.
 
-${durationGuidance(fixture.id, durationMinutes)} The objective distinguishes physical and chemical changes using whether a new substance forms. Use these four cases throughout: melting ice (physical, no new substance), tearing paper (physical, no new substance), rusting iron (chemical, new substance), cooking an egg (chemical, new substance). Explain these are supplied case descriptions. Do not perform heating, cooking, burning, or handling rusting samples. Do not use reversibility as the sole classification test: tearing paper stays physical although difficult to reverse.
+${durationGuidance(fixture.id, durationMinutes)} The objective distinguishes physical and chemical changes using whether a new substance forms. Use these four cases throughout: melting ice (physical, no new substance), tearing paper (physical, no new substance), rusting iron (chemical, new substance), cooking an egg (chemical, new substance). The main activity must explicitly name all four cases and explain whether a new substance forms in each. Explain these are supplied case descriptions. Do not perform heating, cooking, burning, or handling rusting samples. Do not use reversibility as the sole classification test: tearing paper stays physical although difficult to reverse.
 
 Starter collects first classifications before giving the rule. Closing keeps all case cards displayed or read aloud, gives each learner an individual response sheet or equivalent, and collects simultaneous written, recorded, or selectable answers for every case. State each case's evidence, including whether a new substance forms. Offer equivalent spoken descriptions and static or spoken response options for every task including closing, without visual access or body movement.
 
@@ -187,4 +183,21 @@ JSON Schema:
 ${JSON.stringify(outputSchemaFor(sources))}
 ${repair}
 `
+}
+
+function repairInstructions(fixtureId: FixtureId, objectiveId: string, errors: string[]): string {
+  if (errors.length === 0) return ''
+  const guidance = [
+    'Keep every section that already meets its checks unchanged. Edit only fields needed to fix the listed failures; do not shorten or rephrase compliant activities, checks, or materials.',
+    ...(fixtureId === 'changes' && errors.some((error) => error.startsWith('CHANGES_MAIN_CASES:'))
+      ? ['In the main activity, explicitly name melting ice, tearing paper, rusting iron, and cooking an egg, and state whether a new substance forms for each.']
+      : []),
+    ...(fixtureId === 'changes' && errors.some((error) => error.startsWith('DEMO_INDIVIDUAL_RESPONSE:'))
+      ? ['Name the individual response tool in materials and say every learner uses it while the case cards stay displayed or are read aloud.']
+      : []),
+    ...(errors.some((error) => error.startsWith('CHANGES_ACCESSIBILITY_OPTION:'))
+      ? ['In differentiation, explicitly provide equivalent spoken descriptions and static or spoken responses for every case task, including closing, without visual access or body movement.']
+      : []),
+  ]
+  return `\nFix these validation issues from your previous answer:\n${errors.map((error) => `- ${error}`).join('\n')}\n${guidance.map((instruction) => `- ${instruction}`).join('\n')}\nUse ${objectiveId} as the only objective ID. Copy citation IDs as literal strings from the enum values; never return numeric positions.`
 }

@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
 import { FIXTURE_IDS, getFixture } from './corpus.js'
-import { embeddingCacheKey, rankChunks, retrieve, retryEmbeddingOperation, selectRankedChunks } from './embedding.js'
+import { assertMinimumEvidenceCoverage, embeddingCacheKey, rankChunks, retrieve, retryEmbeddingOperation, selectRankedChunks } from './embedding.js'
 import { PlaygroundError } from './failure-report.js'
 
 test('embedding cache identity changes when provider or model revision changes', () => {
@@ -39,7 +39,13 @@ test('mock embeddings are cached by pipeline and content', async () => {
       assert.ok(fixture.chunks.filter(({ kind }) => kind === 'lead_guidance').every(({ id }) => selectedIds.has(id)))
       assert.ok(retrieval.selected.some(({ kind }) => kind === 'curriculum_target'))
       assert.ok(retrieval.selected.some(({ id }) => id === fixture.citationEvidence.lessonFocusChunkId))
+      assert.ok(retrieval.selected.some(({ id }) => id === fixture.citationEvidence.mainActivityChunkId))
       assert.ok(retrieval.selected.some(({ id }) => id === fixture.citationEvidence.assessmentChunkId))
+      assert.doesNotThrow(() => assertMinimumEvidenceCoverage(retrieval.selected, fixtureId))
+      assert.throws(
+        () => assertMinimumEvidenceCoverage(retrieval.selected.filter(({ id }) => id !== fixture.citationEvidence.lessonFocusChunkId), fixtureId),
+        (error: unknown) => error instanceof PlaygroundError && error.code === 'RETRIEVAL_EVIDENCE_INSUFFICIENT',
+      )
     }
     const fixture = getFixture('particles')
     assert.throws(

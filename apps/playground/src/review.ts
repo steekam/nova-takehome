@@ -187,12 +187,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function reviewCandidate(live: boolean, viaLitellm: boolean): Candidate {
+export function reviewCandidate(live: boolean, viaLitellm: boolean): Candidate {
   return live
     ? viaLitellm
-      ? { id: 'litellm-deepseek-v4.1-flash', provider: 'litellm', model: process.env.LITELLM_MODEL ?? 'lesson-planner', displayName: 'DeepSeek V4.1 Flash via LiteLLM' }
-      : { id: 'baseten-deepseek-v4.1-flash', provider: 'baseten', model: process.env.BASETEN_DEEPSEEK_MODEL ?? 'deepseek-ai/DeepSeek-V4.1-Flash', displayName: 'Baseten DeepSeek V4.1 Flash' }
-    : { id: 'mock-review', provider: 'mock', model: 'mock-review', displayName: 'Mock lesson review' }
+      ? { id: 'litellm-reviewer', provider: 'litellm', connectionId: 'proxy', model: process.env.LITELLM_REVIEWER_MODEL ?? process.env.LITELLM_MODEL ?? 'lesson-planner', displayName: 'Reviewer model via LiteLLM' }
+      : { id: 'baseten-reviewer', provider: 'baseten', connectionId: 'direct', model: process.env.BASETEN_REVIEWER_MODEL ?? process.env.BASETEN_DEEPSEEK_MODEL ?? 'deepseek-ai/DeepSeek-V4.1-Flash', displayName: 'Reviewer model via Baseten' }
+    : { id: 'mock-review', provider: 'mock', connectionId: 'mock', model: 'mock-review', displayName: 'Mock lesson review' }
 }
 
 export async function runReview(sourceRunPath: string, live: boolean, traceId?: string, viaLitellm = false): Promise<ReviewRunReport> {

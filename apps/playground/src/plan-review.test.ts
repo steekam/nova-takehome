@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
+import { reviewCandidate } from './review.js'
 import { runReviewPlanVersion } from './review.js'
 import { createTeacherPlan, editTeacherPlan, getPlan, WorkflowError } from './workflow.js'
 
@@ -87,4 +88,18 @@ test('saved-plan review rejects missing snapshots and unknown version IDs with s
       (error: unknown) => error instanceof WorkflowError && error.code === 'PLAN_SOURCE_SNAPSHOT_MISSING',
     )
   })
+})
+test('LiteLLM review uses the reviewer-role model alias', () => {
+  const previousReviewer = process.env.LITELLM_REVIEWER_MODEL
+  const previousLegacy = process.env.LITELLM_MODEL
+  process.env.LITELLM_REVIEWER_MODEL = 'reviewer-alias'
+  process.env.LITELLM_MODEL = 'legacy-alias'
+  try {
+    assert.equal(reviewCandidate(true, true).model, 'reviewer-alias')
+  } finally {
+    if (previousReviewer === undefined) delete process.env.LITELLM_REVIEWER_MODEL
+    else process.env.LITELLM_REVIEWER_MODEL = previousReviewer
+    if (previousLegacy === undefined) delete process.env.LITELLM_MODEL
+    else process.env.LITELLM_MODEL = previousLegacy
+  }
 })

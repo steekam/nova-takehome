@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
+import { litellmCandidates } from './runner.js'
 import { getFixture } from './corpus.js'
 import { retrieve } from './embedding.js'
 import type { Candidate } from './domain.js'
@@ -10,7 +11,7 @@ import { verify } from './verify.js'
 import { generate } from './provider.js'
 import { runGeneration } from './runner.js'
 
-const mockCandidate: Candidate = { id: 'mock-deepseek', provider: 'mock', model: 'mock-deepseek', displayName: 'Mock DeepSeek' }
+const mockCandidate: Candidate = { id: 'mock-deepseek', provider: 'mock', connectionId: 'mock', model: 'mock-deepseek', displayName: 'Mock DeepSeek' }
 
 async function withRunnerHarness(operation: (input: {
   setProviderResponses: (responses: Array<Response | Error>) => void
@@ -121,4 +122,18 @@ test('generation accepts a selected lesson duration and records it through verif
     assert.equal(result.verification?.passed, true)
     assert.match(result.attempts[0].prompt, /starter 5m, main 20m, closing 5m/)
   })
+})
+test('LiteLLM generation uses the generation-role model alias', () => {
+  const previousGenerator = process.env.LITELLM_GENERATOR_MODEL
+  const previousLegacy = process.env.LITELLM_MODEL
+  process.env.LITELLM_GENERATOR_MODEL = 'generator-alias'
+  process.env.LITELLM_MODEL = 'legacy-alias'
+  try {
+    assert.equal(litellmCandidates()[0].model, 'generator-alias')
+  } finally {
+    if (previousGenerator === undefined) delete process.env.LITELLM_GENERATOR_MODEL
+    else process.env.LITELLM_GENERATOR_MODEL = previousGenerator
+    if (previousLegacy === undefined) delete process.env.LITELLM_MODEL
+    else process.env.LITELLM_MODEL = previousLegacy
+  }
 })

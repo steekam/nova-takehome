@@ -7,9 +7,14 @@ import { getFixture } from './corpus.js'
 import type { FixtureId } from './corpus.js'
 import { CorpusChunkSchema, LessonContentSchema } from './domain.js'
 import { verify } from './verify.js'
+import { transitionLessonPlan, type LessonPlanAction } from '@nova/shared'
 
 const checkSchema = z.object({ code: z.string(), passed: z.boolean(), message: z.string() }).strict()
-const verificationSchema = z.object({ passed: z.boolean(), checks: z.array(checkSchema) }).strict()
+const verificationSchema = z.object({ passed: z.boolean(), checks: z.array(checkSchema).min(1) }).strict().superRefine((verification, context) => {
+  if (verification.passed !== verification.checks.every(({ passed }) => passed)) {
+    context.addIssue({ code: 'custom', path: ['passed'], message: 'Verification must pass exactly when every check passes.' })
+  }
+})
 const versionSchema = z.object({
   versionId: z.string().uuid(),
   versionNumber: z.number().int().positive(),
@@ -26,7 +31,7 @@ const eventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('created'), actorRole: z.literal('teacher'), actorId: z.string().min(1), versionId: z.string().uuid(), at: z.string().datetime() }).strict(),
   z.object({ type: z.literal('edited'), actorRole: z.literal('teacher'), actorId: z.string().min(1), versionId: z.string().uuid(), at: z.string().datetime() }).strict(),
   z.object({ type: z.literal('submitted'), actorRole: z.literal('teacher'), actorId: z.string().min(1), versionId: z.string().uuid(), at: z.string().datetime() }).strict(),
-  z.object({ type: z.literal('returned'), actorRole: z.literal('lead'), actorId: z.string().min(1), versionId: z.string().uuid(), at: z.string().datetime(), comment: z.string().min(1) }).strict(),
+  z.object({ type: z.literal('returned'), actorRole: z.literal('lead'), actorId: z.string().min(1), versionId: z.string().uuid(), at: z.string().datetime(), comment: z.string().refine((comment) => comment.trim().replace(/\s/g, '').length >= 8) }).strict(),
   z.object({ type: z.literal('published'), actorRole: z.literal('lead'), actorId: z.string().min(1), versionId: z.string().uuid(), at: z.string().datetime() }).strict(),
 ])
 
@@ -41,7 +46,75 @@ export const PlanSchema = z.object({
   publishedVersionId: z.string().uuid().optional(),
   versions: z.array(versionSchema).min(1),
   events: z.array(eventSchema).min(1),
-}).strict()
+}).strict().superRefine((plan, context) => {
+  const versionIds = new Set(plan.versions.map(({ versionId }) => versionId))
+  if (versionIds.size !== plan.versions.length) context.addIssue({ code: 'custom', path: ['versions'], message: 'Version IDs must be unique.' })
+  if (plan.versions.some((version, index) => version.versionNumber !== index + 1 ||
+    (index === 0 ? version.parentVersionId !== undefined : version.parentVersionId !== plan.versions[index - 1]?.versionId))) {
+    context.addIssue({ code: 'custom', path: ['versions'], message: 'Versions must form a sequential parent chain.' })
+  }
+  const current = plan.versions.at(-1)
+  if (!current || plan.currentVersionId !== current.versionId) {
+    context.addIssue({ code: 'custom', path: ['currentVersionId'], message: 'Current version must point to the latest version.' })
+  }
+  if (plan.status === 'published') {
+    if (plan.publishedVersionId !== plan.currentVersionId) context.addIssue({ code: 'custom', path: ['publishedVersionId'], message: 'Published plans must point to their current version.' })
+  } else if (plan.publishedVersionId !== undefined) {
+    context.addIssue({ code: 'custom', path: ['publishedVersionId'], message: 'Only published plans can have a published version.' })
+  }
+  if (plan.events.some((event) => !versionIds.has(event.versionId))) {
+    context.addIssue({ code: 'custom', path: ['events'], message: 'Every workflow event must reference a saved version.' })
+  }
+  const first = plan.events[0]
+  if ((first?.type !== 'created' && first?.type !== 'drafted') || first.versionId !== plan.versions[0]?.versionId) {
+    context.addIssue({ code: 'custom', path: ['events'], message: 'The first event must create the first version.' })
+    return
+  }
+  let state: Plan['status'] = 'draft'
+  let eventVersionId = first.versionId
+  for (const event of plan.events.slice(1)) {
+    if (event.type === 'created' || event.type === 'drafted') {
+      context.addIssue({ code: 'custom', path: ['events'], message: 'A plan can only be created once.' })
+      return
+    }
+    if (event.type === 'edited') {
+      const editedVersion = plan.versions.find(({ versionId }) => versionId === event.versionId)
+      if (editedVersion?.parentVersionId !== eventVersionId) {
+        context.addIssue({ code: 'custom', path: ['events'], message: 'An edit must create a version from the current version.' })
+        return
+      }
+      eventVersionId = event.versionId
+    } else if (event.versionId !== eventVersionId) {
+      context.addIssue({ code: 'custom', path: ['events'], message: `${event.type} must reference the current version.` })
+      return
+    }
+    const action: LessonPlanAction = event.type === 'edited' ? 'edit' : event.type === 'submitted' ? 'submit' : event.type
+    const next = transitionLessonPlan(state, action)
+    if (!next.ok) {
+      context.addIssue({ code: 'custom', path: ['events'], message: `Invalid ${event.type} event after ${state}.` })
+      return
+    }
+    state = next.status
+  }
+  if (state !== plan.status) context.addIssue({ code: 'custom', path: ['status'], message: 'Plan status must match its workflow events.' })
+  const publishedEvent = plan.events.filter((event) => event.type === 'published').at(-1)
+  if (publishedEvent?.versionId !== plan.publishedVersionId) {
+    context.addIssue({ code: 'custom', path: ['publishedVersionId'], message: 'Published version must match the publish event.' })
+  }
+  if (eventVersionId !== plan.currentVersionId) {
+    context.addIssue({ code: 'custom', path: ['currentVersionId'], message: 'Current version must match the latest version reached by workflow events.' })
+  }
+  const editedVersionIds = new Set(plan.events.filter((event) => event.type === 'edited').map((event) => event.versionId))
+  if (plan.versions.slice(1).some((version) => !editedVersionIds.has(version.versionId))) {
+    context.addIssue({ code: 'custom', path: ['versions'], message: 'Every version after creation must have a matching edit event.' })
+  }
+  for (const event of plan.events) {
+    if ((event.type === 'submitted' || event.type === 'published')
+      && !plan.versions.find(({ versionId }) => versionId === event.versionId)?.verification.passed) {
+      context.addIssue({ code: 'custom', path: ['events'], message: `${event.type} events must reference a version that passed deterministic verification.` })
+    }
+  }
+})
 
 export type Plan = z.infer<typeof PlanSchema>
 export type PlanVersion = Plan['versions'][number]
@@ -50,6 +123,29 @@ export class WorkflowError extends Error {
   constructor(readonly code: string, message: string) {
     super(`${code}: ${message}`)
     this.name = 'WorkflowError'
+  }
+}
+
+const mutationQueues = new Map<string, Promise<void>>()
+
+function transitionPlanStatus(status: Plan['status'], action: LessonPlanAction): Plan['status'] {
+  const result = transitionLessonPlan(status, action)
+  if (!result.ok) throw new WorkflowError(result.code, result.message)
+  return result.status
+}
+
+async function withPlanMutation<T>(planId: string, mutation: () => Promise<T>): Promise<T> {
+  const previous = mutationQueues.get(planId) ?? Promise.resolve()
+  let release!: () => void
+  const current = new Promise<void>((resolve) => { release = resolve })
+  const queued = previous.then(() => current)
+  mutationQueues.set(planId, queued)
+  await previous
+  try {
+    return await mutation()
+  } finally {
+    release()
+    if (mutationQueues.get(planId) === queued) mutationQueues.delete(planId)
   }
 }
 
@@ -214,66 +310,74 @@ export async function importGeneratedPlan(input: { report: unknown; ownerId: str
 }
 
 export async function editTeacherPlan(input: { planId: string; ownerId: string; content: unknown }): Promise<Plan> {
-  const plan = await readPlan(input.planId)
-  requireOwner(plan, input.ownerId)
-  if (plan.status !== 'draft' && plan.status !== 'returned') throw new WorkflowError('PLAN_TRANSITION_INVALID', `A ${plan.status} plan cannot be edited.`)
-  const previous = currentVersion(plan)
-  const sourceChunks = structuredClone(previous.sourceChunks ?? getFixture(plan.fixtureId).chunks)
-  const { content, verification } = validatedContent(input.content, sourceChunks)
-  const versionId = randomUUID()
-  const at = new Date().toISOString()
-  const updated: Plan = {
-    ...plan,
-    status: 'draft',
-    currentVersionId: versionId,
-    versions: [...plan.versions, { versionId, versionNumber: previous.versionNumber + 1, parentVersionId: previous.versionId, origin: 'teacher_edit', createdAt: at, content, sourceChunks, verification }],
-    events: [...plan.events, { type: 'edited', actorRole: 'teacher', actorId: input.ownerId, versionId, at }],
-  }
-  await writePlan(updated)
-  return updated
+  return withPlanMutation(input.planId, async () => {
+    const plan = await readPlan(input.planId)
+    requireOwner(plan, input.ownerId)
+    const nextStatus = transitionPlanStatus(plan.status, 'edit')
+    const previous = currentVersion(plan)
+    const sourceChunks = structuredClone(previous.sourceChunks ?? getFixture(plan.fixtureId).chunks)
+    const { content, verification } = validatedContent(input.content, sourceChunks)
+    const versionId = randomUUID()
+    const at = new Date().toISOString()
+    const updated: Plan = {
+      ...plan,
+      status: nextStatus,
+      currentVersionId: versionId,
+      versions: [...plan.versions, { versionId, versionNumber: previous.versionNumber + 1, parentVersionId: previous.versionId, origin: 'teacher_edit', createdAt: at, content, sourceChunks, verification }],
+      events: [...plan.events, { type: 'edited', actorRole: 'teacher', actorId: input.ownerId, versionId, at }],
+    }
+    await writePlan(updated)
+    return updated
+  })
 }
 
 export async function submitTeacherPlan(input: { planId: string; ownerId: string }): Promise<Plan> {
-  const plan = await readPlan(input.planId)
-  requireOwner(plan, input.ownerId)
-  if (plan.status !== 'draft') throw new WorkflowError('PLAN_TRANSITION_INVALID', `Only a draft plan can be submitted; current status is ${plan.status}.`)
-  const version = currentVersion(plan)
-  if (!version.verification.passed) {
-    const failures = version.verification.checks.filter(({ passed }) => !passed).map(({ code }) => code).join(', ')
-    throw new WorkflowError('PLAN_QA_FAILED', `Fix deterministic QA gaps before submission: ${failures}.`)
-  }
-  const at = new Date().toISOString()
-  const updated: Plan = { ...plan, status: 'submitted', events: [...plan.events, { type: 'submitted', actorRole: 'teacher', actorId: input.ownerId, versionId: version.versionId, at }] }
-  await writePlan(updated)
-  return updated
+  return withPlanMutation(input.planId, async () => {
+    const plan = await readPlan(input.planId)
+    requireOwner(plan, input.ownerId)
+    const nextStatus = transitionPlanStatus(plan.status, 'submit')
+    const version = currentVersion(plan)
+    if (!version.verification.passed) {
+      const failures = version.verification.checks.filter(({ passed }) => !passed).map(({ code }) => code).join(', ')
+      throw new WorkflowError('LESSON_PLAN_QA_FAILED', `Fix deterministic QA gaps before submission: ${failures}.`)
+    }
+    const at = new Date().toISOString()
+    const updated: Plan = { ...plan, status: nextStatus, events: [...plan.events, { type: 'submitted', actorRole: 'teacher', actorId: input.ownerId, versionId: version.versionId, at }] }
+    await writePlan(updated)
+    return updated
+  })
 }
 
 export async function returnSubmittedPlan(input: { planId: string; leadId: string; comment: string }): Promise<Plan> {
-  const plan = await readPlan(input.planId)
-  if (!input.leadId.trim()) throw new WorkflowError('ACTOR_REQUIRED', 'Curriculum Lead ID is required.')
-  if (!input.comment.trim()) throw new WorkflowError('LEAD_COMMENT_REQUIRED', 'A return decision needs an actionable comment.')
-  if (plan.status !== 'submitted') throw new WorkflowError('PLAN_TRANSITION_INVALID', `Only a submitted plan can be returned; current status is ${plan.status}.`)
-  const version = currentVersion(plan)
-  const at = new Date().toISOString()
-  const updated: Plan = { ...plan, status: 'returned', events: [...plan.events, { type: 'returned', actorRole: 'lead', actorId: input.leadId, versionId: version.versionId, at, comment: input.comment }] }
-  await writePlan(updated)
-  return updated
+  return withPlanMutation(input.planId, async () => {
+    const plan = await readPlan(input.planId)
+    if (!input.leadId.trim()) throw new WorkflowError('ACTOR_REQUIRED', 'Curriculum Lead ID is required.')
+    const nextStatus = transitionPlanStatus(plan.status, 'returned')
+    if (input.comment.trim().replace(/\s/g, '').length < 8) throw new WorkflowError('REVIEW_COMMENT_REQUIRED', 'Add an actionable return reason with at least eight non-space characters.')
+    const version = currentVersion(plan)
+    const at = new Date().toISOString()
+    const updated: Plan = { ...plan, status: nextStatus, events: [...plan.events, { type: 'returned', actorRole: 'lead', actorId: input.leadId, versionId: version.versionId, at, comment: input.comment }] }
+    await writePlan(updated)
+    return updated
+  })
 }
 
 export async function publishSubmittedPlan(input: { planId: string; leadId: string }): Promise<Plan> {
-  const plan = await readPlan(input.planId)
-  if (!input.leadId.trim()) throw new WorkflowError('ACTOR_REQUIRED', 'Curriculum Lead ID is required.')
-  if (plan.status !== 'submitted') throw new WorkflowError('PLAN_TRANSITION_INVALID', `Only a submitted plan can be published; current status is ${plan.status}.`)
-  const version = currentVersion(plan)
-  const at = new Date().toISOString()
-  const updated: Plan = {
-    ...plan,
-    status: 'published',
-    publishedVersionId: version.versionId,
-    events: [...plan.events, { type: 'published', actorRole: 'lead', actorId: input.leadId, versionId: version.versionId, at }],
-  }
-  await writePlan(updated)
-  return updated
+  return withPlanMutation(input.planId, async () => {
+    const plan = await readPlan(input.planId)
+    if (!input.leadId.trim()) throw new WorkflowError('ACTOR_REQUIRED', 'Curriculum Lead ID is required.')
+    const nextStatus = transitionPlanStatus(plan.status, 'published')
+    const version = currentVersion(plan)
+    const at = new Date().toISOString()
+    const updated: Plan = {
+      ...plan,
+      status: nextStatus,
+      publishedVersionId: version.versionId,
+      events: [...plan.events, { type: 'published', actorRole: 'lead', actorId: input.leadId, versionId: version.versionId, at }],
+    }
+    await writePlan(updated)
+    return updated
+  })
 }
 
 export async function getPlan(planId: string): Promise<Plan> {

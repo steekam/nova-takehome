@@ -37,7 +37,7 @@ test('publishes one managed generation prompt for each CBC fixture', async () =>
     assert.deepEqual(requests.map(({ name }) => name), published.map(({ name }) => name))
     assert.notEqual(requests[0].prompt, requests[1].prompt)
     assert.ok(requests.every(({ prompt }) => prompt.includes('{{duration_guidance}}')))
-    assert.equal(PROMPT_VERSION, 'generate-lesson-v21')
+    assert.equal(PROMPT_VERSION, 'generate-lesson-v22')
   } finally {
     globalThis.fetch = previousFetch
     if (previousPublicKey === undefined) delete process.env.LANGFUSE_PUBLIC_KEY

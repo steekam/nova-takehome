@@ -75,12 +75,18 @@ export const CorpusChunkSchema = z.object({
 
 export type CorpusChunk = z.infer<typeof CorpusChunkSchema>
 
-export type Candidate = {
+type CandidateDetails = {
   id: string
-  provider: 'baseten' | 'litellm' | 'opencode_cli' | 'mock'
   model: string
   displayName: string
 }
+
+export type Candidate = CandidateDetails & (
+  | { provider: 'baseten'; connectionId: 'direct' }
+  | { provider: 'litellm'; connectionId: 'proxy' }
+  | { provider: 'opencode_cli'; connectionId: 'opencode_cli' }
+  | { provider: 'mock'; connectionId: 'mock' }
+)
 
 export function modelLabel(candidate: Candidate, responseModel?: string): string {
   if (responseModel && responseModel !== candidate.model) return responseModel

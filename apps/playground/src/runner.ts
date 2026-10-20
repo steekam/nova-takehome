@@ -16,13 +16,13 @@ import { reportVerificationScore, withSpan } from './telemetry.js'
 import { PlaygroundError } from './failure-report.js'
 
 const basetenCandidates = (): Candidate[] => [
-  { id: 'baseten-deepseek-v4.1-flash', provider: 'baseten', model: process.env.BASETEN_DEEPSEEK_MODEL ?? 'deepseek-ai/DeepSeek-V4.1-Flash', displayName: 'Baseten DeepSeek V4.1 Flash' },
-  { id: 'baseten-glm-5.3-flash', provider: 'baseten', model: process.env.BASETEN_GLM_MODEL ?? 'zai-org/GLM-5.3-Flash', displayName: 'Baseten GLM 5.3 Flash' },
+  { id: 'baseten-deepseek-v4.1-flash', provider: 'baseten', connectionId: 'direct', model: process.env.BASETEN_GENERATOR_MODEL ?? process.env.BASETEN_DEEPSEEK_MODEL ?? 'deepseek-ai/DeepSeek-V4.1-Flash', displayName: 'Baseten generation model' },
+  { id: 'baseten-glm-5.3-flash', provider: 'baseten', connectionId: 'direct', model: process.env.BASETEN_GLM_MODEL ?? 'zai-org/GLM-5.3-Flash', displayName: 'Baseten GLM 5.3 Flash' },
 ]
 
-const litellmCandidates = (): Candidate[] => [
-  { id: 'litellm-deepseek-v4.1-flash', provider: 'litellm', model: process.env.LITELLM_MODEL ?? 'lesson-planner', displayName: 'DeepSeek V4.1 Flash via LiteLLM' },
-  { id: 'litellm-glm-5.3-flash', provider: 'litellm', model: process.env.LITELLM_GLM_MODEL ?? 'lesson-planner-glm', displayName: 'GLM 5.3 Flash via LiteLLM' },
+export const litellmCandidates = (): Candidate[] => [
+  { id: 'litellm-deepseek-v4.1-flash', provider: 'litellm', connectionId: 'proxy', model: process.env.LITELLM_GENERATOR_MODEL ?? process.env.LITELLM_MODEL ?? 'lesson-planner', displayName: 'Generation model via LiteLLM' },
+  { id: 'litellm-glm-5.3-flash', provider: 'litellm', connectionId: 'proxy', model: process.env.LITELLM_GLM_MODEL ?? 'lesson-planner-glm', displayName: 'GLM 5.3 Flash via LiteLLM' },
 ]
 
 function parseJson(text: string): unknown {
@@ -174,7 +174,7 @@ async function runCandidate(candidate: Candidate, sourceChunks: typeof chunks, a
       })
       attempts.push({ number, prompt, rawOutput: response.content, error: checked.verification.passed ? undefined : failedChecks.map((check) => check.message).join(' '), errorCode: checked.verification.passed ? undefined : errorCode, finishReason: response.finishReason, responseModel: response.responseModel, usage: response.usage, reportedCostUsd: response.reportedCostUsd, elapsedMs: Date.now() - attemptStart, traceId, observationId, langfuseScore })
       if (checked.verification.passed) break
-      repairErrors = checked.verification.checks.filter((check) => !check.passed).map((check) => check.message)
+      repairErrors = checked.verification.checks.filter((check) => !check.passed).map((check) => `${check.code}: ${check.message}`)
     } catch (error) {
       const providerError = error instanceof ProviderError ? error : new ProviderError('PROVIDER_UNAVAILABLE', 'Unexpected provider error.')
       attempts.push({ number, prompt, error: providerError.message, errorCode: providerError.code, elapsedMs: Date.now() - attemptStart })
@@ -206,8 +206,8 @@ async function runCandidate(candidate: Candidate, sourceChunks: typeof chunks, a
 
 function mockCandidates(): Candidate[] {
   return [
-    { id: 'mock-deepseek-shape', provider: 'mock', model: 'mock-deepseek', displayName: 'Mock DeepSeek-shaped output' },
-    { id: 'mock-glm-shape', provider: 'mock', model: 'mock-glm', displayName: 'Mock GLM-shaped output' },
+    { id: 'mock-deepseek-shape', provider: 'mock', connectionId: 'mock', model: 'mock-deepseek', displayName: 'Mock DeepSeek-shaped output' },
+    { id: 'mock-glm-shape', provider: 'mock', connectionId: 'mock', model: 'mock-glm', displayName: 'Mock GLM-shaped output' },
   ]
 }
 

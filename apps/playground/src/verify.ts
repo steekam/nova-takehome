@@ -181,7 +181,7 @@ export function verify(raw: unknown, allowedChunks: CorpusChunk[], requestedDura
   checks.push({
     code: 'DEMO_INDIVIDUAL_RESPONSE',
     passed: /individual/.test(materials) && /response/.test(materials)
-      && /each learner|each student/.test(closingText)
+      && /\b(?:each|every|all)\s+(?:learner|student)s?\b/.test(closingText)
       && /shared|displayed/.test(closingText),
     message: 'The closing check needs an individual response tool for every learner while diagrams remain shared or displayed.',
   })
@@ -201,7 +201,7 @@ export function verify(raw: unknown, allowedChunks: CorpusChunk[], requestedDura
   if (fixture.id === 'changes') checks.push({
     code: 'CHANGES_ACCESSIBILITY_OPTION',
     passed: /spoken/.test(differentiation) && /every|all/.test(differentiation) && /closing/.test(differentiation)
-      && /without visual access or body movement/.test(differentiation),
+      && /without (?:requiring )?visual access or body movement/.test(differentiation),
     message: 'Every case task, including closing, needs equivalent spoken descriptions and a response option without visual access or body movement.',
   })
   const actionClauses = [

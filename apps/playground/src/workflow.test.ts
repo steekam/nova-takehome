@@ -13,6 +13,7 @@ import {
   returnSubmittedPlan,
   submitTeacherPlan,
   WorkflowError,
+  PlanSchema,
 } from './workflow.js'
 
 const contentPath = fileURLToPath(new URL('../fixtures/teacher-authored-particles.json', import.meta.url))
@@ -84,12 +85,12 @@ test('deterministic QA gaps stay visible and block submission', async () => {
     assert.ok(plan.versions[0].verification.checks.some(({ code, passed }) => code === 'KNOWN_SOURCE_IDS' && !passed))
     await assert.rejects(
       submitTeacherPlan({ planId: plan.planId, ownerId: 'teacher-1' }),
-      (error: unknown) => error instanceof WorkflowError && error.code === 'PLAN_QA_FAILED',
+      (error: unknown) => error instanceof WorkflowError && error.code === 'LESSON_PLAN_QA_FAILED',
     )
   })
 })
 
-test('workflow rejects invalid state transitions and empty return comments', async () => {
+test('workflow rejects invalid transitions and return comments shorter than eight non-space characters', async () => {
   await withPlanDirectory(async () => {
     const plan = await createTeacherPlan({ fixtureId: 'particles', ownerId: 'teacher-1', content: await sampleContent() })
     await assert.rejects(
@@ -97,9 +98,58 @@ test('workflow rejects invalid state transitions and empty return comments', asy
       (error: unknown) => error instanceof WorkflowError && error.code === 'PLAN_TRANSITION_INVALID',
     )
     await submitTeacherPlan({ planId: plan.planId, ownerId: 'teacher-1' })
+    await returnSubmittedPlan({ planId: plan.planId, leadId: 'lead-1', comment: 'Add more learner practice.' })
+    const returned = await getPlan(plan.planId)
+    assert.equal(PlanSchema.safeParse({
+      ...returned,
+      events: returned.events.map(event => event.type === 'returned' ? { ...event, comment: 'short' } : event),
+    }).success, false)
     await assert.rejects(
-      returnSubmittedPlan({ planId: plan.planId, leadId: 'lead-1', comment: '  ' }),
-      (error: unknown) => error instanceof WorkflowError && error.code === 'LEAD_COMMENT_REQUIRED',
+      submitTeacherPlan({ planId: plan.planId, ownerId: 'teacher-1' }),
+      (error: unknown) => error instanceof WorkflowError && error.code === 'PLAN_TRANSITION_INVALID',
     )
+    assert.equal((await getPlan(plan.planId)).status, 'returned')
+    await assert.rejects(
+      returnSubmittedPlan({ planId: plan.planId, leadId: 'lead-1', comment: 'short' }),
+      (error: unknown) => error instanceof WorkflowError && error.code === 'PLAN_TRANSITION_INVALID',
+    )
+    await editTeacherPlan({ planId: plan.planId, ownerId: 'teacher-1', content: await sampleContent() })
+    await submitTeacherPlan({ planId: plan.planId, ownerId: 'teacher-1' })
+    await assert.rejects(
+      returnSubmittedPlan({ planId: plan.planId, leadId: 'lead-1', comment: 'a b c d' }),
+      (error: unknown) => error instanceof WorkflowError && error.code === 'REVIEW_COMMENT_REQUIRED',
+    )
+  })
+})
+
+test('saved plans reject status and version pointers that contradict workflow history', async () => {
+  await withPlanDirectory(async () => {
+    const plan = await createTeacherPlan({ fixtureId: 'particles', ownerId: 'teacher-1', content: await sampleContent() })
+    assert.equal(PlanSchema.safeParse({ ...plan, status: 'published' }).success, false)
+    assert.equal(PlanSchema.safeParse({ ...plan, currentVersionId: '00000000-0000-4000-8000-000000000000' }).success, false)
+    await submitTeacherPlan({ planId: plan.planId, ownerId: 'teacher-1' })
+    await publishSubmittedPlan({ planId: plan.planId, leadId: 'lead-1' })
+    const published = await getPlan(plan.planId)
+    assert.equal(PlanSchema.safeParse({ ...published, publishedVersionId: '00000000-0000-4000-8000-000000000000' }).success, false)
+    assert.equal(PlanSchema.safeParse({ ...published, versions: published.versions.map(version => ({ ...version, verification: { ...version.verification, passed: false } })) }).success, false)
+    assert.equal(PlanSchema.safeParse({ ...published, versions: published.versions.map(version => ({ ...version, verification: { passed: true, checks: version.verification.checks.map((check, index) => index === 0 ? { ...check, passed: false } : check) } })) }).success, false)
+
+    const edited = await createTeacherPlan({ fixtureId: 'particles', ownerId: 'teacher-1', content: await sampleContent() })
+    const revised = await editTeacherPlan({ planId: edited.planId, ownerId: 'teacher-1', content: await sampleContent() })
+    assert.equal(PlanSchema.safeParse({ ...revised, events: revised.events.filter(event => event.type !== 'edited') }).success, false)
+  })
+})
+
+test('concurrent local edits serialize into consecutive immutable versions', async () => {
+  await withPlanDirectory(async () => {
+    const content = await sampleContent()
+    const plan = await createTeacherPlan({ fixtureId: 'particles', ownerId: 'teacher-1', content })
+    await Promise.all([
+      editTeacherPlan({ planId: plan.planId, ownerId: 'teacher-1', content }),
+      editTeacherPlan({ planId: plan.planId, ownerId: 'teacher-1', content }),
+    ])
+    const updated = await getPlan(plan.planId)
+    assert.equal(updated.versions.length, 3)
+    assert.deepEqual(updated.versions.map(({ versionNumber }) => versionNumber), [1, 2, 3])
   })
 })

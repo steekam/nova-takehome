@@ -294,8 +294,10 @@ export async function retrieve(providerOverride?: 'local' | 'mock', fixtureId: F
   const fixture = getFixture(fixtureId)
   const ranking = await rankChunks(fixture.retrievalQuery, providerOverride, 'content-only', fixture.chunks)
   const ranked = ranking.ranked
+  const selected = selectRankedChunks(ranked, SELECTED_RANKED_CHUNK_LIMIT, fixtureId)
+  assertMinimumEvidenceCoverage(selected, fixtureId)
   return {
-    selected: selectRankedChunks(ranked, SELECTED_RANKED_CHUNK_LIMIT, fixtureId),
+    selected,
     ranked,
     model: ranking.model,
     modelRevision: ranking.modelRevision,
@@ -315,9 +317,10 @@ export function selectRankedChunks(
   const leadGuidance = fixtureChunks.filter((chunk) => chunk.kind === 'lead_guidance')
   const requiredEvidence = [
     fixture.citationEvidence.lessonFocusChunkId,
+    fixture.citationEvidence.mainActivityChunkId,
     fixture.citationEvidence.assessmentChunkId,
   ].map((id) => fixtureChunks.find((chunk) => chunk.id === id)!)
-  const pinned = [target, ...leadGuidance, ...requiredEvidence]
+  const pinned = [...new Map([target, ...leadGuidance, ...requiredEvidence].map((chunk) => [chunk.id, chunk])).values()]
   const pinnedIds = new Set(pinned.map(({ id }) => id))
   if (pinnedIds.size > topK) throw new PlaygroundError('RETRIEVAL_CONFIG_INVALID', 'retrieval', `Required context has ${pinnedIds.size} chunks, exceeding the selection cap of ${topK}.`)
   const remainingLimit = Math.max(0, topK - pinnedIds.size)
@@ -326,6 +329,25 @@ export function selectRankedChunks(
     .slice(0, remainingLimit)
     .map(({ chunkId }) => fixtureChunks.find((chunk) => chunk.id === chunkId)!)
   return [...pinned, ...relevant]
+}
+
+export function assertMinimumEvidenceCoverage(selected: CorpusChunk[], fixtureId: FixtureId): void {
+  const fixture = getFixture(fixtureId)
+  const target = fixture.chunks.find((chunk) => chunk.kind === 'curriculum_target')!
+  const requiredIds = new Set([
+    target.id,
+    ...fixture.chunks.filter((chunk) => chunk.kind === 'lead_guidance').map((chunk) => chunk.id),
+    ...Object.values(fixture.citationEvidence),
+  ])
+  const selectedIds = new Set(selected.map((chunk) => chunk.id))
+  const missing = [...requiredIds].filter((id) => !selectedIds.has(id))
+  if (missing.length > 0) {
+    throw new PlaygroundError(
+      'RETRIEVAL_EVIDENCE_INSUFFICIENT',
+      'retrieval',
+      `Generation stopped before the provider call because required curriculum evidence is missing: ${missing.join(', ')}.`,
+    )
+  }
 }
 
 export function retrievalRequest(fixtureId: FixtureId = 'particles'): string {

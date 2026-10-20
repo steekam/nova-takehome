@@ -8,6 +8,7 @@ import { verify } from './verify.js'
 const mockCandidate: Candidate = {
   id: 'mock-deepseek',
   provider: 'mock',
+  connectionId: 'mock',
   model: 'mock-deepseek',
   displayName: 'Mock DeepSeek',
 }
