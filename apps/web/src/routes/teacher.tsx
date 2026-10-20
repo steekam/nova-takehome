@@ -274,4 +274,4 @@ function QualityReport({ qa }: { qa: Qa }) {
   </section>
 }
 
-export const route = createRoute({ getParentRoute: () => rootRoute, path: '/teacher', beforeLoad: () => requireRole('teacher'), component: TeacherHome })
+export const route = createRoute({ getParentRoute: () => rootRoute, path: '/teacher', beforeLoad: ({ location }) => requireRole('teacher', location.href), component: TeacherHome })

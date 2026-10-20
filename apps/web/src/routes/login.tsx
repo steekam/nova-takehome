@@ -1,15 +1,19 @@
 import { useState, type FormEvent } from 'react'
-import { createRoute, useNavigate } from '@tanstack/react-router'
+import { createRoute, redirect, useNavigate, useRouter } from '@tanstack/react-router'
 import { BookOpen } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Separator } from '../components/ui/separator'
 import { ApiError, apiClient } from '../lib/api-client'
+import { currentUserQuery } from '../lib/current-user'
 import { queryClient } from '../lib/query-client'
+import { homeForUser, safeRedirectTarget } from '../lib/route-auth'
 import { route as rootRoute } from './root'
 
 function LoginPage() {
   const navigate = useNavigate()
+  const router = useRouter()
+  const { redirect: returnTo } = loginRoute.useSearch()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string>()
@@ -23,8 +27,11 @@ function LoginPage() {
     try {
       const { data } = await apiClient.POST('/api/auth/login', { body: { email, password } })
       if (!data) throw new Error('The server returned an empty login response.')
+      queryClient.clear()
       queryClient.setQueryData(['auth', 'me'], data.user)
-      await navigate({ to: '/' })
+      const target = safeRedirectTarget(returnTo)
+      if (target) router.history.push(target)
+      else await navigate({ to: homeForUser(data.user) })
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Unable to sign in. Try again.')
     } finally {
@@ -79,8 +86,17 @@ function LoginPage() {
   )
 }
 
-export const route = createRoute({
+const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
+    ...(typeof search.redirect === 'string' ? { redirect: search.redirect } : {}),
+  }),
+  beforeLoad: async () => {
+    const user = await queryClient.fetchQuery(currentUserQuery)
+    if (user) throw redirect({ to: homeForUser(user) })
+  },
   component: LoginPage,
 })
+
+export const route = loginRoute

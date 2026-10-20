@@ -1,12 +1,12 @@
 import { createRoute, redirect } from '@tanstack/react-router'
 import { route as rootRoute } from './root'
-import { requireUser } from '../lib/route-auth'
+import { homeForUser, requireUser } from '../lib/route-auth'
 
 export const route = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  beforeLoad: async () => {
-    const user = await requireUser()
-    throw redirect({ to: user.roles.includes('teacher') ? '/teacher' : '/curriculum-lead' })
+  beforeLoad: async ({ location }) => {
+    const user = await requireUser(location.href)
+    throw redirect({ to: homeForUser(user) })
   },
 })

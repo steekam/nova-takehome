@@ -295,6 +295,6 @@ function ReviewActions({ comment, setComment, review }: { comment: string; setCo
 export const route = createRoute({
   getParentRoute: () => rootRoute,
   path: '/curriculum-lead',
-  beforeLoad: () => requireRole('curriculum_lead'),
+  beforeLoad: ({ location }) => requireRole('curriculum_lead', location.href),
   component: CurriculumLeadHome,
 })
