@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nova · System data schema</title>
+  <style>
+    :root{color-scheme:light;--ink:#102d3c;--muted:#607480;--line:#d5e0e5;--paper:#f4f7f8;--card:#fff;--navy:#092b3b;--cyan:#d8f2f5;--blue:#e5eff8;--green:#e4f3ea;--amber:#fff0d4;--radius:16px;font:16px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink)}button{font:inherit;color:inherit}.shell{max-width:1440px;margin:auto;padding:28px clamp(16px,4vw,56px) 64px}.top{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:22px}.brand{display:flex;align-items:center;gap:12px;font-weight:750;letter-spacing:.02em}.mark{width:38px;height:38px;border-radius:12px;background:var(--navy);color:white;display:grid;place-items:center;font-size:14px}.eyebrow{text-transform:uppercase;letter-spacing:.12em;font-size:11px;font-weight:800;color:#497181}.hero{display:grid;grid-template-columns:1fr auto;align-items:end;gap:22px;padding:22px 0 28px;border-bottom:1px solid var(--line)}h1{font-size:clamp(32px,5vw,54px);line-height:1.04;letter-spacing:-.045em;margin:8px 0 12px}.intro{color:var(--muted);max-width:700px;margin:0}.stats{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.stat{padding:10px 13px;border:1px solid var(--line);border-radius:12px;background:white;min-width:94px}.stat b{display:block;font-size:20px;line-height:1.1}.stat span{font-size:11px;color:var(--muted)}.notice{margin:20px 0;padding:13px 16px;border:1px solid #eed59d;background:var(--amber);border-radius:12px;color:#614d26;font-size:14px}.tabs{position:sticky;top:0;z-index:3;display:flex;gap:8px;overflow:auto;padding:12px 0;background:rgba(244,247,248,.95);backdrop-filter:blur(12px)}.tab{white-space:nowrap;border:1px solid var(--line);background:#fff;border-radius:999px;padding:9px 15px;font-weight:650;font-size:13px;cursor:pointer}.tab[aria-selected=true]{color:white;background:var(--navy);border-color:var(--navy)}.panel{display:none;padding:25px 0 34px;border-bottom:1px solid var(--line);scroll-margin-top:74px}.panel.active{display:block}.panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:16px}.panel h2{font-size:clamp(24px,3vw,34px);letter-spacing:-.035em;margin:3px 0}.panel-desc{color:var(--muted);margin:0}.zoom{display:flex;align-items:center;gap:8px;white-space:nowrap}.zoom button{width:34px;height:34px;border:1px solid var(--line);border-radius:10px;background:white;cursor:pointer;font-size:18px}.zoom output{font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted);width:44px;text-align:center}.canvas{overflow:auto;background:white;border:1px solid var(--line);border-radius:var(--radius);padding:14px;min-height:252px}.canvas svg{display:block;width:100%;height:auto;max-height:600px;min-width:650px}.node{fill:white;stroke:#bfd0d8;stroke-width:2}.node.navy{fill:var(--navy);stroke:var(--navy)}.node.blue{fill:var(--blue);stroke:#c9d9e9}.node.cyan{fill:var(--cyan);stroke:#b7dfe5}.node.green{fill:var(--green);stroke:#c2e1cf}.node.amber{fill:var(--amber);stroke:#edd7a6}.label{font-size:19px;font-weight:750;fill:var(--ink)}.label.light{fill:white}.sub{font-size:13px;fill:#607480}.sub.light{fill:#d4e4ea}.edge{fill:none;stroke:#527281;stroke-width:2.3}.edge.dash{stroke-dasharray:7 6}.edge-label{font-size:12px;font-weight:700;fill:#48616e}.fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.field-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}.field-card h3{font-size:15px;margin:0 0 8px}.field-card p{font-size:13px;color:var(--muted);margin:0}.field-card code,.inline-code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:#eef3f5;padding:2px 5px;border-radius:5px;color:#143f52}.field-list{display:grid;grid-template-columns:max-content 1fr;gap:5px 10px;font-size:12px;margin:8px 0 0}.field-list dt{font-family:ui-monospace,monospace;font-weight:700}.field-list dd{margin:0;color:var(--muted)}.callout{margin-top:14px;padding:14px 16px;border-radius:12px;background:#edf4f7;color:#345363;font-size:13px}.callout strong{color:var(--ink)}.json-shape{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.json-group{background:white;border:1px solid var(--line);border-radius:14px;padding:15px}.json-group h3{margin:0 0 8px;font-size:14px}.json-group p{margin:4px 0;font-size:13px;color:var(--muted)}.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.chip{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:4px 8px;background:#f8fafb}.footer{color:var(--muted);font-size:12px;padding-top:22px}.footer a{color:#1f637e}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    @media(max-width:800px){.hero{grid-template-columns:1fr}.stats{justify-content:flex-start}.fields{grid-template-columns:1fr}.json-shape{grid-template-columns:1fr}.panel-head{align-items:flex-start;flex-direction:column}.zoom{align-self:flex-end}.canvas svg{min-width:720px}}
+    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+  </style>
+</head>
+<body>
+<main class="shell">
+  <div class="top"><div class="brand"><span class="mark">N</span><span>NOVA · SYSTEM REFERENCE</span></div><span class="eyebrow">Database schema · review view</span></div>
+  <header class="hero">
+    <div><div class="eyebrow">Implemented model</div><h1>System data schema</h1><p class="intro">Current PostgreSQL tables and the lesson-plan JSON contract, split into four reviewable views. Use the tabs to isolate a domain and the zoom controls to inspect its diagram.</p></div>
+    <div class="stats" aria-label="Schema summary"><div class="stat"><b>6</b><span>tables</span></div><div class="stat"><b>4</b><span>enums</span></div><div class="stat"><b>1</b><span>JSONB contract</span></div></div>
+  </header>
+  <div class="notice"><strong>Scope check:</strong> this is the implemented schema in <span class="inline-code">apps/api/src/database/schema.ts</span>. Curriculum framework, subject, grade, and target are not separate tables yet; the corpus stores subject and grade as text, while an outcome chunk ID currently acts as the target ID.</div>
+  <nav class="tabs" role="tablist" aria-label="Schema sections">
+    <button class="tab" id="tab-identity" role="tab" aria-controls="identity" aria-selected="true">1 · People & access</button>
+    <button class="tab" id="tab-corpus" role="tab" aria-controls="corpus" aria-selected="false">2 · Curriculum corpus</button>
+    <button class="tab" id="tab-plans" role="tab" aria-controls="plans" aria-selected="false">3 · Lesson plans</button>
+    <button class="tab" id="tab-review" role="tab" aria-controls="review" aria-selected="false">4 · Review & constraints</button>
+  </nav>
+
+  <section class="panel active" id="identity" role="tabpanel" aria-labelledby="tab-identity">
+    <div class="panel-head"><div><div class="eyebrow">Part 1 · actors</div><h2>People own and act on plans</h2><p class="panel-desc">One user table represents both teacher and curriculum-lead accounts.</p></div><div class="zoom"><button data-zoom="out" aria-label="Zoom out">−</button><output>100%</output><button data-zoom="in" aria-label="Zoom in">+</button><button data-zoom="reset">Reset</button></div></div>
+    <div class="canvas"><svg viewBox="0 0 1000 360" role="img" aria-label="User relationships to lesson plans, versions and reviews">
+      <defs><marker id="arrow1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#527281"/></marker></defs>
+      <path class="edge" marker-end="url(#arrow1)" d="M300 170H405"/><text class="edge-label" x="310" y="155">teacher_id</text>
+      <path class="edge" marker-end="url(#arrow1)" d="M300 196C360 196 350 285 405 285"/><text class="edge-label" x="300" y="255">created_by</text>
+      <path class="edge" marker-end="url(#arrow1)" d="M300 145C550 75 640 75 710 150"/><text class="edge-label" x="480" y="86">curriculum_lead_id</text>
+      <path class="edge" marker-end="url(#arrow1)" d="M590 176H710"/><text class="edge-label" x="620" y="160">lesson_plan_id</text>
+      <rect class="node navy" x="45" y="118" width="255" height="120" rx="16"/><text class="label light" x="70" y="154">users</text><text class="sub light" x="70" y="180">id · email · password_hash</text><text class="sub light" x="70" y="202">role · created_at</text>
+      <rect class="node blue" x="405" y="120" width="185" height="110" rx="16"/><text class="label" x="430" y="158">lesson_plans</text><text class="sub" x="430" y="184">teacher_id → users.id</text><text class="sub" x="430" y="205">status · timestamps</text>
+      <rect class="node cyan" x="405" y="258" width="185" height="80" rx="16"/><text class="label" x="430" y="291">plan_versions</text><text class="sub" x="430" y="316">created_by → users.id</text>
+      <rect class="node green" x="710" y="120" width="245" height="125" rx="16"/><text class="label" x="735" y="158">plan_reviews</text><text class="sub" x="735" y="184">lead decision + comment</text><text class="sub" x="735" y="206">lesson_plan_id → plans.id</text><text class="sub" x="735" y="228">curriculum_lead_id → users.id</text>
+    </svg></div>
+    <div class="fields">
+      <article class="field-card"><h3><code>users</code></h3><p>Authentication identity and role.</p><dl class="field-list"><dt>role</dt><dd><code>teacher</code> or <code>curriculum_lead</code></dd><dt>email</dt><dd>unique, required</dd><dt>password_hash</dt><dd>stored password hash</dd></dl></article>
+      <article class="field-card"><h3>Relationship counts</h3><p>One teacher can own many plans. Each plan can have many versions and review records. User references identify who authored a version or made a review decision.</p></article>
+      <article class="field-card"><h3>Auth boundary</h3><p>Sessions resolve a user to a role and permission list. Lesson-plan ownership and lead review permissions are enforced by API services.</p></article>
+    </div>
+  </section>
+
+  <section class="panel" id="corpus" role="tabpanel" aria-labelledby="tab-corpus" hidden>
+    <div class="panel-head"><div><div class="eyebrow">Part 2 · retrieval corpus</div><h2>Documents contain searchable chunks</h2><p class="panel-desc">The chunk row carries the retrieval text and 384-dimensional embedding.</p></div><div class="zoom"><button data-zoom="out" aria-label="Zoom out">−</button><output>100%</output><button data-zoom="in" aria-label="Zoom in">+</button><button data-zoom="reset">Reset</button></div></div>
+    <div class="canvas"><svg viewBox="0 0 1000 340" role="img" aria-label="Curriculum documents have many chunks, each with vector embedding">
+      <defs><marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#527281"/></marker></defs>
+      <path class="edge" marker-end="url(#arrow2)" d="M380 175H555"/><text class="edge-label" x="432" y="160">document_id · 1 to many</text>
+      <rect class="node blue" x="70" y="92" width="310" height="170" rx="18"/><text class="label" x="98" y="134">curriculum_documents</text><text class="sub" x="98" y="164">id · document_type · title</text><text class="sub" x="98" y="188">subject · grade · content</text><text class="sub" x="98" y="212">created_at</text><text class="sub" x="98" y="240">Type: scheme / outcome / assessment</text>
+      <rect class="node cyan" x="555" y="74" width="365" height="205" rx="18"/><text class="label" x="584" y="116">curriculum_chunks</text><text class="sub" x="584" y="148">id · document_id · ordinal</text><text class="sub" x="584" y="174">content · embedding vector(384)</text><text class="sub" x="584" y="200">unique(document_id, ordinal)</text><text class="sub" x="584" y="226">HNSW cosine index on embedding</text><text class="sub" x="584" y="252">A learning-outcome chunk ID is targetId</text>
+    </svg></div>
+    <div class="fields">
+      <article class="field-card"><h3>Document metadata</h3><p><code>subject</code> and <code>grade</code> are free text. There is no framework/release/programme hierarchy or normalized subject/grade catalog in this implementation.</p></article>
+      <article class="field-card"><h3>Retrieval unit</h3><p>Each chunk stores its own content and BGE-small embedding. The database requires exactly 384 vector dimensions and uses cosine distance with an HNSW index.</p></article>
+      <article class="field-card"><h3>Current target mapping</h3><p>There is no <code>curriculum_targets</code> table. API outcome rows pair a learning-outcome document with a chunk; the chunk UUID is exposed as <code>targetId</code>.</p></article>
+    </div>
+  </section>
+
+  <section class="panel" id="plans" role="tabpanel" aria-labelledby="tab-plans" hidden>
+    <div class="panel-head"><div><div class="eyebrow">Part 3 · lesson-plan content</div><h2>Plan identity is separate from version content</h2><p class="panel-desc">The plan row holds owner and lifecycle status; each immutable version holds one JSON content snapshot.</p></div><div class="zoom"><button data-zoom="out" aria-label="Zoom out">−</button><output>100%</output><button data-zoom="in" aria-label="Zoom in">+</button><button data-zoom="reset">Reset</button></div></div>
+    <div class="canvas"><svg viewBox="0 0 1000 330" role="img" aria-label="Lesson plan has versions and the latest JSONB version is returned by API">
+      <defs><marker id="arrow3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#527281"/></marker></defs>
+      <path class="edge" marker-end="url(#arrow3)" d="M350 163H505"/><text class="edge-label" x="385" y="146">lesson_plan_id · 1 to many</text>
+      <path class="edge dash" marker-end="url(#arrow3)" d="M760 162H875"/><text class="edge-label" x="785" y="145">latest version</text>
+      <rect class="node navy" x="50" y="91" width="300" height="145" rx="18"/><text class="label light" x="78" y="132">lesson_plans</text><text class="sub light" x="78" y="162">id · teacher_id · status</text><text class="sub light" x="78" y="188">created_at · updated_at</text><text class="sub light" x="78" y="214">status enum controls transitions</text>
+      <rect class="node blue" x="505" y="82" width="255" height="162" rx="18"/><text class="label" x="533" y="122">lesson_plan_versions</text><text class="sub" x="533" y="152">id · lesson_plan_id · version</text><text class="sub" x="533" y="178">content JSONB · created_by</text><text class="sub" x="533" y="204">created_at · unique(plan, version)</text>
+      <rect class="node green" x="875" y="100" width="115" height="125" rx="18"/><text class="label" x="894" y="139">API DTO</text><text class="sub" x="891" y="168">plan +</text><text class="sub" x="891" y="190">latest</text><text class="sub" x="891" y="212">content</text>
+    </svg></div>
+    <div class="json-shape">
+      <article class="json-group"><h3><code>content</code> · lesson-plan JSONB</h3><p><b>Identity:</b> title, subject, grade, learningOutcome, durationMinutes.</p><p><b>Teaching:</b> objectives[], materials[], starter, activities[].</p><p><b>Learning check:</b> checkForUnderstanding.</p><p><b>Grounding:</b> sources[] with documentId and chunkId UUIDs.</p></article>
+      <article class="json-group"><h3>Nested activity / source records</h3><p><code>activity</code> = title, description, durationMinutes.</p><p><code>source</code> = documentId, chunkId.</p><p>Schema validation checks required fields and at least one activity/source. Citation IDs are JSON values, not database foreign keys.</p></article>
+    </div>
+    <div class="callout"><strong>Version rule:</strong> editing inserts a new version row; plan status and updated time change on the parent. The API returns the newest version as the plan’s content. The database does not store a current-version pointer.</div>
+  </section>
+
+  <section class="panel" id="review" role="tabpanel" aria-labelledby="tab-review" hidden>
+    <div class="panel-head"><div><div class="eyebrow">Part 4 · workflow records</div><h2>Reviews point to a plan, status carries state</h2><p class="panel-desc">Review history stores the lead’s decision and comment. The submitted version is not referenced directly.</p></div><div class="zoom"><button data-zoom="out" aria-label="Zoom out">−</button><output>100%</output><button data-zoom="in" aria-label="Zoom in">+</button><button data-zoom="reset">Reset</button></div></div>
+    <div class="canvas"><svg viewBox="0 0 1000 330" role="img" aria-label="Plan review references lesson plan and curriculum lead; plan status state machine">
+      <defs><marker id="arrow4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#527281"/></marker></defs>
+      <path class="edge" marker-end="url(#arrow4)" d="M270 104H425"/><text class="edge-label" x="304" y="90">lesson_plan_id</text>
+      <path class="edge" marker-end="url(#arrow4)" d="M270 214H425"/><text class="edge-label" x="309" y="199">curriculum_lead_id</text>
+      <rect class="node blue" x="425" y="78" width="260" height="172" rx="18"/><text class="label" x="454" y="119">plan_reviews</text><text class="sub" x="454" y="150">decision: returned | published</text><text class="sub" x="454" y="177">comment · created_at</text><text class="sub" x="454" y="205">plan + lead foreign keys</text><text class="sub" x="454" y="232">No version_id field</text>
+      <rect class="node navy" x="48" y="82" width="222" height="83" rx="16"/><text class="label light" x="77" y="118">lesson_plans</text><text class="sub light" x="77" y="144">current status</text>
+      <rect class="node green" x="48" y="190" width="222" height="83" rx="16"/><text class="label" x="77" y="226">users</text><text class="sub" x="77" y="252">reviewer role = lead</text>
+      <path class="edge dash" marker-end="url(#arrow4)" d="M685 164H750"/><text class="edge-label" x="697" y="148">transition</text>
+      <rect class="node amber" x="750" y="70" width="220" height="205" rx="18"/><text class="label" x="776" y="108">Plan states</text><text class="sub" x="776" y="140">draft → submitted</text><text class="sub" x="776" y="166">submitted → returned</text><text class="sub" x="776" y="192">returned → draft on edit</text><text class="sub" x="776" y="218">submitted → published</text><text class="sub" x="776" y="246">published is read-only</text>
+    </svg></div>
+    <div class="fields">
+      <article class="field-card"><h3>Enums</h3><p><code>user_role</code>: teacher, curriculum_lead<br><code>plan_status</code>: draft, submitted, returned, published<br><code>review_decision</code>: returned, published<br><code>curriculum_document_type</code>: scheme_of_work, learning_outcome, assessment_item</p></article>
+      <article class="field-card"><h3>Database safeguards</h3><p>Primary UUID keys; foreign keys connect plans, versions, reviews, users, documents, and chunks. Unique indexes enforce email and per-plan version numbers.</p></article>
+      <article class="field-card"><h3>Audit gap in current shape</h3><p>A review record references the plan only. To prove which immutable version was reviewed, add a <code>lesson_plan_version_id</code> foreign key to review history.</p></article>
+    </div>
+    <div class="callout"><strong>Potential next schema slice:</strong> normalized Curriculum → Grade → Subject → Target entities; resource revisions and locator/provenance; explicit plan citations; review-to-version link. These are modeling gaps to discuss, not tables in the current database.</div>
+  </section>
+  <footer class="footer">Source of truth: <a href="../apps/api/src/database/schema.ts">Drizzle database schema</a> and <a href="../packages/shared/src/index.ts">shared JSON contracts</a>. This visual separates implemented tables from suggested extensions.</footer>
+</main>
+<script>
+  const tabs = [...document.querySelectorAll('[role="tab"]')]
+  const panels = [...document.querySelectorAll('[role="tabpanel"]')]
+  function selectTab(tab) {
+    for (const current of tabs) current.setAttribute('aria-selected', String(current === tab))
+    for (const panel of panels) {
+      const active = panel.id === tab.getAttribute('aria-controls')
+      panel.hidden = !active
+      panel.classList.toggle('active', active)
+    }
+  }
+  for (const tab of tabs) tab.addEventListener('click', () => selectTab(tab))
+  document.querySelector('.tabs').addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return
+    event.preventDefault()
+    const current = tabs.indexOf(document.activeElement)
+    const next = (current + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length
+    tabs[next].focus()
+    selectTab(tabs[next])
+  })
+  for (const panel of panels) {
+    const svg = panel.querySelector('svg')
+    const base = svg.viewBox.baseVal
+    const original = { x: base.x, y: base.y, width: base.width, height: base.height }
+    let zoom = 1
+    const output = panel.querySelector('output')
+    function setZoom(next) {
+      zoom = Math.min(2, Math.max(1, next))
+      const width = original.width / zoom
+      const height = original.height / zoom
+      svg.setAttribute('viewBox', `${original.x + (original.width - width) / 2} ${original.y + (original.height - height) / 2} ${width} ${height}`)
+      output.value = `${Math.round(zoom * 100)}%`
+      output.textContent = output.value
+    }
+    panel.querySelector('[data-zoom="in"]').addEventListener('click', () => setZoom(zoom + .2))
+    panel.querySelector('[data-zoom="out"]').addEventListener('click', () => setZoom(zoom - .2))
+    panel.querySelector('[data-zoom="reset"]').addEventListener('click', () => setZoom(1))
+  }
+</script>
+</body>
+</html>

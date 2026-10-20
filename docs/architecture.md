@@ -15,7 +15,7 @@ The browser presents actions. The API checks identity, ownership, transitions, c
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Draft: generate
+  [*] --> Draft: teacher authors or AI generates
   Draft --> Draft: teacher edits; save new version
   Draft --> Submitted: submit after QA
   Submitted --> Returned: lead returns with comment
@@ -24,7 +24,9 @@ stateDiagram-v2
   Published --> [*]
 ```
 
-Only these transitions are valid. The API locks the plan row while changing state; an invalid action returns `409 PLAN_TRANSITION_INVALID` without changing the plan. A return needs at least eight non-space characters of feedback. A returned plan becomes Draft on its first edit, then needs another submit. Published plans are terminal.
+The shared package owns the transition table used by the API and playground. The playground also validates saved status, version, and event history as one state-machine record. The API locks the plan row while changing state; an invalid action returns `409 PLAN_TRANSITION_INVALID` without changing the plan. A return needs at least eight non-space characters of feedback. A returned plan becomes Draft on its first edit, then needs another submit. Published plans are terminal.
+
+The playground's file-backed plan store is a single-process development tool. Its per-plan mutation queue serializes calls in one process; the API is the concurrent multi-user workflow and uses database row locks.
 
 | Current state | Action | Next state | Guard |
 |---|---|---|---|
@@ -33,7 +35,6 @@ Only these transitions are valid. The API locks the plan row while changing stat
 | Submitted | Return | Returned | Lead decision; comment has at least eight non-space characters |
 | Submitted | Publish | Published | Lead decision; latest version still passes QA |
 | Returned | Edit | Draft | Teacher owns the plan; first edit creates a new version |
-| Returned | Submit | Submitted | Latest edited version passes deterministic QA |
 
 Every other state/action pair is rejected before mutation. State changes and version/review writes share a database transaction; concurrent decisions serialize on the plan row. Clients receive a stable error code and a message that names the next correction: `PLAN_TRANSITION_INVALID` (409), `REVIEW_COMMENT_REQUIRED` (400), or `LESSON_PLAN_QA_FAILED` (422 with failed checks). A returned plan cannot be silently republished: it must be edited and resubmitted.
 
