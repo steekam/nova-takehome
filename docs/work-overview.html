@@ -82,14 +82,17 @@
   teacher.tsx         edit / submit / library
   curriculum-lead.tsx review queue / decision
 
-apps/api/src/curriculum/
-  curriculum.controller.ts  transport + request validation
-  curriculum.service.ts     auth, transitions, QA, persistence
-  lesson-plan-generator.ts  prompt, retry, grounding checks
-  llm-provider.ts           OpenAI-compatible adapter
-  embedding.service.ts      BGE adapter + retrieval
+apps/api/src/curriculum-library/
+  controller / service / repository
+  catalogue, target, and source workflows
+apps/api/src/lesson-planning/
+  controller / service / repository
+  generation, lifecycle, QA, and provider selection
+apps/api/src/embeddings/  BGE adapter + vector cache
+apps/api/src/database/schema/  split Drizzle table definitions
 
-packages/shared/      schemas + transition table
+packages/shared/src/contracts/  request / response schemas
+packages/shared/src/policies/   lesson-plan transitions
 apps/playground/src/  offline/live CLI + eval tooling</div>
       <p style="margin:13px 0 0">Provider transport is configuration-selected; the internal playground uses the same OpenAI-compatible shape. API callers never receive provider credentials.</p>
     </article>

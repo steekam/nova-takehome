@@ -1,34 +1,24 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { UnprocessableEntityException } from '@nestjs/common'
-import { desc, eq } from 'drizzle-orm'
 import { hasValidReturnComment, LessonPlanContentSchema, transitionLessonPlan, type ApiPrincipal, type LessonPlanAction, type LessonPlanContent, type LessonPlanStatus } from '@nova/shared'
 import { DatabaseService } from '../database/database.service'
-import { lessonPlanRetrievalCandidates, lessonPlanVersionSources, lessonPlanVersions, lessonPlans, libraryResourceChunks, libraryResourceRevisions, libraryResources, planReviews } from '../database/schema'
 import type { DbExecutor } from '../database/executor'
 import { LessonPlanGenerator } from './lesson-plan-generator'
-import { CurriculumRepository } from './curriculum.repository'
-import { EmbeddingAdapter } from './embedding.service'
-import { EmbeddingError } from './embedding.adapter'
-import { CurriculumLibraryService } from './curriculum-library.service'
+import { LessonPlanningRepository } from './lesson-planning.repository'
+import { EmbeddingAdapter } from '../embeddings/embedding.service'
+import { EmbeddingError } from '../embeddings/embedding.adapter'
+import { CurriculumLibraryService } from '../curriculum-library/curriculum-library.service'
 import type { ZodIssue } from 'zod'
 
 @Injectable()
-export class CurriculumService {
+export class LessonPlanningService {
   constructor(
     private readonly database: DatabaseService,
-    private readonly repository: CurriculumRepository,
+    private readonly repository: LessonPlanningRepository,
     private readonly library: CurriculumLibraryService,
     private readonly generator: LessonPlanGenerator,
     private readonly embeddings: EmbeddingAdapter,
   ) {}
-
-  async outcomes() {
-    return this.library.outcomes()
-  }
-
-  async sources(principal: ApiPrincipal) {
-    return this.library.allSources(principal)
-  }
 
   async list(principal: ApiPrincipal) {
     const isLead = principal.roles.includes('curriculum_lead')
@@ -64,8 +54,7 @@ export class CurriculumService {
   }
 
   async versions(id: string) {
-    return this.database.db.select({ version: lessonPlanVersions.version, content: lessonPlanVersions.content, createdBy: lessonPlanVersions.createdBy, createdAt: lessonPlanVersions.createdAt })
-      .from(lessonPlanVersions).where(eq(lessonPlanVersions.lessonPlanId, id)).orderBy(desc(lessonPlanVersions.version))
+    return this.repository.versions(id)
   }
 
   async generate(principal: ApiPrincipal, targetRevisionId: string, durationMinutes: number) {
@@ -73,26 +62,26 @@ export class CurriculumService {
     const queryEmbedding = await this.embedQuery(outcome.content)
     const sources = await this.library.sourceChunksForGeneration(targetRevisionId, queryEmbedding, outcome.subject, outcome.grade)
     const content = await this.generator.generate(outcome, sources, durationMinutes)
-    const [plan] = await this.database.db.transaction(async (tx) => {
-      const [created] = await tx.insert(lessonPlans).values({ teacherId: principal.subject }).returning()
-      const [version] = await tx.insert(lessonPlanVersions).values({
+    const plan = await this.database.db.transaction(async (tx) => {
+      const created = await this.repository.createPlan(principal.subject, tx)
+      const [version] = await this.repository.createVersion({
         lessonPlanId: created.id,
         targetRevisionId,
         version: 1,
         content,
         createdBy: principal.subject,
-      }).returning()
+      }, tx)
       const candidateChunkIds = new Set(sources.map((source) => source.chunkId))
-      await tx.insert(lessonPlanRetrievalCandidates).values([...candidateChunkIds].map((resourceChunkId) => ({ lessonPlanId: created.id, resourceChunkId })))
-      await tx.insert(lessonPlanVersionSources).values(content.sources.map((source) => ({ lessonPlanVersionId: version.id, resourceChunkId: source.chunkId })))
-      return [created]
+      await this.repository.addRetrievalCandidates(created.id, [...candidateChunkIds], tx)
+      await this.repository.addVersionSources(version.id, content.sources.map((source) => source.chunkId), tx)
+      return created
     })
     return this.dto(plan.id)
   }
 
   async edit(id: string, principal: ApiPrincipal, content: unknown) {
     await this.database.db.transaction(async (tx) => {
-      const [plan] = await tx.select().from(lessonPlans).where(eq(lessonPlans.id, id)).for('update').limit(1)
+      const [plan] = await this.repository.planForUpdate(id, tx)
       if (!plan) throw new NotFoundException('Lesson plan not found')
       this.assertTeacherOwns(plan.teacherId, principal)
       const nextStatus = transitionPlanStatus(plan.status, 'edit')
@@ -101,33 +90,33 @@ export class CurriculumService {
         const errors = formatLessonPlanSchemaIssues(valid.error.issues)
         throw new UnprocessableEntityException({ code: 'LESSON_PLAN_QA_FAILED', message: `Fix these lesson plan fields before saving: ${errors.map(({ field, message }) => `${field}: ${message}`).join('; ')}.`, errors })
       }
-      const [latest] = await tx.select().from(lessonPlanVersions).where(eq(lessonPlanVersions.lessonPlanId, id)).orderBy(desc(lessonPlanVersions.version)).limit(1)
+      const [latest] = await this.repository.latestVersion(id, tx)
       if (!latest) throw new NotFoundException('Lesson plan content not found')
       validatePlanContext(latest.targetRevisionId, latest.content, valid.data)
       await this.assertPlanQa(id, latest.targetRevisionId, valid.data, tx)
-      const [version] = await tx.insert(lessonPlanVersions).values({
+      const [version] = await this.repository.createVersion({
         lessonPlanId: id,
         targetRevisionId: latest.targetRevisionId,
         version: latest.version + 1,
         content: valid.data,
         createdBy: principal.subject,
-      }).returning()
-      await tx.insert(lessonPlanVersionSources).values(valid.data.sources.map((source) => ({ lessonPlanVersionId: version.id, resourceChunkId: source.chunkId })))
-      await tx.update(lessonPlans).set({ status: nextStatus, updatedAt: new Date() }).where(eq(lessonPlans.id, id))
+      }, tx)
+      await this.repository.addVersionSources(version.id, valid.data.sources.map((source) => source.chunkId), tx)
+      await this.repository.updatePlanStatus(id, nextStatus, new Date(), tx)
     })
     return this.dto(id)
   }
 
   async submit(id: string, principal: ApiPrincipal) {
     await this.database.db.transaction(async (tx) => {
-      const [plan] = await tx.select().from(lessonPlans).where(eq(lessonPlans.id, id)).for('update').limit(1)
+      const [plan] = await this.repository.planForUpdate(id, tx)
       if (!plan) throw new NotFoundException('Lesson plan not found')
       this.assertTeacherOwns(plan.teacherId, principal)
       const nextStatus = transitionPlanStatus(plan.status, 'submit')
-      const [latest] = await tx.select().from(lessonPlanVersions).where(eq(lessonPlanVersions.lessonPlanId, id)).orderBy(desc(lessonPlanVersions.version)).limit(1)
+      const [latest] = await this.repository.latestVersion(id, tx)
       if (!latest) throw new NotFoundException('Lesson plan content not found')
       await this.assertPlanQa(id, latest.targetRevisionId, latest.content, tx)
-      await tx.update(lessonPlans).set({ status: nextStatus, updatedAt: new Date() }).where(eq(lessonPlans.id, id))
+      await this.repository.updatePlanStatus(id, nextStatus, new Date(), tx)
     })
     return this.dto(id)
   }
@@ -135,21 +124,21 @@ export class CurriculumService {
   async review(id: string, principal: ApiPrincipal, decision: 'returned' | 'published', comment?: string) {
     assertCurriculumLead(principal)
     const [review] = await this.database.db.transaction(async (tx) => {
-      const [plan] = await tx.select().from(lessonPlans).where(eq(lessonPlans.id, id)).for('update').limit(1)
+      const [plan] = await this.repository.planForUpdate(id, tx)
       if (!plan) throw new NotFoundException('Lesson plan not found')
       const nextStatus = transitionPlanStatus(plan.status, decision)
       const normalizedComment = validateReviewComment(decision, comment)
-      const [latest] = await tx.select().from(lessonPlanVersions).where(eq(lessonPlanVersions.lessonPlanId, id)).orderBy(desc(lessonPlanVersions.version)).limit(1)
+      const [latest] = await this.repository.latestVersion(id, tx)
       if (!latest) throw new NotFoundException('Lesson plan content not found')
       if (decision === 'published') await this.assertPlanQa(id, latest.targetRevisionId, latest.content, tx)
-      await tx.update(lessonPlans).set({ status: nextStatus, updatedAt: new Date() }).where(eq(lessonPlans.id, id))
-      const [created] = await tx.insert(planReviews).values({
+      await this.repository.updatePlanStatus(id, nextStatus, new Date(), tx)
+      const [created] = await this.repository.createReview({
         lessonPlanId: id,
         lessonPlanVersionId: latest.id,
         curriculumLeadId: principal.subject,
         decision,
         comment: normalizedComment,
-      }).returning()
+      }, tx)
       return [{ ...created, lessonPlanVersionNumber: latest.version }]
     })
     return { review, plan: await this.dto(id) }
@@ -157,13 +146,13 @@ export class CurriculumService {
 
   private async dto(id: string) {
     const plan = await this.plan(id)
-    const [latest] = await this.database.db.select().from(lessonPlanVersions).where(eq(lessonPlanVersions.lessonPlanId, id)).orderBy(desc(lessonPlanVersions.version)).limit(1)
+    const [latest] = await this.repository.latestVersion(id)
     if (!latest) throw new NotFoundException('Lesson plan content not found')
     return { id: plan.id, teacherId: plan.teacherId, status: plan.status, targetRevisionId: latest.targetRevisionId, versionId: latest.id, content: latest.content, version: latest.version,
       createdAt: plan.createdAt.toISOString(), updatedAt: plan.updatedAt.toISOString() }
   }
   private async plan(id: string) {
-    const [plan] = await this.repository.plan(id)
+    const plan = await this.repository.plan(id)
     if (!plan) throw new NotFoundException('Lesson plan not found')
     return plan
   }
@@ -187,11 +176,7 @@ export class CurriculumService {
   }
 
   async citationsExist(content: LessonPlanContent, targetRevisionId: string | null, executor: DbExecutor = this.database.db) {
-    if (!targetRevisionId) {
-      const legacySources = await this.repository.sources(executor)
-      const available = new Set(legacySources.map((source) => `${source.documentId}:${source.chunkId}`))
-      return content.sources.every((source) => available.has(`${source.documentId}:${source.chunkId}`))
-    }
+    if (!targetRevisionId) return false
     const sources = await this.library.sourceDetailsForTarget(targetRevisionId, executor)
     const available = new Set(sources.map((source) => `${source.documentId}:${source.chunkId}`))
     const referencesExist = content.sources.every((source) => available.has(`${source.documentId}:${source.chunkId}`))
@@ -204,16 +189,10 @@ export class CurriculumService {
   }
 
   async citationsAllowed(id: string, content: LessonPlanContent, executor: DbExecutor = this.database.db) {
-    const candidates = await executor.select({ documentId: libraryResources.id, chunkId: libraryResourceChunks.id })
-      .from(lessonPlanRetrievalCandidates)
-      .innerJoin(libraryResourceChunks, eq(lessonPlanRetrievalCandidates.resourceChunkId, libraryResourceChunks.id))
-      .innerJoin(libraryResourceRevisions, eq(libraryResourceChunks.resourceRevisionId, libraryResourceRevisions.id))
-      .innerJoin(libraryResources, eq(libraryResourceRevisions.resourceId, libraryResources.id))
-      .where(eq(lessonPlanRetrievalCandidates.lessonPlanId, id))
+    const candidates = await this.repository.retrievalCandidates(id, executor)
     const uniqueReferences = new Set(content.sources.map((source) => `${source.documentId}:${source.chunkId}`)).size === content.sources.length
     if (candidates.length) return uniqueReferences && citationsWithinCandidateSet(content.sources, candidates)
-    const [initial] = await executor.select().from(lessonPlanVersions)
-      .where(eq(lessonPlanVersions.lessonPlanId, id)).orderBy(lessonPlanVersions.version).limit(1)
+    const [initial] = await this.repository.initialVersion(id, executor)
     return uniqueReferences && citationsWithinCandidateSet(content.sources, initial?.content.sources ?? [])
   }
 
@@ -270,7 +249,7 @@ export function validatePlanQa(content: unknown, sourcesExist: boolean, sourcesA
 }
 
 function validatePlanContext(targetRevisionId: string | null, original: LessonPlanContent, updated: LessonPlanContent) {
-  if (!targetRevisionId) return
+  if (!targetRevisionId) throw new UnprocessableEntityException({ code: 'CURRICULUM_CONTEXT_MISSING', message: 'This lesson plan has no curriculum target. Start a new plan from the curriculum library.' })
   if (updated.subject !== original.subject || updated.grade !== original.grade || updated.learningOutcome !== original.learningOutcome) {
     throw new UnprocessableEntityException({
       code: 'CURRICULUM_CONTEXT_IMMUTABLE',

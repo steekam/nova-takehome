@@ -5,12 +5,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { hasValidReturnComment, type ApiPrincipal, type CurriculumOutcomeDto, type CurriculumSourceDto, type LessonPlanContent } from '@nova/shared'
 import { LessonPlanContentSchema } from '@nova/shared'
-import { assertCanReadPlan, assertTeacherOwns, citationsWithinCandidateSet, formatLessonPlanSchemaIssues, planDurationMatches, transitionPlanStatus, validatePlanQa, validateReviewComment } from '../src/curriculum/curriculum.service'
-import { createEmbeddingEncoder, EmbeddingError, embeddingCacheKey, retryEmbeddingOperation } from '../src/curriculum/embedding.adapter'
-import { LessonPlanGenerator, validateGeneratedPlan } from '../src/curriculum/lesson-plan-generator'
-import { OpenAiCompatibleLessonPlanProvider } from '../src/curriculum/llm-provider'
-import * as generationTelemetry from '../src/curriculum/generation-telemetry'
-import { buildLessonPlanQa, parseRequest } from '../src/curriculum/curriculum.controller'
+import { assertCanReadPlan, assertTeacherOwns, citationsWithinCandidateSet, formatLessonPlanSchemaIssues, planDurationMatches, transitionPlanStatus, validatePlanQa, validateReviewComment } from '../src/lesson-planning/lesson-planning.service'
+import { createEmbeddingEncoder, EmbeddingError, embeddingCacheKey, retryEmbeddingOperation } from '../src/embeddings/embedding.adapter'
+import { LessonPlanGenerator, validateGeneratedPlan } from '../src/lesson-planning/lesson-plan-generator'
+import { OpenAiCompatibleLessonPlanProvider } from '../src/lesson-planning/llm-provider'
+import * as generationTelemetry from '../src/lesson-planning/generation-telemetry'
+import { buildLessonPlanQa } from '../src/lesson-planning/lesson-planning.controller'
+import { StandardSchemaPipe } from '../src/common/validation/standard-schema.pipe'
 import { validateEnvironment } from '../src/configuration'
 import { z } from 'zod'
 
@@ -57,9 +58,9 @@ describe('curriculum workflow invariants', () => {
     expect(legacy.LLM_REVIEWER_MODEL).toBe('legacy-model')
   })
 
-  it('returns field-level guidance for invalid workflow requests', () => {
+  it('returns field-level guidance for invalid workflow requests', async () => {
     try {
-      parseRequest(z.object({ targetId: z.string().uuid(), durationMinutes: z.number().int().positive() }), { targetId: 'bad', durationMinutes: 0 })
+      await new StandardSchemaPipe(z.object({ targetId: z.string().uuid(), durationMinutes: z.number().int().positive() })).transform({ targetId: 'bad', durationMinutes: 0 })
       throw new Error('Expected invalid request to fail')
     } catch (error) {
       expect(error).toHaveProperty('status', 400)

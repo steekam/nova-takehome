@@ -1,6 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { createHash } from 'node:crypto'
-import { and, desc, eq } from 'drizzle-orm'
 import {
   CurriculumLibraryOfferingDtoSchema,
   CurriculumLibraryTargetDtoSchema,
@@ -13,16 +12,8 @@ import {
 } from '@nova/shared'
 import { DatabaseService } from '../database/database.service'
 import type { DbExecutor } from '../database/executor'
-import {
-  curriculumDesignVersions,
-  curriculumSourceLinks,
-  curriculumTargetRevisions,
-  libraryResourceChunks,
-  libraryResourceRevisions,
-  libraryResources,
-} from '../database/schema'
-import { EmbeddingAdapter } from './embedding.service'
-import { EmbeddingError } from './embedding.adapter'
+import { EmbeddingAdapter } from '../embeddings/embedding.service'
+import { EmbeddingError } from '../embeddings/embedding.adapter'
 import { CurriculumLibraryRepository } from './curriculum-library.repository'
 
 type SourceRow = Awaited<ReturnType<CurriculumLibraryRepository['catalogue']>>['sources'][number]
@@ -44,28 +35,6 @@ export class CurriculumLibraryService {
     const unique = new Map<string, CurriculumSourceDto>()
     for (const target of catalogue.offerings.flatMap((offering) => offering.designs.flatMap((design) => design.targets))) {
       for (const source of target.sources) unique.set(`${source.documentId}:${source.chunkId}`, source)
-    }
-    for (const legacy of await this.repository.legacySources()) {
-      const source = CurriculumSourceDtoSchema.parse({
-        linkId: null,
-        documentId: legacy.documentId,
-        resourceRevisionId: legacy.documentId,
-        revisionNumber: 1,
-        chunkId: legacy.chunkId,
-        resourceType: legacy.documentType === 'learning_outcome' ? 'curriculum_design' : legacy.documentType,
-        title: legacy.title,
-        subject: legacy.subject,
-        grade: legacy.grade,
-        content: legacy.content,
-        authority: 'synthetic',
-        editionLabel: 'Legacy import',
-        sourceUrl: null,
-        locator: null,
-        synthetic: true,
-        role: legacy.documentType === 'learning_outcome' ? 'defines_target' : legacy.documentType === 'assessment_item' ? 'assessment_support' : 'teaching_support',
-        status: 'published',
-      })
-      unique.set(`${source.documentId}:${source.chunkId}`, source)
     }
     return [...unique.values()]
   }
@@ -226,11 +195,9 @@ export class CurriculumLibraryService {
   }
 
   async addSource(targetRevisionId: string, input: CurriculumLibrarySourceInput, principal: ApiPrincipal) {
-    const [target] = await this.database.db.select({ designVersionId: curriculumTargetRevisions.designVersionId })
-      .from(curriculumTargetRevisions).where(eq(curriculumTargetRevisions.id, targetRevisionId)).limit(1)
+    const [target] = await this.repository.targetDesign(targetRevisionId)
     if (!target) throw new NotFoundException('Curriculum target not found')
-    const [design] = await this.database.db.select().from(curriculumDesignVersions)
-      .where(eq(curriculumDesignVersions.id, target.designVersionId)).limit(1)
+    const [design] = await this.repository.design(target.designVersionId)
     if (!design || design.status !== 'published') throw new BadRequestException({ code: 'CURRICULUM_DESIGN_NOT_PUBLISHED', message: 'Sources can only be linked to a published curriculum design.' })
 
     const chunks = splitContent(input.content)
@@ -240,23 +207,22 @@ export class CurriculumLibraryService {
       let resourceId = input.resourceId
       let revisionNumber = 1
       if (resourceId) {
-        const [resource] = await tx.select().from(libraryResources).where(eq(libraryResources.id, resourceId)).for('update').limit(1)
+        const [resource] = await this.repository.resourceForUpdate(resourceId, tx)
         if (!resource) throw new NotFoundException('Source resource not found')
         if (resource.resourceType !== input.resourceType || resource.title !== input.title || resource.authority !== input.authority) {
           throw new BadRequestException({ code: 'SOURCE_RESOURCE_IDENTITY_IMMUTABLE', message: 'A source revision must keep the resource title, type, and authority.' })
         }
-        const [latestRevision] = await tx.select().from(libraryResourceRevisions)
-          .where(eq(libraryResourceRevisions.resourceId, resourceId)).orderBy(desc(libraryResourceRevisions.revisionNumber)).limit(1)
+        const [latestRevision] = await this.repository.latestResourceRevision(resourceId, tx)
         revisionNumber = (latestRevision?.revisionNumber ?? 0) + 1
       } else {
-        const [resource] = await tx.insert(libraryResources).values({
+        const [resource] = await this.repository.createResource({
           resourceType: input.resourceType,
           title: input.title,
           authority: input.authority,
-        }).returning()
+        }, tx)
         resourceId = resource.id
       }
-      const [revision] = await tx.insert(libraryResourceRevisions).values({
+      const [revision] = await this.repository.createResourceRevision({
         resourceId,
         revisionNumber,
         editionLabel: input.editionLabel,
@@ -265,21 +231,21 @@ export class CurriculumLibraryService {
         content: input.content,
         status: 'draft',
         createdBy: principal.subject,
-      }).returning()
-      await tx.insert(libraryResourceChunks).values(chunks.map((chunk, index) => ({
+      }, tx)
+      await this.repository.createChunks(chunks.map((chunk, index) => ({
         resourceRevisionId: revision.id,
         ordinal: index,
         locator: input.locator ?? `Text ${index + 1}`,
         content: chunk.content,
         embedding: vectors[index],
-      })))
-      const [link] = await tx.insert(curriculumSourceLinks).values({
+      })), tx)
+      const [link] = await this.repository.createSourceLink({
         targetRevisionId,
         resourceRevisionId: revision.id,
         role: input.role,
         status: 'draft',
         addedBy: principal.subject,
-      }).returning()
+      }, tx)
       return [link]
     })
     return { linkId: created.id, targetRevisionId, status: created.status }
@@ -287,26 +253,22 @@ export class CurriculumLibraryService {
 
   async publishSource(linkId: string, principal: ApiPrincipal) {
     return this.database.db.transaction(async (tx) => {
-      const [link] = await tx.select().from(curriculumSourceLinks)
-        .where(eq(curriculumSourceLinks.id, linkId)).for('update').limit(1)
+      const [link] = await this.repository.sourceLinkForUpdate(linkId, tx)
       if (!link) throw new NotFoundException('Source link not found')
       if (link.status !== 'draft') throw new ConflictException({ code: 'SOURCE_LINK_TRANSITION_INVALID', message: 'Only a draft source link can be published.' })
-      const [revision] = await tx.select().from(libraryResourceRevisions)
-        .where(eq(libraryResourceRevisions.id, link.resourceRevisionId)).for('update').limit(1)
+      const [revision] = await this.repository.resourceRevisionForUpdate(link.resourceRevisionId, tx)
       if (!revision) throw new NotFoundException('Source revision not found')
-      const [resource] = await tx.select().from(libraryResources).where(eq(libraryResources.id, revision.resourceId)).limit(1)
+      const [resource] = await this.repository.resource(revision.resourceId, tx)
       if (!resource) throw new NotFoundException('Source resource not found')
-      const [chunk] = await tx.select().from(libraryResourceChunks)
-        .where(eq(libraryResourceChunks.resourceRevisionId, revision.id)).limit(1)
+      const [chunk] = await this.repository.firstChunkForRevision(revision.id, tx)
       if (!chunk) throw new BadRequestException({ code: 'SOURCE_HAS_NO_CHUNKS', message: 'Add readable source text before publishing this source.' })
       if (link.role === 'defines_target' && (resource.resourceType !== 'curriculum_design' || resource.authority !== 'official' || !revision.editionLabel || !revision.sourceUrl || !chunk.locator)) {
         throw new BadRequestException({ code: 'TARGET_SOURCE_PROVENANCE_REQUIRED', message: 'A target-defining source needs official curriculum-design metadata, edition, URL, and source locator before publishing.' })
       }
 
       const publishedAt = new Date()
-      await tx.update(libraryResourceRevisions).set({ status: 'published', publishedAt }).where(eq(libraryResourceRevisions.id, revision.id))
-      await tx.update(curriculumSourceLinks).set({ status: 'published', publishedBy: principal.subject, publishedAt })
-        .where(eq(curriculumSourceLinks.id, link.id))
+      await this.repository.publishResourceRevision(revision.id, publishedAt, tx)
+      await this.repository.publishSourceLink(link.id, principal.subject, publishedAt, tx)
       return { linkId: link.id, targetRevisionId: link.targetRevisionId, status: 'published' as const }
     })
   }

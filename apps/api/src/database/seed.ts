@@ -20,7 +20,7 @@ import {
   users,
 } from './schema'
 import { validateEnvironment } from '../configuration'
-import { createEmbeddingEncoder } from '../curriculum/embedding.adapter'
+import { createEmbeddingEncoder } from '../embeddings/embedding.adapter'
 
 const seedAccounts = [
   { email: 'teacher@example.test', role: 'teacher' as const },

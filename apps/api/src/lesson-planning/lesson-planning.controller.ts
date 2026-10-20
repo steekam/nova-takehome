@@ -1,37 +1,33 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post } from '@nestjs/common'
-import { z } from 'zod'
-import { LessonPlanContentSchema, type ApiPrincipal } from '@nova/shared'
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common'
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
+import { EditLessonPlanRequestSchema, GenerateLessonPlanRequestSchema, LessonPlanContentSchema, ReviewLessonPlanRequestSchema, type ApiPrincipal } from '@nova/shared'
 import { CurrentUser } from '../common/auth/current-user.decorator'
 import { Roles } from '../common/auth/roles.decorator'
-import { CurriculumService } from './curriculum.service'
-import { CurriculumLibraryService } from './curriculum-library.service'
+import { StandardSchemaPipe } from '../common/validation/standard-schema.pipe'
+import { LessonPlanningService } from './lesson-planning.service'
 
-const GenerateSchema = z.object({ targetRevisionId: z.string().uuid(), durationMinutes: z.number().int().positive().max(240) }).strict()
-const EditSchema = z.object({ content: z.unknown() }).strict()
-const ReviewSchema = z.object({ decision: z.enum(['returned', 'published']), comment: z.string().max(2000).optional() }).strict()
-
+@ApiTags('Lesson planning')
 @Controller()
-export class CurriculumController {
-  constructor(private readonly curriculum: CurriculumService, private readonly library: CurriculumLibraryService) {}
-
-  @Get('outcomes')
-  async outcomes() { return { items: await this.curriculum.outcomes() } }
-
-  @Get('sources')
-  async sources(@CurrentUser() principal: ApiPrincipal) { return { items: await this.library.allSources(principal) } }
+export class LessonPlanningController {
+  constructor(private readonly curriculum: LessonPlanningService) {}
 
   @Get('lesson-plans')
+  @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/LessonPlanListResponse' } })
   async list(@CurrentUser() principal: ApiPrincipal) { return { items: await this.curriculum.list(principal) } }
 
   @Post('lesson-plans/generate')
+  @ApiOperation({ summary: 'Generate a grounded lesson plan draft' })
+  @ApiBody({ schema: { $ref: '#/components/schemas/GenerateLessonPlanRequest' } })
+  @ApiResponse({ status: 201, schema: { $ref: '#/components/schemas/LessonPlanResponse' } })
+  @ApiResponse({ status: 400, schema: { $ref: '#/components/schemas/ValidationErrorResponse' } })
   @Roles('teacher')
-  async generate(@CurrentUser() principal: ApiPrincipal, @Body() body: unknown) {
-    const input = parseRequest(GenerateSchema, body)
+  async generate(@CurrentUser() principal: ApiPrincipal, @Body(new StandardSchemaPipe(GenerateLessonPlanRequestSchema)) input: { targetRevisionId: string; durationMinutes: number }) {
     const plan = await this.curriculum.generate(principal, input.targetRevisionId, input.durationMinutes)
     return { plan, qa: buildLessonPlanQa(plan.content, await this.curriculum.citationsExist(plan.content, plan.targetRevisionId), await this.curriculum.citationsAllowed(plan.id, plan.content)) }
   }
 
   @Get('lesson-plans/:id')
+  @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/LessonPlanDetailsResponse' } })
   async get(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal) {
     const plan = await this.curriculum.get(id, principal)
     const [reviews, versions] = await Promise.all([this.curriculum.reviews(id), this.curriculum.versions(id)])
@@ -39,14 +35,17 @@ export class CurriculumController {
   }
 
   @Patch('lesson-plans/:id')
+  @ApiBody({ schema: { $ref: '#/components/schemas/EditLessonPlanRequest' } })
+  @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/LessonPlanResponse' } })
+  @ApiResponse({ status: 400, schema: { $ref: '#/components/schemas/ValidationErrorResponse' } })
   @Roles('teacher')
-  async edit(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal, @Body() body: unknown) {
-    const input = parseRequest(EditSchema, body)
+  async edit(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal, @Body(new StandardSchemaPipe(EditLessonPlanRequestSchema)) input: { content: unknown }) {
     const plan = await this.curriculum.edit(id, principal, input.content)
     return { plan, qa: buildLessonPlanQa(plan.content, await this.curriculum.citationsExist(plan.content, plan.targetRevisionId), await this.curriculum.citationsAllowed(plan.id, plan.content)) }
   }
 
   @Post('lesson-plans/:id/submit')
+  @ApiResponse({ status: 201, schema: { $ref: '#/components/schemas/LessonPlanResponse' } })
   @Roles('teacher')
   async submit(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal) {
     const plan = await this.curriculum.submit(id, principal)
@@ -54,27 +53,14 @@ export class CurriculumController {
   }
 
   @Post('lesson-plans/:id/reviews')
+  @ApiBody({ schema: { $ref: '#/components/schemas/ReviewLessonPlanRequest' } })
+  @ApiResponse({ status: 201, schema: { $ref: '#/components/schemas/LessonPlanReviewResponse' } })
+  @ApiResponse({ status: 400, schema: { $ref: '#/components/schemas/ValidationErrorResponse' } })
   @Roles('curriculum_lead')
-  async review(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal, @Body() body: unknown) {
-    const input = parseRequest(ReviewSchema, body)
+  async review(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal, @Body(new StandardSchemaPipe(ReviewLessonPlanRequestSchema)) input: { decision: 'returned' | 'published'; comment?: string }) {
     const { plan, review } = await this.curriculum.review(id, principal, input.decision, input.comment)
     return { plan, review: { ...review, createdAt: review.createdAt.toISOString() } }
   }
-}
-
-export function parseRequest<T extends z.ZodType>(schema: T, body: unknown): z.infer<T> {
-  const result = schema.safeParse(body)
-  if (!result.success) {
-    throw new BadRequestException({
-      code: 'VALIDATION_ERROR',
-      message: 'Correct the listed request fields and try again.',
-      errors: result.error.issues.map((issue) => ({
-        field: issue.path.join('.') || 'body',
-        constraints: [issue.message],
-      })),
-    })
-  }
-  return result.data
 }
 
 export function buildLessonPlanQa(content: unknown, citationsExist: boolean, citationsAllowed: boolean) {

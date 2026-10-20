@@ -89,6 +89,199 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/curriculum/library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["CurriculumLibraryController_catalogue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/curriculum/library/targets/{targetRevisionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["CurriculumLibraryController_target"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/curriculum/library/targets/{targetRevisionId}/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CurriculumLibraryController_addSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/curriculum/library/source-links/{linkId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CurriculumLibraryController_publishSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/outcomes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["CurriculumLibraryController_outcomes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["CurriculumLibraryController_sources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lesson-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["LessonPlanningController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lesson-plans/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate a grounded lesson plan draft */
+        post: operations["LessonPlanningController_generate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lesson-plans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["LessonPlanningController_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["LessonPlanningController_edit"];
+        trace?: never;
+    };
+    "/api/lesson-plans/{id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["LessonPlanningController_submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lesson-plans/{id}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["LessonPlanningController_review"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/llm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["RuntimeLlmController_getMode"];
+        put: operations["RuntimeLlmController_setMode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -114,6 +307,553 @@ export interface components {
         };
         LoginResponse: {
             user: components["schemas"]["PrincipalResponse"];
+        };
+        CurriculumLibrary: {
+            offerings: {
+                /** Format: uuid */
+                id: string;
+                framework: string;
+                programme: string;
+                level: string;
+                subject: string;
+                externalCode: string | null;
+                designs: {
+                    /** Format: uuid */
+                    id: string;
+                    editionLabel: string;
+                    revisionNumber: number;
+                    /** @enum {string} */
+                    origin: "official_import" | "demo_fixture";
+                    /** @enum {string} */
+                    status: "draft" | "published" | "retired";
+                    targets: {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        designVersionId: string;
+                        /** Format: uuid */
+                        offeringId: string;
+                        framework: string;
+                        programme: string;
+                        level: string;
+                        subject: string;
+                        editionLabel: string;
+                        /** @enum {string} */
+                        origin: "official_import" | "demo_fixture";
+                        /** @enum {string} */
+                        kind: "specific_learning_outcome" | "learning_objective" | "syllabus_content_point";
+                        title: string;
+                        statement: string;
+                        locator: string;
+                        path: string[];
+                        sourceCount: number;
+                        generationReady: boolean;
+                        sources: {
+                            /** Format: uuid */
+                            linkId: string | null;
+                            /** Format: uuid */
+                            documentId: string;
+                            /** Format: uuid */
+                            resourceRevisionId: string;
+                            revisionNumber: number;
+                            /** Format: uuid */
+                            chunkId: string;
+                            /** @enum {string} */
+                            resourceType: "curriculum_design" | "scheme_of_work" | "assessment_item" | "teaching_note" | "lead_guidance" | "exemplar";
+                            title: string;
+                            subject: string;
+                            grade: string;
+                            content: string;
+                            /** @enum {string} */
+                            authority: "official" | "school" | "internal" | "synthetic";
+                            editionLabel: string | null;
+                            sourceUrl: string | null;
+                            locator: string | null;
+                            synthetic: boolean;
+                            /** @enum {string} */
+                            role: "defines_target" | "teaching_support" | "assessment_support" | "guidance" | "exemplar";
+                            /** @enum {string} */
+                            status: "draft" | "published" | "retired";
+                        }[];
+                    }[];
+                }[];
+            }[];
+        };
+        CurriculumLibraryTarget: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            designVersionId: string;
+            /** Format: uuid */
+            offeringId: string;
+            framework: string;
+            programme: string;
+            level: string;
+            subject: string;
+            editionLabel: string;
+            /** @enum {string} */
+            origin: "official_import" | "demo_fixture";
+            /** @enum {string} */
+            kind: "specific_learning_outcome" | "learning_objective" | "syllabus_content_point";
+            title: string;
+            statement: string;
+            locator: string;
+            path: string[];
+            sourceCount: number;
+            generationReady: boolean;
+            sources: {
+                /** Format: uuid */
+                linkId: string | null;
+                /** Format: uuid */
+                documentId: string;
+                /** Format: uuid */
+                resourceRevisionId: string;
+                revisionNumber: number;
+                /** Format: uuid */
+                chunkId: string;
+                /** @enum {string} */
+                resourceType: "curriculum_design" | "scheme_of_work" | "assessment_item" | "teaching_note" | "lead_guidance" | "exemplar";
+                title: string;
+                subject: string;
+                grade: string;
+                content: string;
+                /** @enum {string} */
+                authority: "official" | "school" | "internal" | "synthetic";
+                editionLabel: string | null;
+                sourceUrl: string | null;
+                locator: string | null;
+                synthetic: boolean;
+                /** @enum {string} */
+                role: "defines_target" | "teaching_support" | "assessment_support" | "guidance" | "exemplar";
+                /** @enum {string} */
+                status: "draft" | "published" | "retired";
+            }[];
+        };
+        CurriculumOutcomesResponse: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                designVersionId: string;
+                /** Format: uuid */
+                offeringId: string;
+                /** @enum {string} */
+                kind: "specific_learning_outcome" | "learning_objective" | "syllabus_content_point";
+                title: string;
+                subject: string;
+                grade: string;
+                programme: string;
+                framework: string;
+                editionLabel: string;
+                locator: string;
+                content: string;
+                sourceCount: number;
+                generationReady: boolean;
+            }[];
+        };
+        CurriculumSourcesResponse: {
+            items: {
+                /** Format: uuid */
+                linkId: string | null;
+                /** Format: uuid */
+                documentId: string;
+                /** Format: uuid */
+                resourceRevisionId: string;
+                revisionNumber: number;
+                /** Format: uuid */
+                chunkId: string;
+                /** @enum {string} */
+                resourceType: "curriculum_design" | "scheme_of_work" | "assessment_item" | "teaching_note" | "lead_guidance" | "exemplar";
+                title: string;
+                subject: string;
+                grade: string;
+                content: string;
+                /** @enum {string} */
+                authority: "official" | "school" | "internal" | "synthetic";
+                editionLabel: string | null;
+                sourceUrl: string | null;
+                locator: string | null;
+                synthetic: boolean;
+                /** @enum {string} */
+                role: "defines_target" | "teaching_support" | "assessment_support" | "guidance" | "exemplar";
+                /** @enum {string} */
+                status: "draft" | "published" | "retired";
+            }[];
+        };
+        CurriculumSourceInput: {
+            /** Format: uuid */
+            resourceId?: string;
+            title: string;
+            /** @enum {string} */
+            resourceType: "curriculum_design" | "scheme_of_work" | "assessment_item" | "teaching_note" | "lead_guidance" | "exemplar";
+            /** @enum {string} */
+            authority: "official" | "school" | "internal" | "synthetic";
+            editionLabel?: string;
+            /** Format: uri */
+            sourceUrl?: string;
+            locator?: string;
+            content: string;
+            /** @enum {string} */
+            role: "defines_target" | "teaching_support" | "assessment_support" | "guidance" | "exemplar";
+        };
+        CurriculumSourceLinkResult: {
+            /** Format: uuid */
+            linkId: string;
+            /** Format: uuid */
+            targetRevisionId: string;
+            /** @enum {string} */
+            status: "draft" | "published";
+        };
+        EditLessonPlanRequest: {
+            content: {
+                title: string;
+                subject: string;
+                grade: string;
+                learningOutcome: string;
+                durationMinutes: number;
+                objectives: string[];
+                materials: string[];
+                starter: string;
+                activities: {
+                    title: string;
+                    description: string;
+                    durationMinutes: number;
+                }[];
+                checkForUnderstanding: string;
+                sources: {
+                    /** Format: uuid */
+                    documentId: string;
+                    /** Format: uuid */
+                    chunkId: string;
+                }[];
+            };
+        };
+        GenerateLessonPlanRequest: {
+            /** Format: uuid */
+            targetRevisionId: string;
+            durationMinutes: number;
+        };
+        LessonPlanContent: {
+            title: string;
+            subject: string;
+            grade: string;
+            learningOutcome: string;
+            durationMinutes: number;
+            objectives: string[];
+            materials: string[];
+            starter: string;
+            activities: {
+                title: string;
+                description: string;
+                durationMinutes: number;
+            }[];
+            checkForUnderstanding: string;
+            sources: {
+                /** Format: uuid */
+                documentId: string;
+                /** Format: uuid */
+                chunkId: string;
+            }[];
+        };
+        LessonPlanDetailsResponse: {
+            plan: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                teacherId: string;
+                /** @enum {string} */
+                status: "draft" | "submitted" | "returned" | "published";
+                /** Format: uuid */
+                targetRevisionId: string | null;
+                /** Format: uuid */
+                versionId: string;
+                content: {
+                    title: string;
+                    subject: string;
+                    grade: string;
+                    learningOutcome: string;
+                    durationMinutes: number;
+                    objectives: string[];
+                    materials: string[];
+                    starter: string;
+                    activities: {
+                        title: string;
+                        description: string;
+                        durationMinutes: number;
+                    }[];
+                    checkForUnderstanding: string;
+                    sources: {
+                        /** Format: uuid */
+                        documentId: string;
+                        /** Format: uuid */
+                        chunkId: string;
+                    }[];
+                };
+                version: number;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                updatedAt: string;
+            };
+            reviews: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                lessonPlanId: string;
+                /** Format: uuid */
+                lessonPlanVersionId: string;
+                /** Format: uuid */
+                curriculumLeadId: string;
+                lessonPlanVersionNumber: number;
+                /** @enum {string} */
+                decision: "returned" | "published";
+                comment: string | null;
+                /** Format: date-time */
+                createdAt: string;
+            }[];
+            versions: {
+                version: number;
+                content: {
+                    title: string;
+                    subject: string;
+                    grade: string;
+                    learningOutcome: string;
+                    durationMinutes: number;
+                    objectives: string[];
+                    materials: string[];
+                    starter: string;
+                    activities: {
+                        title: string;
+                        description: string;
+                        durationMinutes: number;
+                    }[];
+                    checkForUnderstanding: string;
+                    sources: {
+                        /** Format: uuid */
+                        documentId: string;
+                        /** Format: uuid */
+                        chunkId: string;
+                    }[];
+                };
+                /** Format: uuid */
+                createdBy: string;
+                /** Format: date-time */
+                createdAt: string;
+            }[];
+            qa: {
+                passed: boolean;
+                checks: {
+                    code: string;
+                    passed: boolean;
+                    message: string;
+                }[];
+            };
+        };
+        LessonPlanListResponse: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                teacherId: string;
+                /** @enum {string} */
+                status: "draft" | "submitted" | "returned" | "published";
+                /** Format: uuid */
+                targetRevisionId: string | null;
+                /** Format: uuid */
+                versionId: string;
+                content: {
+                    title: string;
+                    subject: string;
+                    grade: string;
+                    learningOutcome: string;
+                    durationMinutes: number;
+                    objectives: string[];
+                    materials: string[];
+                    starter: string;
+                    activities: {
+                        title: string;
+                        description: string;
+                        durationMinutes: number;
+                    }[];
+                    checkForUnderstanding: string;
+                    sources: {
+                        /** Format: uuid */
+                        documentId: string;
+                        /** Format: uuid */
+                        chunkId: string;
+                    }[];
+                };
+                version: number;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                updatedAt: string;
+            }[];
+        };
+        LessonPlanResponse: {
+            plan: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                teacherId: string;
+                /** @enum {string} */
+                status: "draft" | "submitted" | "returned" | "published";
+                /** Format: uuid */
+                targetRevisionId: string | null;
+                /** Format: uuid */
+                versionId: string;
+                content: {
+                    title: string;
+                    subject: string;
+                    grade: string;
+                    learningOutcome: string;
+                    durationMinutes: number;
+                    objectives: string[];
+                    materials: string[];
+                    starter: string;
+                    activities: {
+                        title: string;
+                        description: string;
+                        durationMinutes: number;
+                    }[];
+                    checkForUnderstanding: string;
+                    sources: {
+                        /** Format: uuid */
+                        documentId: string;
+                        /** Format: uuid */
+                        chunkId: string;
+                    }[];
+                };
+                version: number;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                updatedAt: string;
+            };
+            qa: {
+                passed: boolean;
+                checks: {
+                    code: string;
+                    passed: boolean;
+                    message: string;
+                }[];
+            };
+        };
+        LessonPlanReviewResponse: {
+            plan: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                teacherId: string;
+                /** @enum {string} */
+                status: "draft" | "submitted" | "returned" | "published";
+                /** Format: uuid */
+                targetRevisionId: string | null;
+                /** Format: uuid */
+                versionId: string;
+                content: {
+                    title: string;
+                    subject: string;
+                    grade: string;
+                    learningOutcome: string;
+                    durationMinutes: number;
+                    objectives: string[];
+                    materials: string[];
+                    starter: string;
+                    activities: {
+                        title: string;
+                        description: string;
+                        durationMinutes: number;
+                    }[];
+                    checkForUnderstanding: string;
+                    sources: {
+                        /** Format: uuid */
+                        documentId: string;
+                        /** Format: uuid */
+                        chunkId: string;
+                    }[];
+                };
+                version: number;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                updatedAt: string;
+            };
+            review: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                lessonPlanId: string;
+                /** Format: uuid */
+                lessonPlanVersionId: string;
+                /** Format: uuid */
+                curriculumLeadId: string;
+                lessonPlanVersionNumber: number;
+                /** @enum {string} */
+                decision: "returned" | "published";
+                comment: string | null;
+                /** Format: date-time */
+                createdAt: string;
+            };
+        };
+        LessonPlanVersion: {
+            version: number;
+            content: {
+                title: string;
+                subject: string;
+                grade: string;
+                learningOutcome: string;
+                durationMinutes: number;
+                objectives: string[];
+                materials: string[];
+                starter: string;
+                activities: {
+                    title: string;
+                    description: string;
+                    durationMinutes: number;
+                }[];
+                checkForUnderstanding: string;
+                sources: {
+                    /** Format: uuid */
+                    documentId: string;
+                    /** Format: uuid */
+                    chunkId: string;
+                }[];
+            };
+            /** Format: uuid */
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ReviewLessonPlanRequest: {
+            /** @enum {string} */
+            decision: "returned" | "published";
+            comment?: string;
+        };
+        RuntimeLlmModeRequest: {
+            /** @enum {string} */
+            mode: "mock" | "live";
+        };
+        ValidationErrorResponse: {
+            statusCode: number;
+            /** @enum {string} */
+            code: "VALIDATION_ERROR";
+            message: string | string[];
+            requestId: string;
+            errors: {
+                field: string;
+                constraints: string[];
+            }[];
+        };
+        ApiErrorResponse: {
+            statusCode: number;
+            code: string;
+            message: string | string[];
+            requestId: string;
+            errors?: {
+                field: string;
+                constraints: string[];
+            }[];
         };
     };
     responses: never;
@@ -159,6 +899,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ReadinessResponse"];
                 };
+            };
+            /** @description Database is unavailable or migrations are required. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -217,6 +964,344 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PrincipalResponse"];
+                };
+            };
+        };
+    };
+    CurriculumLibraryController_catalogue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurriculumLibrary"];
+                };
+            };
+        };
+    };
+    CurriculumLibraryController_target: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                targetRevisionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurriculumLibraryTarget"];
+                };
+            };
+        };
+    };
+    CurriculumLibraryController_addSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                targetRevisionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CurriculumSourceInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurriculumSourceLinkResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorResponse"];
+                };
+            };
+        };
+    };
+    CurriculumLibraryController_publishSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                linkId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurriculumSourceLinkResult"];
+                };
+            };
+        };
+    };
+    CurriculumLibraryController_outcomes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurriculumOutcomesResponse"];
+                };
+            };
+        };
+    };
+    CurriculumLibraryController_sources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurriculumSourcesResponse"];
+                };
+            };
+        };
+    };
+    LessonPlanningController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonPlanListResponse"];
+                };
+            };
+        };
+    };
+    LessonPlanningController_generate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateLessonPlanRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonPlanResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorResponse"];
+                };
+            };
+        };
+    };
+    LessonPlanningController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonPlanDetailsResponse"];
+                };
+            };
+        };
+    };
+    LessonPlanningController_edit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditLessonPlanRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonPlanResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorResponse"];
+                };
+            };
+        };
+    };
+    LessonPlanningController_submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonPlanResponse"];
+                };
+            };
+        };
+    };
+    LessonPlanningController_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewLessonPlanRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LessonPlanReviewResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorResponse"];
+                };
+            };
+        };
+    };
+    RuntimeLlmController_getMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RuntimeLlmController_setMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeLlmModeRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
                 };
             };
         };

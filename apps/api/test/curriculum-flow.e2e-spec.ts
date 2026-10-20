@@ -8,8 +8,8 @@ import { configureHttp } from '../src/configure-http'
 import { DatabaseService } from '../src/database/database.service'
 import { curriculumSourceLinks, lessonPlanRetrievalCandidates, lessonPlanVersionSources, lessonPlanVersions, lessonPlans, planReviews, users } from '../src/database/schema'
 import { hashPassword } from '../src/auth/password'
-import { CurriculumLibraryRepository } from '../src/curriculum/curriculum-library.repository'
-import { EmbeddingAdapter } from '../src/curriculum/embedding.service'
+import { CurriculumLibraryRepository } from '../src/curriculum-library/curriculum-library.repository'
+import { EmbeddingAdapter } from '../src/embeddings/embedding.service'
 
 const databaseUrl = process.env.TEST_DATABASE_URL
 const describeWithDatabase = databaseUrl ? describe : describe.skip

@@ -10,7 +10,8 @@ import { AuthModule } from './auth/auth.module'
 import { AuthGuard } from './common/auth/auth.guard'
 import { RolesGuard } from './common/auth/roles.guard'
 import { PermissionsGuard } from './common/auth/permissions.guard'
-import { CurriculumModule } from './curriculum/curriculum.module'
+import { CurriculumLibraryModule } from './curriculum-library/curriculum-library.module'
+import { LessonPlanningModule } from './lesson-planning/lesson-planning.module'
 import { validateEnvironment } from './configuration'
 
 @Module({
@@ -20,7 +21,8 @@ import { validateEnvironment } from './configuration'
     DatabaseModule,
     CommonModule,
     AuthModule,
-    CurriculumModule,
+    CurriculumLibraryModule,
+    LessonPlanningModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { DatabaseService } from '../database/database.service'
 import type { DbExecutor } from '../database/executor'
 import {
@@ -12,8 +12,6 @@ import {
   curriculumSourceLinks,
   curriculumSubjects,
   curriculumTargetRevisions,
-  curriculumChunks,
-  curriculumDocuments,
   libraryResourceChunks,
   libraryResourceRevisions,
   libraryResources,
@@ -62,6 +60,66 @@ export class CurriculumLibraryRepository {
     }
   }
 
+  targetDesign(targetRevisionId: string, executor: DbExecutor = this.database.db) {
+    return executor.select({ designVersionId: curriculumTargetRevisions.designVersionId })
+      .from(curriculumTargetRevisions).where(eq(curriculumTargetRevisions.id, targetRevisionId)).limit(1)
+  }
+
+  design(id: string, executor: DbExecutor = this.database.db) {
+    return executor.select().from(curriculumDesignVersions).where(eq(curriculumDesignVersions.id, id)).limit(1)
+  }
+
+  resourceForUpdate(id: string, executor: DbExecutor = this.database.db) {
+    return executor.select().from(libraryResources).where(eq(libraryResources.id, id)).for('update').limit(1)
+  }
+
+  latestResourceRevision(resourceId: string, executor: DbExecutor = this.database.db) {
+    return executor.select().from(libraryResourceRevisions).where(eq(libraryResourceRevisions.resourceId, resourceId))
+      .orderBy(desc(libraryResourceRevisions.revisionNumber)).limit(1)
+  }
+
+  createResource(values: { resourceType: typeof libraryResources.$inferInsert.resourceType; title: string; authority: typeof libraryResources.$inferInsert.authority }, executor: DbExecutor = this.database.db) {
+    return executor.insert(libraryResources).values(values).returning()
+  }
+
+  createResourceRevision(values: typeof libraryResourceRevisions.$inferInsert, executor: DbExecutor = this.database.db) {
+    return executor.insert(libraryResourceRevisions).values(values).returning()
+  }
+
+  createChunks(values: (typeof libraryResourceChunks.$inferInsert)[], executor: DbExecutor = this.database.db) {
+    return executor.insert(libraryResourceChunks).values(values).returning()
+  }
+
+  createSourceLink(values: typeof curriculumSourceLinks.$inferInsert, executor: DbExecutor = this.database.db) {
+    return executor.insert(curriculumSourceLinks).values(values).returning()
+  }
+
+  sourceLinkForUpdate(id: string, executor: DbExecutor = this.database.db) {
+    return executor.select().from(curriculumSourceLinks).where(eq(curriculumSourceLinks.id, id)).for('update').limit(1)
+  }
+
+  resourceRevisionForUpdate(id: string, executor: DbExecutor = this.database.db) {
+    return executor.select().from(libraryResourceRevisions).where(eq(libraryResourceRevisions.id, id)).for('update').limit(1)
+  }
+
+  resource(id: string, executor: DbExecutor = this.database.db) {
+    return executor.select().from(libraryResources).where(eq(libraryResources.id, id)).limit(1)
+  }
+
+  firstChunkForRevision(revisionId: string, executor: DbExecutor = this.database.db) {
+    return executor.select().from(libraryResourceChunks).where(eq(libraryResourceChunks.resourceRevisionId, revisionId)).limit(1)
+  }
+
+  publishResourceRevision(id: string, publishedAt: Date, executor: DbExecutor = this.database.db) {
+    return executor.update(libraryResourceRevisions).set({ status: 'published', publishedAt })
+      .where(eq(libraryResourceRevisions.id, id))
+  }
+
+  publishSourceLink(id: string, publishedBy: string, publishedAt: Date, executor: DbExecutor = this.database.db) {
+    return executor.update(curriculumSourceLinks).set({ status: 'published', publishedBy, publishedAt })
+      .where(eq(curriculumSourceLinks.id, id))
+  }
+
   sourceRows(targetIds: string[], includeDraft: boolean, executor: DbExecutor = this.database.db) {
     return executor.select({
       linkId: curriculumSourceLinks.id,
@@ -97,19 +155,6 @@ export class CurriculumLibraryRepository {
         includeDraft ? undefined : eq(curriculumSourceLinks.status, 'published'),
         includeDraft ? undefined : eq(libraryResourceRevisions.status, 'published'),
       ))
-  }
-
-  legacySources() {
-    return this.database.db.select({
-      documentId: curriculumDocuments.id,
-      chunkId: curriculumChunks.id,
-      documentType: curriculumDocuments.documentType,
-      title: curriculumDocuments.title,
-      subject: curriculumDocuments.subject,
-      grade: curriculumDocuments.grade,
-      content: curriculumChunks.content,
-    }).from(curriculumChunks)
-      .innerJoin(curriculumDocuments, eq(curriculumChunks.documentId, curriculumDocuments.id))
   }
 
   sourceChunksForTarget(targetRevisionId: string, embedding: number[], limit: number) {
