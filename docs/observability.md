@@ -4,6 +4,7 @@ This page explains where to inspect lesson-plan AI runs and system health. Run
 `pnpm demo:full` to start the full telemetry stack and
 `pnpm demo:check:full` to print its health and URLs. For app-only testing, use
 `pnpm demo:up`; that mode does not start Langfuse or the OpenTelemetry stack.
+Use `pnpm demo:down` to stop either stack while keeping its volumes.
 
 ## Where signals go
 

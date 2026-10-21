@@ -64,7 +64,7 @@ function printSummary(full) {
     ? process.env.LLM_PROVIDER?.trim()
       ? 'command environment'
       : '.env.local'
-    : 'lite profile'
+    : 'default Compose services'
   const requestedLive = full && configured('LLM_PROVIDER') === 'openai-compatible'
   const missing = [
     ...(!configured('LLM_BASE_URL') ? ['LLM_BASE_URL'] : []),
@@ -99,9 +99,7 @@ function printSummary(full) {
       'Edit workflow prompts in Langfuse > Prompts; publish changes to the selected label.\n',
     )
   }
-  process.stdout.write(
-    `To stop the stack: pnpm exec varlock run -- docker compose ${full ? '-f compose.yaml -f compose.full.yaml --profile full' : '--profile lite'} down\n`,
-  )
+  process.stdout.write('To stop the stack and keep its data: pnpm demo:down\n')
 }
 
 async function checkServices(wait, full) {
@@ -139,10 +137,10 @@ async function checkServices(wait, full) {
       }
     }
     process.stderr.write(
-      `Inspect service state with: pnpm exec varlock run -- docker compose ${full ? '-f compose.yaml -f compose.full.yaml --profile full' : '--profile lite'} ps\n`,
+      `Inspect service state with: pnpm exec varlock run -- docker compose ${full ? '-f compose.yaml -f compose.full.yaml --profile full' : ''} ps\n`,
     )
     process.stderr.write(
-      `Inspect logs with: pnpm exec varlock run -- docker compose ${full ? '-f compose.yaml -f compose.full.yaml --profile full' : '--profile lite'} logs --tail=100\n`,
+      `Inspect logs with: pnpm exec varlock run -- docker compose ${full ? '-f compose.yaml -f compose.full.yaml --profile full' : ''} logs --tail=100\n`,
     )
     process.exit(1)
   }
@@ -152,11 +150,40 @@ async function main() {
   const command = process.argv[2] ?? 'check'
   const full = command.endsWith(':full')
   const action = command.replace(/:full$/, '')
-  if (!['up', 'check'].includes(action)) {
+  if (!['up', 'check', 'down'].includes(action)) {
     process.stderr.write(
-      'Usage: pnpm demo:up | pnpm demo:check | pnpm demo:full | pnpm demo:check:full\n',
+      'Usage: pnpm demo:up | pnpm demo:down | pnpm demo:check | pnpm demo:full | pnpm demo:check:full\n',
     )
     process.exit(2)
+  }
+
+  if (action === 'down') {
+    run('docker', ['compose', 'version'])
+    checkDocker()
+    if (!existsSync(envPath)) {
+      copyFileSync(resolve(root, '.env.example'), envPath)
+      chmodSync(envPath, 0o600)
+      process.stdout.write('Created .env.local from .env.example.\n')
+    }
+    run('pnpm', ['local:prepare'])
+    run('pnpm', ['exec', 'varlock', 'load'])
+    run('pnpm', [
+      'exec',
+      'varlock',
+      'run',
+      '--',
+      'docker',
+      'compose',
+      '-f',
+      'compose.yaml',
+      '-f',
+      'compose.full.yaml',
+      '--profile',
+      'full',
+      'down',
+    ])
+    process.stdout.write('Stopped the demo stack. Database and telemetry volumes are kept.\n')
+    return
   }
 
   if (action === 'up') {
@@ -200,7 +227,8 @@ async function main() {
       ])
     }
     if (full) composeArgs.push('-f', 'compose.yaml', '-f', 'compose.full.yaml')
-    composeArgs.push('--profile', full ? 'full' : 'lite', 'up', '--build', '--detach')
+    if (full) composeArgs.push('--profile', 'full')
+    composeArgs.push('up', '--build', '--detach')
     run('pnpm', composeArgs)
   }
 

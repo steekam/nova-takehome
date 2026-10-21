@@ -13,12 +13,12 @@ pnpm install
 pnpm demo:up
 ```
 
-The lite command creates `.env.local`, starts PostgreSQL, a one-shot API
-bootstrap container, API, and web,
-migrates and seeds the database, checks health, and prints app URLs. It uses
-mock generation and skips Langfuse and OpenTelemetry services. The first start
-also downloads the local embedding model. Switching from full to lite stops the
-telemetry services and keeps their data volumes.
+The default Compose configuration is the lite stack: PostgreSQL, a one-shot API
+bootstrap container, API, and web. `pnpm demo:up` builds and starts these
+services, migrates and seeds the database, checks health, and prints app URLs.
+It uses mock generation and skips Langfuse and OpenTelemetry services. The
+first start also downloads the local embedding model. Switching from full to
+lite stops the telemetry services and keeps their data volumes.
 
 For Langfuse traces, LiteLLM, and the Grafana telemetry stack, start the full
 demo instead:
@@ -28,18 +28,17 @@ pnpm demo:full
 ```
 
 The full stack captures prompt inputs and outputs in Langfuse by default. Set
-`LANGFUSE_CAPTURE_PROMPTS=false` in `.env.local` to turn capture off. Stop the
-lite stack with:
+`LANGFUSE_CAPTURE_PROMPTS=false` in `.env.local` to turn capture off. Stop
+either stack with this volume-preserving command:
 
 ```sh
-pnpm exec varlock run -- docker compose --profile lite down
+pnpm demo:down
 ```
 
-Stop the full stack with:
-
-```sh
-pnpm exec varlock run -- docker compose -f compose.yaml -f compose.full.yaml --profile full down
-```
+The `full` Compose profile adds LiteLLM, Langfuse, and telemetry services.
+Profiles select services to start; they do not stop services from a previous
+profile. `pnpm demo:up` handles switching back to lite, and `pnpm demo:down`
+stops the whole stack without deleting volumes.
 
 Open **[localhost:5173/login](http://localhost:5173/login)**. Use the demo buttons
 or sign in manually; both accounts use `NovaLocal123!`.
