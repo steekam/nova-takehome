@@ -1,10 +1,14 @@
 # Curriculum Design Hub
 
-Full-stack Kenya CBC lesson planning. Teachers create grounded drafts, edit and submit them; a Curriculum Lead returns a draft with feedback or publishes it to the shared lesson bank.
+Use this README to run the demo and review its teacher-to-lead workflow. The
+app is a lesson-planning slice for Kenya's Competency-Based Curriculum (CBC):
+teachers generate grounded drafts, edit and submit them; Curriculum Leads
+return plans with feedback or publish them to a shared lesson bank.
 
 ## Run the demo
 
-Use Node 24, pnpm 12.11.2, and Docker. From the repository root:
+You need Node 24, pnpm 12.11.2, and Docker Compose. From the repository root,
+run:
 
 ```sh
 pnpm install
@@ -12,60 +16,148 @@ pnpm demo:up
 pnpm demo:check
 ```
 
-`demo:up` creates `.env.local` from `.env.example` when needed, prepares local service secrets, builds and starts Compose, migrates and seeds PostgreSQL, waits for health, then prints URLs. Keep `.env.local` private. `demo:check` reports the configured default; the app header shows the current runtime mode.
+`demo:up` creates `.env.local` from `.env.example` when needed, prepares local
+service secrets, builds and starts the services, migrates and seeds PostgreSQL,
+waits for health checks, and prints service URLs. Keep `.env.local` private.
+Mock generation is the default and does not need a provider key.
 
-Sign in from the Teacher or Curriculum Lead demo button. Manual credentials:
+Sign in with a demo button or use these accounts:
 
 | Role | Email | Password |
 | --- | --- | --- |
 | Teacher | `teacher@example.test` | `NovaLocal123!` |
 | Curriculum Lead | `curriculum-lead@example.test` | `NovaLocal123!` |
 
-The web app is at `http://localhost:5173/login`. `demo:check` also prints API readiness and local observability URLs.
+Open the web app at `http://localhost:5173/login`. The demo buttons fill the
+credentials for you.
 
-Mock generation is the default and needs no provider key. To enable the server-configured live provider, set `LLM_PROVIDER=openai-compatible`, `LLM_API_KEY`, `LLM_GENERATOR_MODEL`, and `COMPOSE_LLM_BASE_URL` in `.env.local`, then start or restart the API. The default Compose URL is `http://litellm:4000/v1`. The app names missing settings when live mode is unavailable; provider credentials stay server-side. The app header switches between mock and configured live mode.
+### Use a live LLM
 
-For host development, use `pnpm dev` or `pnpm dev:mock`. Node 24 is declared in `.nvmrc` and `mise.toml`; pnpm is pinned in `package.json`.
+To use an OpenAI-compatible provider, set these values in `.env.local`, then
+restart the API or Compose stack:
 
-## Suggested click-through
+```dotenv
+LLM_PROVIDER=openai-compatible
+LLM_API_KEY=PROVIDER_API_KEY
+LLM_GENERATOR_MODEL=MODEL_NAME
+COMPOSE_LLM_BASE_URL=https://PROVIDER_BASE_URL/v1
+```
 
-1. Sign in as the Teacher. Open **Curriculum Library**, then inspect Grade 8 Integrated Science, July 2024, outcome `1.2(a)`.
-2. Open **Create lesson plan**, select the source-backed outcome and a duration, then generate a mock draft. Inspect quality checks and source references.
-3. Edit and save the draft, then submit it.
-4. Sign in as the Curriculum Lead. Open the submitted plan, add a return comment, and return it.
-5. Sign in as the Teacher, edit the returned plan, and resubmit it. The first edit creates a new Draft version.
-6. Sign in as the Curriculum Lead and publish the resubmitted version. The plan is then visible in the shared lesson bank and its history records the reviewed version.
+Replace `PROVIDER_API_KEY`, `MODEL_NAME`, and `PROVIDER_BASE_URL` with values
+from your provider. Compose passes the base URL to the API as `LLM_BASE_URL`.
+The configured reviewer model defaults to the generator model. Credentials
+stay on the server. If required live settings are missing, the app reports
+them and uses mock mode.
 
-To show QA feedback, change activity minutes so they no longer sum to the lesson duration and save. The API rejects the update with the failed check and keeps the saved version unchanged.
+For host development, run `pnpm dev` or `pnpm dev:mock`. Node 24 is declared in
+`.nvmrc` and `mise.toml`; `package.json` pins pnpm.
 
-## Curriculum and generation
+## Try the main flow
 
-The demo catalogue has five CBC grade/subject offerings. It seeds nine short source resources across six types: one official KICD curriculum excerpt and eight clearly labelled synthetic teaching supports. Grade 8 Integrated Science is the only generation-ready target; the other seeded paths are browse-only. The current library lets users browse hierarchy, revisions, references, and readiness. Seed/import data populates the catalogue; source authoring and publishing are not available in the UI.
+1. Sign in as the Teacher. Open **Curriculum Library** and select Grade 8
+   Integrated Science, July 2024, outcome `1.2(a)`.
+2. Open **Create lesson plan**, choose a duration, and generate a draft. Review
+   its deterministic checks, rubric guidance, and source references.
+3. Edit and save the draft, rerun validation if needed, then submit it.
+4. Sign in as the Curriculum Lead. Return the submitted plan with a comment.
+5. Sign in as the Teacher, edit the returned plan, and resubmit it.
+6. Sign in as the Curriculum Lead and publish the submitted version. The plan
+   then appears in the shared lesson bank.
 
-The API embeds the selected target's linked sources with BGE-small (384 dimensions) and stores vectors in pgvector. Retrieval pins the official target-defining excerpt and selects supporting material from that target. Generation returns a strict shared lesson schema: target and duration, objectives, materials, starter, timed activities, assessment check, and source IDs. Before saving, the API checks schema, selected target, exact duration, activity-time total, official target citation, and citation membership in the frozen retrieval set. These deterministic checks prove structure and source provenance; they do not assess whether each claim is supported by its citation. Missing target sources, invalid model output, and failed QA return stable errors without creating or changing a plan.
+To see a deterministic validation failure, edit activity durations so they no
+longer sum to the lesson duration. The API rejects the save and keeps the
+previous version.
 
-The shared package owns transport schemas and the plan transition table. The API owns authorization, row-locked state changes, immutable versions, reviews, and persistence. See the [architecture](docs/architecture.md), [domain model](docs/domain-model.md), and [project glossary](GLOSSARY.md).
+**Loom walkthrough:** pending the author's 3–5 minute recording; add its link
+before submission.
 
-## Repository map
+## System shape
 
-- `apps/web` — React, TypeScript, TanStack Router screens.
-- `apps/api` — NestJS, Fastify, Drizzle, authentication, retrieval, generation, validation, and workflow.
-- `apps/playground` — internal corpus, retrieval, prompt, provider, and evaluation CLI; not part of the product walkthrough.
-- `packages/shared` — lesson schemas, transport types, and workflow transitions.
-- `packages/model-runtime` — shared provider and embedding runtime primitives.
+`apps/web` contains the React and TanStack Router screens. `apps/api` contains
+the NestJS HTTP layer, authorization, use cases, retrieval, model calls, and
+Drizzle persistence. `packages/shared` owns the Zod request, response, and
+lesson-plan schemas used by the API and web app. `packages/model-runtime`
+contains shared provider and embedding adapters. `apps/playground` is an
+internal CLI for corpus and model experiments; it is separate from the product
+workflow.
 
-## Checks
+The API stores data in PostgreSQL with pgvector. Drizzle table definitions are
+split by feature under `apps/api/src/database/schema`. The main flow is:
+
+```text
+Teacher request → resolve target → embed query → retrieve source chunks
+ → generate JSON → deterministic validation → persist version and provenance
+ → rubric QA
+```
+
+Generation validates the output schema, selected target, duration, activity
+timings, unique citations, official target citation, and citation membership
+in the frozen retrieval candidates. If deterministic checks fail, the API asks
+the provider for one correction. If generation still fails, or the provider is
+unavailable, it returns a clear error and saves no draft. Rubric QA scores the
+saved version on six quality dimensions and offers evidence-linked suggestions;
+it does not block submission or publication. Teachers can validate a saved
+version again after editing.
+
+The workflow is `Draft → Submitted → Returned → Draft` after a teacher edit,
+or `Submitted → Published`. The API rejects invalid transitions. Each teacher
+edit creates an immutable version, and each lead decision references the
+version reviewed. See [architecture](docs/architecture.md) and
+[domain model](docs/domain-model.md).
+
+## Corpus and lesson schema
+
+The demo seeds nine short resources for Grade 8 Integrated Science: one
+official KICD curriculum excerpt and eight clearly labelled synthetic school
+supports. The supports cover scheme-of-work, teaching-note, assessment,
+curriculum-lead guidance, and exemplar material. The remaining four CBC
+catalogue paths are browse-only.
+
+The corpus uses relational records rather than one nested document: controlled
+framework, programme, level, subject, offering, design-version, curriculum
+node, and target-revision records define the catalogue. Library resources have
+typed, attributed, immutable revisions. Each revision is split into chunks
+with a source locator and a 384-dimensional BGE-small embedding. A typed source
+link connects a curriculum target revision to a library resource revision.
+See [domain model](docs/domain-model.md) and the Drizzle schemas in
+`apps/api/src/database/schema`.
+
+The shared `LessonPlanContentSchema` defines the generated and teacher-edited
+content:
+
+- Title, subject, grade, learning outcome, and duration.
+- Objectives, materials, and starter.
+- Timed activities with titles and descriptions.
+- Check for understanding.
+- Source references, each with a document ID and chunk ID.
+
+The server validates both model output and teacher edits. Deterministic source
+checks establish citation identity and provenance; they do not prove that each
+instructional claim follows from its cited passage.
+
+## Tests and scope
+
+Run the automated unit and package tests with:
 
 ```sh
-pnpm typecheck
 pnpm test
-pnpm build
 ```
 
-The API database-backed HTTP workflow test runs when `TEST_DATABASE_URL` points at a migrated and seeded disposable database:
+Role checks are covered in `apps/api/test/roles.e2e-spec.ts`. Lesson schema,
+grounding, and invalid-output repair checks are in
+`apps/api/test/curriculum.spec.ts`. The HTTP workflow test in
+`apps/api/test/curriculum-flow.e2e-spec.ts` also checks generation, access,
+editing, review, and publication. It needs a migrated, seeded disposable
+database through `TEST_DATABASE_URL`; without it, the test is skipped.
 
-```sh
-env TEST_DATABASE_URL=postgresql://… pnpm --filter @nova/api test:e2e
-```
+The task brief asks for a small corpus and thin workflow. This implementation
+keeps one CBC target source-backed for generation; other catalogue paths support
+browsing only. It does not provide document upload, extraction, or a full
+curriculum-source approval UI. Seed/import paths populate the demo corpus.
+Useful next steps include adding approved source ingestion, grounding more CBC
+targets, and expanding retrieval evaluations with independently reviewed
+examples.
 
-See [observability](docs/observability.md) for AI traces, prompt management, and local telemetry destinations. The API contracts and database schemas are maintained in code; the [domain model](docs/domain-model.md) summarizes their relationships.
+For AI workflow traces, prompt management, and telemetry destinations, see
+[observability](docs/observability.md). The [glossary](GLOSSARY.md) records
+project terminology and curriculum-source notes.
