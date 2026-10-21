@@ -77,9 +77,9 @@ before submission.
 the NestJS HTTP layer, authorization, use cases, retrieval, model calls, and
 Drizzle persistence. `packages/shared` owns the Zod request, response, and
 lesson-plan schemas used by the API and web app. `packages/model-runtime`
-contains shared provider and embedding adapters. `apps/playground` is an
-internal CLI for corpus and model experiments; it is separate from the product
-workflow.
+contains shared provider and embedding adapters. `apps/evals` is a small
+internal CLI that exercises the running API and exports Langfuse evaluation
+datasets. It has no separate plan lifecycle or provider implementation.
 
 The API stores data in PostgreSQL with pgvector. Drizzle table definitions are
 split by feature under `apps/api/src/database/schema`. The main flow is:

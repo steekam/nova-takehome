@@ -28,9 +28,9 @@ flowchart LR
   database access, retrieval, model calls, and workflow transitions.
 - `packages/shared` owns Zod contracts shared across the API and web app.
 - `packages/model-runtime` owns provider and embedding adapters shared by the
-  API and internal playground.
-- `apps/playground` is an internal CLI for corpus and model experiments. It is
-  separate from the product workflow.
+  API and internal evaluation harness.
+- `apps/evals` calls the API for generation and validation, then exports
+  evaluation run snapshots to Langfuse. It has no duplicate product workflow.
 
 Database table definitions live in feature-oriented files under
 `apps/api/src/database/schema`. Feature repositories use Drizzle. HTTP request

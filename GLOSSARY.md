@@ -115,7 +115,7 @@ Use these terms consistently in the app, schema, demo, and project docs. Curricu
 
 ## Pilot slice and source note
 
-The playground uses Grade 8 Integrated Science under Kenya CBC. Its selected KICD outcome is 1.2(a), in strand 1.0, sub-strand 1.2. The target's internal ID is `target-kicd-g8-is-physical-chemical-changes-slo-a-v2024`; `1.2(a)` is a locator derived from the sub-strand and outcome letter, not a claimed KICD identifier.
+The evaluation fixtures use Grade 8 Integrated Science under Kenya CBC. One selected KICD outcome is 1.2(a), in strand 1.0, sub-strand 1.2. The target's internal ID is `target-kicd-g8-is-physical-chemical-changes-slo-a-v2024`; `1.2(a)` is a locator derived from the sub-strand and outcome letter, not a claimed KICD identifier.
 
 The source record points to the Grade Eight designs page and its file labeled Integrated Science Grade 8, July 2024. The target chunk preserves the specific learning outcome wording and locator. Particle size remaining unchanged is a synthetic teaching-note emphasis, not part of that KICD outcome. Do not merge the separate April 2024 file label or locator into this source record.
 
