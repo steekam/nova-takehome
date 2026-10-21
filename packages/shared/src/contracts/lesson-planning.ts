@@ -1,15 +1,19 @@
 import { z } from 'zod'
 
-export const LessonPlanActivitySchema = z.object({
-  title: z.string().min(1),
-  description: z.string().min(1),
-  durationMinutes: z.number().int().positive(),
-})
+export const LessonPlanActivitySchema = z
+  .object({
+    title: z.string().min(1),
+    description: z.string().min(1),
+    durationMinutes: z.number().int().positive(),
+  })
+  .strict()
 
-export const LessonPlanSourceSchema = z.object({
-  documentId: z.string().uuid(),
-  chunkId: z.string().uuid(),
-})
+export const LessonPlanSourceSchema = z
+  .object({
+    documentId: z.string().uuid(),
+    chunkId: z.string().uuid(),
+  })
+  .strict()
 
 export const LessonPlanContentSchema = z
   .object({
@@ -26,6 +30,19 @@ export const LessonPlanContentSchema = z
     sources: z.array(LessonPlanSourceSchema).min(1),
   })
   .strict()
+
+export const LessonPlanRubricDimensionKeySchema = z.enum([
+  'outcome_alignment',
+  'objective_measurability',
+  'activity_alignment',
+  'assessment_quality',
+  'pacing_feasibility',
+  'source_support',
+])
+export const LessonPlanRubricDimensionKeys = LessonPlanRubricDimensionKeySchema.options
+export const LessonPlanFieldSchema = z.enum(
+  Object.keys(LessonPlanContentSchema.shape) as [string, ...string[]],
+)
 
 export const LessonPlanStatusSchema = z.enum(['draft', 'submitted', 'returned', 'published'])
 export const LessonPlanActionSchema = z.enum(['edit', 'submit', 'returned', 'published'])
@@ -67,22 +84,24 @@ export const LessonPlanQaSchema = z
 
 export const LessonPlanRubricDimensionSchema = z
   .object({
-    key: z.enum([
-      'outcome_alignment',
-      'objective_measurability',
-      'activity_alignment',
-      'assessment_quality',
-      'pacing_feasibility',
-      'source_support',
-    ]),
+    key: LessonPlanRubricDimensionKeySchema,
     score: z.number().int().min(1).max(4),
     rationale: z.string().min(1),
     evidence: z.array(
       z
-        .object({ planPath: z.string().min(1), sourceChunkIds: z.array(z.string().uuid()) })
+        .object({ planPath: LessonPlanFieldSchema, sourceChunkIds: z.array(z.string().uuid()) })
         .strict(),
     ),
     suggestions: z.array(z.string()),
+  })
+  .strict()
+
+export const LessonPlanRubricReviewOutputSchema = z
+  .object({
+    summary: z.string(),
+    dimensions: z
+      .array(LessonPlanRubricDimensionSchema)
+      .length(LessonPlanRubricDimensionKeys.length),
   })
   .strict()
 

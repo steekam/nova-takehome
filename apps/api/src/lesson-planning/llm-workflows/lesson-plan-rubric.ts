@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import {
   LessonPlanRubricQaSchema,
+  LessonPlanRubricDimensionKeys,
+  LessonPlanRubricReviewOutputSchema,
   type LessonPlanContent,
   type LessonPlanRubricQa,
 } from '@nova/shared'
@@ -12,17 +14,15 @@ import { LessonPlanningRepository } from '../lesson-planning.repository'
 import { setLangfuseInput, setLangfuseOutput, startLangfuseSpan } from './generation-telemetry'
 import { RequestIdService } from '../../common/request-id.service'
 import { LangfusePrompts } from './langfuse-prompts'
-import { lessonPlanRubricPrompt, lessonPlanRubricPromptVersion } from './rubric-prompt'
+import {
+  lessonPlanRubricPrompt,
+  lessonPlanRubricPromptVariables,
+  lessonPlanRubricPromptVersion,
+  renderLessonPlanRubricPrompt,
+} from './rubric-prompt'
 
 const rubricVersion = 'nova-lesson-quality-v2'
-const dimensions = [
-  'outcome_alignment',
-  'objective_measurability',
-  'activity_alignment',
-  'assessment_quality',
-  'pacing_feasibility',
-  'source_support',
-] as const
+const dimensions = LessonPlanRubricDimensionKeys
 
 @Injectable()
 export class LessonPlanRubric {
@@ -50,7 +50,8 @@ export class LessonPlanRubric {
       async (span) => {
         const managedPrompt = await this.prompts.get(
           lessonPlanRubricPrompt.name,
-          lessonPlanRubricPrompt.prompt,
+          renderLessonPlanRubricPrompt(),
+          lessonPlanRubricPromptVariables(),
         )
         const reviewerModel = managedPrompt.model ?? configuredModel
         const promptVersion = managedPrompt.reference
@@ -175,43 +176,21 @@ function parseRubricOutput(
   } catch {
     throw new InvalidRubricOutputError('response was not valid JSON')
   }
-  if (!value || typeof value !== 'object')
-    throw new InvalidRubricOutputError('response did not contain an object')
-  const candidate = value as { summary?: unknown; dimensions?: unknown }
-  if (typeof candidate.summary !== 'string' || !Array.isArray(candidate.dimensions))
-    throw new InvalidRubricOutputError('response did not match the required shape')
-  const parsed = LessonPlanRubricQaSchema.shape.dimensions.safeParse(candidate.dimensions)
-  if (!parsed.success)
+  const candidate = LessonPlanRubricReviewOutputSchema.safeParse(value)
+  if (!candidate.success)
     throw new InvalidRubricOutputError('response dimensions did not match the required schema')
   const expected = new Set(dimensions)
   if (
-    parsed.data.length !== dimensions.length ||
-    parsed.data.some((item) => !expected.delete(item.key))
+    candidate.data.dimensions.length !== dimensions.length ||
+    candidate.data.dimensions.some((item) => !expected.delete(item.key))
   )
     throw new InvalidRubricOutputError('response must include each quality dimension exactly once')
-  const validPaths = new Set([
-    'title',
-    'subject',
-    'grade',
-    'learningOutcome',
-    'durationMinutes',
-    'objectives',
-    'materials',
-    'starter',
-    'activities',
-    'checkForUnderstanding',
-    'sources',
-  ])
   const validSourceIds = new Set(plan.sources.map((source) => source.chunkId))
   if (
-    parsed.data.some((item) =>
-      item.evidence.some(
-        (e) =>
-          !validPaths.has(e.planPath.split(/[.[\]]/)[0] ?? '') ||
-          e.sourceChunkIds.some((id) => !validSourceIds.has(id)),
-      ),
+    candidate.data.dimensions.some((item) =>
+      item.evidence.some((e) => e.sourceChunkIds.some((id) => !validSourceIds.has(id))),
     )
   )
     throw new InvalidRubricOutputError('response cited evidence outside the reviewed plan')
-  return { summary: candidate.summary, dimensions: parsed.data }
+  return candidate.data
 }

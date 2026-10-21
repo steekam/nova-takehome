@@ -34,7 +34,11 @@ export class LangfusePrompts {
     }
   }
 
-  async get(name: string, fallback: string): Promise<ManagedPrompt> {
+  async get(
+    name: string,
+    fallback: string,
+    variables: Record<string, string> = {},
+  ): Promise<ManagedPrompt> {
     if (!this.client) return { text: fallback }
     const prompt = await this.client.prompt.get(name, {
       type: 'text',
@@ -42,6 +46,7 @@ export class LangfusePrompts {
       cacheTtlSeconds: 60,
       fallback,
     })
+    const variablesAligned = hasPromptVariables(prompt.prompt, variables)
     const promptConfig = prompt.config
     const model =
       typeof promptConfig === 'object' &&
@@ -51,13 +56,17 @@ export class LangfusePrompts {
         ? promptConfig.model
         : undefined
     return {
-      text: prompt.compile(),
+      text: variablesAligned ? prompt.compile(variables) : fallback,
       model,
       reference: {
         name: prompt.name,
         version: prompt.version,
-        isFallback: prompt.isFallback ?? false,
+        isFallback: (prompt.isFallback ?? false) || !variablesAligned,
       },
     }
   }
+}
+
+export function hasPromptVariables(template: string, variables: Record<string, string>): boolean {
+  return Object.keys(variables).every((name) => template.includes(`{{${name}}}`))
 }

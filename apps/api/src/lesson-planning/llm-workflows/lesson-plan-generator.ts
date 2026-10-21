@@ -20,7 +20,12 @@ import {
   startLangfuseSpan,
 } from './generation-telemetry'
 import { LangfusePrompts } from './langfuse-prompts'
-import { lessonPlanGenerationPrompt, lessonPlanGenerationPromptVersion } from './generation-prompt'
+import {
+  lessonPlanGenerationOutputSchema,
+  lessonPlanGenerationPrompt,
+  lessonPlanGenerationPromptVersion,
+  renderLessonPlanGenerationPrompt,
+} from './generation-prompt'
 
 @Injectable()
 export class LessonPlanGenerator {
@@ -60,7 +65,10 @@ export class LessonPlanGenerator {
       try {
         const managedPrompt = await this.prompts.get(
           lessonPlanGenerationPrompt.name,
-          lessonPlanGenerationPrompt.prompt,
+          renderLessonPlanGenerationPrompt(),
+          {
+            output_schema: JSON.stringify(lessonPlanGenerationOutputSchema(), null, 2),
+          },
         )
         const system = managedPrompt.text
         if (managedPrompt.reference) {
