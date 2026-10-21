@@ -6,6 +6,10 @@
     "node": ">=24 <25"
   },
   "scripts": {
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "dev": "varlock run -- pnpm dev:apps",
     "dev:mock": "pnpm exec varlock run -- env LLM_PROVIDER=mock pnpm dev:apps",
     "dev:apps": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && pnpm --parallel --filter @nova/web --filter @nova/api dev",
@@ -25,6 +29,8 @@
     "openapi:generate": "pnpm --filter @nova/api openapi:export && pnpm --filter @nova/web openapi:types"
   },
   "devDependencies": {
+    "oxfmt": "0.73.0",
+    "oxlint": "1.88.0",
     "typescript": "^5.9.0",
     "varlock": "^1.21.0"
   },

@@ -1,5 +1,21 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Res, UnauthorizedException } from '@nestjs/common'
-import { ApiBearerAuth, ApiNoContentResponse, ApiOkResponse, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger'
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common'
+import {
+  ApiBearerAuth,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiProperty,
+  ApiTags,
+} from '@nestjs/swagger'
 import { IsEmail, IsString, MinLength } from 'class-validator'
 import { FastifyReply } from 'fastify'
 import type { ApiPrincipal } from '@nova/shared'
@@ -44,7 +60,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Sign in with an email and password' })
   @ApiOkResponse({ type: LoginResponse })
-  async login(@Body() body: LoginRequest, @Res({ passthrough: true }) reply: FastifyReply): Promise<LoginResponse> {
+  async login(
+    @Body() body: LoginRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<LoginResponse> {
     const result = await this.auth.login(body.email, body.password)
     if (!result) throw new UnauthorizedException('Invalid email or password')
     reply.setCookie('nova_access', result.accessToken, {

@@ -54,14 +54,37 @@
 }
 
 @layer base {
-  * { @apply border-border; }
-  body { @apply bg-background font-sans text-foreground antialiased; margin: 0; min-width: 320px; }
-  button, a { -webkit-tap-highlight-color: transparent; }
-  ::selection { background: oklch(0.82 0.11 82); color: oklch(0.22 0.035 238); }
-  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    margin: 0;
+    min-width: 320px;
+  }
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+  ::selection {
+    background: oklch(0.82 0.11 82);
+    color: oklch(0.22 0.035 238);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
 }
 
-.route-state { @apply mx-auto mt-16 max-w-lg rounded-xl border bg-card p-8 shadow-sm; }
-.route-state h1 { @apply text-2xl font-semibold tracking-tight; }
-.route-state p { @apply mt-3 text-sm text-muted-foreground; }
-.request-id { @apply font-mono text-xs; }
+.route-state {
+  @apply mx-auto mt-16 max-w-lg rounded-xl border bg-card p-8 shadow-sm;
+}
+.route-state h1 {
+  @apply text-2xl font-semibold tracking-tight;
+}
+.route-state p {
+  @apply mt-3 text-sm text-muted-foreground;
+}
+.request-id {
+  @apply font-mono text-xs;
+}

@@ -12,10 +12,20 @@ function LibraryTargetLayout() {
   return <LibraryTargetPage key={targetRevisionId} targetRevisionId={targetRevisionId} />
 }
 
-const libraryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/library', beforeLoad: async ({ location }) => {
-  const user = await requireUser(location.href)
-  if (!user.roles.some(role => role === 'teacher' || role === 'curriculum_lead')) throw redirect({ to: '/login', search: { redirect: location.href } })
-  return user
-}, component: LibraryLayout })
-const libraryTargetRoute = createRoute({ getParentRoute: () => libraryRoute, path: 'targets/$targetRevisionId', component: LibraryTargetLayout })
+const libraryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library',
+  beforeLoad: async ({ location }) => {
+    const user = await requireUser(location.href)
+    if (!user.roles.some((role) => role === 'teacher' || role === 'curriculum_lead'))
+      throw redirect({ to: '/login', search: { redirect: location.href } })
+    return user
+  },
+  component: LibraryLayout,
+})
+const libraryTargetRoute = createRoute({
+  getParentRoute: () => libraryRoute,
+  path: 'targets/$targetRevisionId',
+  component: LibraryTargetLayout,
+})
 export const route = libraryRoute.addChildren([libraryTargetRoute])

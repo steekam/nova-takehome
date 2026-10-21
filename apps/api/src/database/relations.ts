@@ -159,9 +159,15 @@ export const relations = defineRelations(schema, (r) => ({
     lessonPlans: r.many.lessonPlans(),
     createdPlanVersions: r.many.lessonPlanVersions({ alias: 'lessonPlanVersionCreatedBy' }),
     curriculumLeadReviews: r.many.planReviews({ alias: 'planReviewCurriculumLead' }),
-    createdResourceRevisions: r.many.libraryResourceRevisions({ alias: 'libraryResourceRevisionCreatedBy' }),
-    addedCurriculumSourceLinks: r.many.curriculumSourceLinks({ alias: 'curriculumSourceLinkAddedBy' }),
-    publishedCurriculumSourceLinks: r.many.curriculumSourceLinks({ alias: 'curriculumSourceLinkPublishedBy' }),
+    createdResourceRevisions: r.many.libraryResourceRevisions({
+      alias: 'libraryResourceRevisionCreatedBy',
+    }),
+    addedCurriculumSourceLinks: r.many.curriculumSourceLinks({
+      alias: 'curriculumSourceLinkAddedBy',
+    }),
+    publishedCurriculumSourceLinks: r.many.curriculumSourceLinks({
+      alias: 'curriculumSourceLinkPublishedBy',
+    }),
   },
   lessonPlans: {
     teacher: r.one.users({ from: r.lessonPlans.teacherId, to: r.users.id, optional: false }),
@@ -171,8 +177,15 @@ export const relations = defineRelations(schema, (r) => ({
     validations: r.many.lessonPlanValidations(),
   },
   lessonPlanVersions: {
-    lessonPlan: r.one.lessonPlans({ from: r.lessonPlanVersions.lessonPlanId, to: r.lessonPlans.id, optional: false }),
-    targetRevision: r.one.curriculumTargetRevisions({ from: r.lessonPlanVersions.targetRevisionId, to: r.curriculumTargetRevisions.id }),
+    lessonPlan: r.one.lessonPlans({
+      from: r.lessonPlanVersions.lessonPlanId,
+      to: r.lessonPlans.id,
+      optional: false,
+    }),
+    targetRevision: r.one.curriculumTargetRevisions({
+      from: r.lessonPlanVersions.targetRevisionId,
+      to: r.curriculumTargetRevisions.id,
+    }),
     createdByUser: r.one.users({
       from: r.lessonPlanVersions.createdBy,
       to: r.users.id,
@@ -208,7 +221,11 @@ export const relations = defineRelations(schema, (r) => ({
     }),
   },
   planReviews: {
-    lessonPlan: r.one.lessonPlans({ from: r.planReviews.lessonPlanId, to: r.lessonPlans.id, optional: false }),
+    lessonPlan: r.one.lessonPlans({
+      from: r.planReviews.lessonPlanId,
+      to: r.lessonPlans.id,
+      optional: false,
+    }),
     lessonPlanVersion: r.one.lessonPlanVersions({
       from: [r.planReviews.lessonPlanVersionId, r.planReviews.lessonPlanId],
       to: [r.lessonPlanVersions.id, r.lessonPlanVersions.lessonPlanId],
@@ -223,7 +240,11 @@ export const relations = defineRelations(schema, (r) => ({
     }),
   },
   lessonPlanValidations: {
-    lessonPlan: r.one.lessonPlans({ from: r.lessonPlanValidations.lessonPlanId, to: r.lessonPlans.id, optional: false }),
+    lessonPlan: r.one.lessonPlans({
+      from: r.lessonPlanValidations.lessonPlanId,
+      to: r.lessonPlans.id,
+      optional: false,
+    }),
     lessonPlanVersion: r.one.lessonPlanVersions({
       from: [r.lessonPlanValidations.lessonPlanVersionId, r.lessonPlanValidations.lessonPlanId],
       to: [r.lessonPlanVersions.id, r.lessonPlanVersions.lessonPlanId],

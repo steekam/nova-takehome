@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common'
 import { createHash } from 'node:crypto'
 import {
   CurriculumLibraryOfferingDtoSchema,
@@ -33,8 +39,11 @@ export class CurriculumLibraryService {
   async allSources(principal: ApiPrincipal) {
     const catalogue = await this.catalogue(principal)
     const unique = new Map<string, CurriculumSourceDto>()
-    for (const target of catalogue.offerings.flatMap((offering) => offering.designs.flatMap((design) => design.targets))) {
-      for (const source of target.sources) unique.set(`${source.documentId}:${source.chunkId}`, source)
+    for (const target of catalogue.offerings.flatMap((offering) =>
+      offering.designs.flatMap((design) => design.targets),
+    )) {
+      for (const source of target.sources)
+        unique.set(`${source.documentId}:${source.chunkId}`, source)
     }
     return [...unique.values()]
   }
@@ -56,58 +65,74 @@ export class CurriculumLibraryService {
       if (!design || !offering) continue
       const sourceRows = sourcesByTarget.get(target.id) ?? []
       const targetSources = sourceRows.map((source) => toSourceDto(source))
-      const linkedDefinitions = sourceRows.some((source) => source.role === 'defines_target' && source.resourceType === 'curriculum_design' && source.authority === 'official' && source.linkStatus === 'published' && source.revisionStatus === 'published')
+      const linkedDefinitions = sourceRows.some(
+        (source) =>
+          source.role === 'defines_target' &&
+          source.resourceType === 'curriculum_design' &&
+          source.authority === 'official' &&
+          source.linkStatus === 'published' &&
+          source.revisionStatus === 'published',
+      )
       const path: string[] = []
       let node = nodesById.get(target.nodeId)
       while (node) {
         path.unshift(node.label)
         node = node.parentNodeId ? nodesById.get(node.parentNodeId) : undefined
       }
-      targetDtos.set(target.id, CurriculumLibraryTargetDtoSchema.parse({
-        id: target.id,
-        designVersionId: target.designVersionId,
-        offeringId: offering.id,
+      targetDtos.set(
+        target.id,
+        CurriculumLibraryTargetDtoSchema.parse({
+          id: target.id,
+          designVersionId: target.designVersionId,
+          offeringId: offering.id,
+          framework: offering.framework,
+          programme: offering.programme,
+          level: offering.level ?? 'All levels',
+          subject: offering.subject,
+          editionLabel: design.editionLabel,
+          origin: design.origin,
+          kind: target.kind,
+          title: target.title,
+          statement: target.statement,
+          locator: target.sourceLocator,
+          path,
+          sourceCount: new Set(sourceRows.map((source) => source.resourceRevisionId)).size,
+          generationReady: design.status === 'published' && linkedDefinitions,
+          sources: targetSources,
+        }),
+      )
+    }
+
+    const offerings = data.offerings.map((offering) =>
+      CurriculumLibraryOfferingDtoSchema.parse({
+        id: offering.id,
         framework: offering.framework,
         programme: offering.programme,
         level: offering.level ?? 'All levels',
         subject: offering.subject,
-        editionLabel: design.editionLabel,
-        origin: design.origin,
-        kind: target.kind,
-        title: target.title,
-        statement: target.statement,
-        locator: target.sourceLocator,
-        path,
-        sourceCount: new Set(sourceRows.map((source) => source.resourceRevisionId)).size,
-        generationReady: design.status === 'published' && linkedDefinitions,
-        sources: targetSources,
-      }))
-    }
-
-    const offerings = data.offerings.map((offering) => CurriculumLibraryOfferingDtoSchema.parse({
-      id: offering.id,
-      framework: offering.framework,
-      programme: offering.programme,
-      level: offering.level ?? 'All levels',
-      subject: offering.subject,
-      externalCode: offering.externalCode,
-      designs: data.designs.filter((design) => design.offeringId === offering.id).map((design) => ({
-        id: design.id,
-        editionLabel: design.editionLabel,
-        revisionNumber: design.revisionNumber,
-        origin: design.origin,
-        status: design.status,
-        targets: data.targets.filter((target) => target.designVersionId === design.id)
-          .flatMap((target) => targetDtos.get(target.id) ?? []),
-      })),
-    }))
+        externalCode: offering.externalCode,
+        designs: data.designs
+          .filter((design) => design.offeringId === offering.id)
+          .map((design) => ({
+            id: design.id,
+            editionLabel: design.editionLabel,
+            revisionNumber: design.revisionNumber,
+            origin: design.origin,
+            status: design.status,
+            targets: data.targets
+              .filter((target) => target.designVersionId === design.id)
+              .flatMap((target) => targetDtos.get(target.id) ?? []),
+          })),
+      }),
+    )
 
     return { offerings }
   }
 
   async target(targetRevisionId: string, principal: ApiPrincipal) {
     const catalogue = await this.catalogue(principal)
-    const target = catalogue.offerings.flatMap((offering) => offering.designs.flatMap((design) => design.targets))
+    const target = catalogue.offerings
+      .flatMap((offering) => offering.designs.flatMap((design) => design.targets))
       .find((item) => item.id === targetRevisionId)
     if (!target) throw new NotFoundException('Curriculum target not found')
     return target
@@ -115,24 +140,27 @@ export class CurriculumLibraryService {
 
   async outcomes(): Promise<CurriculumOutcomeDto[]> {
     const catalogue = await this.catalogueForVisibility(false)
-    return catalogue.offerings.flatMap((offering) => offering.designs.flatMap((design) => design.targets))
+    return catalogue.offerings
+      .flatMap((offering) => offering.designs.flatMap((design) => design.targets))
       .filter((target) => target.generationReady)
-      .map((target) => CurriculumOutcomeDtoSchema.parse({
-        id: target.id,
-        designVersionId: target.designVersionId,
-        offeringId: target.offeringId,
-        kind: target.kind,
-        title: target.title,
-        subject: target.subject,
-        grade: target.level,
-        programme: target.programme,
-        framework: target.framework,
-        editionLabel: target.editionLabel,
-        locator: target.locator,
-        content: target.statement,
-        sourceCount: target.sourceCount,
-        generationReady: target.generationReady,
-      }))
+      .map((target) =>
+        CurriculumOutcomeDtoSchema.parse({
+          id: target.id,
+          designVersionId: target.designVersionId,
+          offeringId: target.offeringId,
+          kind: target.kind,
+          title: target.title,
+          subject: target.subject,
+          grade: target.level,
+          programme: target.programme,
+          framework: target.framework,
+          editionLabel: target.editionLabel,
+          locator: target.locator,
+          content: target.statement,
+          sourceCount: target.sourceCount,
+          generationReady: target.generationReady,
+        }),
+      )
   }
 
   async outcomeForGeneration(targetRevisionId: string): Promise<CurriculumOutcomeDto> {
@@ -140,20 +168,36 @@ export class CurriculumLibraryService {
     const outcome = outcomes.find((item) => item.id === targetRevisionId)
     if (!outcome) {
       const catalogue = await this.catalogueForVisibility(false)
-      const exists = catalogue.offerings.flatMap((offering) => offering.designs.flatMap((design) => design.targets))
+      const exists = catalogue.offerings
+        .flatMap((offering) => offering.designs.flatMap((design) => design.targets))
         .some((target) => target.id === targetRevisionId)
-      if (exists) throw new BadRequestException({ code: 'CURRICULUM_SOURCES_MISSING', message: 'This curriculum target has no published source that defines it. Choose a source-backed target or ask a curriculum lead to add sources.' })
+      if (exists)
+        throw new BadRequestException({
+          code: 'CURRICULUM_SOURCES_MISSING',
+          message:
+            'This curriculum target has no published source that defines it. Choose a source-backed target or ask a curriculum lead to add sources.',
+        })
       throw new NotFoundException('Curriculum target not found')
     }
     return outcome
   }
 
-  async sourceChunksForGeneration(targetRevisionId: string, embedding: number[], subject: string, grade: string) {
+  async sourceChunksForGeneration(
+    targetRevisionId: string,
+    embedding: number[],
+    subject: string,
+    grade: string,
+  ) {
     const [candidates, targetDefinitions] = await Promise.all([
       this.repository.sourceChunksForTarget(targetRevisionId, embedding, 20),
       this.repository.targetDefinitionChunks(targetRevisionId),
     ])
-    if (!targetDefinitions.length) throw new BadRequestException({ code: 'CURRICULUM_SOURCES_MISSING', message: 'The selected target needs a published official curriculum design excerpt that defines it.' })
+    if (!targetDefinitions.length)
+      throw new BadRequestException({
+        code: 'CURRICULUM_SOURCES_MISSING',
+        message:
+          'The selected target needs a published official curriculum design excerpt that defines it.',
+      })
     const selected = new Map<string, (typeof targetDefinitions)[number]>()
     for (const source of targetDefinitions) selected.set(source.chunkId, source)
     let supportingCount = 0
@@ -163,28 +207,34 @@ export class CurriculumLibraryService {
       selected.set(source.chunkId, source)
       supportingCount += 1
     }
-    return [...selected.values()].map((source) => CurriculumSourceDtoSchema.parse({
-      linkId: source.linkId,
-      documentId: source.documentId,
-      resourceRevisionId: source.resourceRevisionId,
-      revisionNumber: source.revisionNumber,
-      chunkId: source.chunkId,
-      resourceType: source.resourceType,
-      title: source.title,
-      subject,
-      grade,
-      content: source.content,
-      authority: source.authority,
-      editionLabel: source.editionLabel,
-      sourceUrl: source.sourceUrl,
-      locator: source.locator,
-      synthetic: source.authority === 'synthetic',
-      role: source.role,
-      status: source.linkStatus,
-    }))
+    return [...selected.values()].map((source) =>
+      CurriculumSourceDtoSchema.parse({
+        linkId: source.linkId,
+        documentId: source.documentId,
+        resourceRevisionId: source.resourceRevisionId,
+        revisionNumber: source.revisionNumber,
+        chunkId: source.chunkId,
+        resourceType: source.resourceType,
+        title: source.title,
+        subject,
+        grade,
+        content: source.content,
+        authority: source.authority,
+        editionLabel: source.editionLabel,
+        sourceUrl: source.sourceUrl,
+        locator: source.locator,
+        synthetic: source.authority === 'synthetic',
+        role: source.role,
+        status: source.linkStatus,
+      }),
+    )
   }
 
-  async sourceDetailsForTargets(targetRevisionIds: string[], includeDraft: boolean, executor: DbExecutor = this.database.db) {
+  async sourceDetailsForTargets(
+    targetRevisionIds: string[],
+    includeDraft: boolean,
+    executor: DbExecutor = this.database.db,
+  ) {
     if (targetRevisionIds.length === 0) return []
     const rows = await this.repository.sourceRows(targetRevisionIds, includeDraft, executor)
     return rows.map((source) => CurriculumSourceDtoSchema.parse(toSourceDto(source)))
@@ -194,11 +244,19 @@ export class CurriculumLibraryService {
     return this.sourceDetailsForTargets([targetRevisionId], true, executor)
   }
 
-  async addSource(targetRevisionId: string, input: CurriculumLibrarySourceInput, principal: ApiPrincipal) {
+  async addSource(
+    targetRevisionId: string,
+    input: CurriculumLibrarySourceInput,
+    principal: ApiPrincipal,
+  ) {
     const [target] = await this.repository.targetDesign(targetRevisionId)
     if (!target) throw new NotFoundException('Curriculum target not found')
     const [design] = await this.repository.design(target.designVersionId)
-    if (!design || design.status !== 'published') throw new BadRequestException({ code: 'CURRICULUM_DESIGN_NOT_PUBLISHED', message: 'Sources can only be linked to a published curriculum design.' })
+    if (!design || design.status !== 'published')
+      throw new BadRequestException({
+        code: 'CURRICULUM_DESIGN_NOT_PUBLISHED',
+        message: 'Sources can only be linked to a published curriculum design.',
+      })
 
     const chunks = splitContent(input.content)
     const vectors = await Promise.all(chunks.map((chunk) => this.embedDocument(chunk.content)))
@@ -209,43 +267,62 @@ export class CurriculumLibraryService {
       if (resourceId) {
         const [resource] = await this.repository.resourceForUpdate(resourceId, tx)
         if (!resource) throw new NotFoundException('Source resource not found')
-        if (resource.resourceType !== input.resourceType || resource.title !== input.title || resource.authority !== input.authority) {
-          throw new BadRequestException({ code: 'SOURCE_RESOURCE_IDENTITY_IMMUTABLE', message: 'A source revision must keep the resource title, type, and authority.' })
+        if (
+          resource.resourceType !== input.resourceType ||
+          resource.title !== input.title ||
+          resource.authority !== input.authority
+        ) {
+          throw new BadRequestException({
+            code: 'SOURCE_RESOURCE_IDENTITY_IMMUTABLE',
+            message: 'A source revision must keep the resource title, type, and authority.',
+          })
         }
         const [latestRevision] = await this.repository.latestResourceRevision(resourceId, tx)
         revisionNumber = (latestRevision?.revisionNumber ?? 0) + 1
       } else {
-        const [resource] = await this.repository.createResource({
-          resourceType: input.resourceType,
-          title: input.title,
-          authority: input.authority,
-        }, tx)
+        const [resource] = await this.repository.createResource(
+          {
+            resourceType: input.resourceType,
+            title: input.title,
+            authority: input.authority,
+          },
+          tx,
+        )
         resourceId = resource.id
       }
-      const [revision] = await this.repository.createResourceRevision({
-        resourceId,
-        revisionNumber,
-        editionLabel: input.editionLabel,
-        sourceUrl: input.sourceUrl,
-        contentHash,
-        content: input.content,
-        status: 'draft',
-        createdBy: principal.subject,
-      }, tx)
-      await this.repository.createChunks(chunks.map((chunk, index) => ({
-        resourceRevisionId: revision.id,
-        ordinal: index,
-        locator: input.locator ?? `Text ${index + 1}`,
-        content: chunk.content,
-        embedding: vectors[index],
-      })), tx)
-      const [link] = await this.repository.createSourceLink({
-        targetRevisionId,
-        resourceRevisionId: revision.id,
-        role: input.role,
-        status: 'draft',
-        addedBy: principal.subject,
-      }, tx)
+      const [revision] = await this.repository.createResourceRevision(
+        {
+          resourceId,
+          revisionNumber,
+          editionLabel: input.editionLabel,
+          sourceUrl: input.sourceUrl,
+          contentHash,
+          content: input.content,
+          status: 'draft',
+          createdBy: principal.subject,
+        },
+        tx,
+      )
+      await this.repository.createChunks(
+        chunks.map((chunk, index) => ({
+          resourceRevisionId: revision.id,
+          ordinal: index,
+          locator: input.locator ?? `Text ${index + 1}`,
+          content: chunk.content,
+          embedding: vectors[index],
+        })),
+        tx,
+      )
+      const [link] = await this.repository.createSourceLink(
+        {
+          targetRevisionId,
+          resourceRevisionId: revision.id,
+          role: input.role,
+          status: 'draft',
+          addedBy: principal.subject,
+        },
+        tx,
+      )
       return [link]
     })
     return { linkId: created.id, targetRevisionId, status: created.status }
@@ -255,21 +332,47 @@ export class CurriculumLibraryService {
     return this.database.db.transaction(async (tx) => {
       const [link] = await this.repository.sourceLinkForUpdate(linkId, tx)
       if (!link) throw new NotFoundException('Source link not found')
-      if (link.status !== 'draft') throw new ConflictException({ code: 'SOURCE_LINK_TRANSITION_INVALID', message: 'Only a draft source link can be published.' })
-      const [revision] = await this.repository.resourceRevisionForUpdate(link.resourceRevisionId, tx)
+      if (link.status !== 'draft')
+        throw new ConflictException({
+          code: 'SOURCE_LINK_TRANSITION_INVALID',
+          message: 'Only a draft source link can be published.',
+        })
+      const [revision] = await this.repository.resourceRevisionForUpdate(
+        link.resourceRevisionId,
+        tx,
+      )
       if (!revision) throw new NotFoundException('Source revision not found')
       const [resource] = await this.repository.resource(revision.resourceId, tx)
       if (!resource) throw new NotFoundException('Source resource not found')
       const [chunk] = await this.repository.firstChunkForRevision(revision.id, tx)
-      if (!chunk) throw new BadRequestException({ code: 'SOURCE_HAS_NO_CHUNKS', message: 'Add readable source text before publishing this source.' })
-      if (link.role === 'defines_target' && (resource.resourceType !== 'curriculum_design' || resource.authority !== 'official' || !revision.editionLabel || !revision.sourceUrl || !chunk.locator)) {
-        throw new BadRequestException({ code: 'TARGET_SOURCE_PROVENANCE_REQUIRED', message: 'A target-defining source needs official curriculum-design metadata, edition, URL, and source locator before publishing.' })
+      if (!chunk)
+        throw new BadRequestException({
+          code: 'SOURCE_HAS_NO_CHUNKS',
+          message: 'Add readable source text before publishing this source.',
+        })
+      if (
+        link.role === 'defines_target' &&
+        (resource.resourceType !== 'curriculum_design' ||
+          resource.authority !== 'official' ||
+          !revision.editionLabel ||
+          !revision.sourceUrl ||
+          !chunk.locator)
+      ) {
+        throw new BadRequestException({
+          code: 'TARGET_SOURCE_PROVENANCE_REQUIRED',
+          message:
+            'A target-defining source needs official curriculum-design metadata, edition, URL, and source locator before publishing.',
+        })
       }
 
       const publishedAt = new Date()
       await this.repository.publishResourceRevision(revision.id, publishedAt, tx)
       await this.repository.publishSourceLink(link.id, principal.subject, publishedAt, tx)
-      return { linkId: link.id, targetRevisionId: link.targetRevisionId, status: 'published' as const }
+      return {
+        linkId: link.id,
+        targetRevisionId: link.targetRevisionId,
+        status: 'published' as const,
+      }
     })
   }
 
@@ -277,7 +380,8 @@ export class CurriculumLibraryService {
     try {
       return await this.embeddings.embedDocument(content)
     } catch (error) {
-      if (error instanceof EmbeddingError) throw new ServiceUnavailableException({ code: error.code, message: error.message })
+      if (error instanceof EmbeddingError)
+        throw new ServiceUnavailableException({ code: error.code, message: error.message })
       throw error
     }
   }
@@ -301,17 +405,24 @@ function toSourceDto(source: SourceRow): CurriculumSourceDto {
     locator: source.locator,
     synthetic: source.authority === 'synthetic',
     role: source.role,
-    status: source.linkStatus === 'retired' || source.revisionStatus === 'retired'
-      ? 'retired'
-      : source.linkStatus === 'published' && source.revisionStatus === 'published' ? 'published' : 'draft',
+    status:
+      source.linkStatus === 'retired' || source.revisionStatus === 'retired'
+        ? 'retired'
+        : source.linkStatus === 'published' && source.revisionStatus === 'published'
+          ? 'published'
+          : 'draft',
   }
 }
 
 function splitContent(content: string) {
-  const paragraphs = content.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean)
+  const paragraphs = content
+    .split(/\n\s*\n/)
+    .map((part) => part.trim())
+    .filter(Boolean)
   const chunks: Array<{ content: string }> = []
   for (const paragraph of paragraphs) {
-    for (let start = 0; start < paragraph.length; start += 1200) chunks.push({ content: paragraph.slice(start, start + 1200) })
+    for (let start = 0; start < paragraph.length; start += 1200)
+      chunks.push({ content: paragraph.slice(start, start + 1200) })
   }
   return chunks
 }

@@ -7,7 +7,19 @@ import { PermissionsGuard } from './auth/permissions.guard'
 
 @Global()
 @Module({
-  providers: [ApiExceptionFilter, RequestIdService, RequestLoggingInterceptor, RolesGuard, PermissionsGuard],
-  exports: [ApiExceptionFilter, RequestIdService, RequestLoggingInterceptor, RolesGuard, PermissionsGuard],
+  providers: [
+    ApiExceptionFilter,
+    RequestIdService,
+    RequestLoggingInterceptor,
+    RolesGuard,
+    PermissionsGuard,
+  ],
+  exports: [
+    ApiExceptionFilter,
+    RequestIdService,
+    RequestLoggingInterceptor,
+    RolesGuard,
+    PermissionsGuard,
+  ],
 })
 export class CommonModule {}

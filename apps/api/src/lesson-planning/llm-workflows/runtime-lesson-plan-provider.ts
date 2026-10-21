@@ -1,7 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import type { LlmMode, RuntimeLlmModeStatus } from '@nova/shared'
-import type { LessonPlanCompletionRequest, LessonPlanCompletionResult, LessonPlanProvider } from './llm-provider'
+import type {
+  LessonPlanCompletionRequest,
+  LessonPlanCompletionResult,
+  LessonPlanProvider,
+} from './llm-provider'
 import { OpenAiCompatibleLessonPlanProvider } from './llm-provider'
 import { MockLessonPlanProvider } from './mock-lesson-plan-provider'
 
@@ -14,7 +18,11 @@ export class RuntimeLessonPlanProvider implements LessonPlanProvider {
     private readonly live: OpenAiCompatibleLessonPlanProvider,
     private readonly mock: MockLessonPlanProvider,
   ) {
-    this.mode = config.get<string>('LLM_PROVIDER', 'mock') === 'openai-compatible' && this.missingLiveSettings().length === 0 ? 'live' : 'mock'
+    this.mode =
+      config.get<string>('LLM_PROVIDER', 'mock') === 'openai-compatible' &&
+      this.missingLiveSettings().length === 0
+        ? 'live'
+        : 'mock'
   }
 
   status(): RuntimeLlmModeStatus {
@@ -34,14 +42,21 @@ export class RuntimeLessonPlanProvider implements LessonPlanProvider {
     return this.status()
   }
 
-  complete(request: LessonPlanCompletionRequest, modelOverride?: string): Promise<LessonPlanCompletionResult> {
-    return this.mode === 'live' ? this.live.complete(request, modelOverride) : this.mock.complete(request, modelOverride)
+  complete(
+    request: LessonPlanCompletionRequest,
+    modelOverride?: string,
+  ): Promise<LessonPlanCompletionResult> {
+    return this.mode === 'live'
+      ? this.live.complete(request, modelOverride)
+      : this.mock.complete(request, modelOverride)
   }
 
   private missingLiveSettings(): string[] {
     return [
       ...(!this.config.get<string>('LLM_BASE_URL') ? ['LLM_BASE_URL'] : []),
-      ...(!this.config.get<string>('LLM_GENERATOR_MODEL') && !this.config.get<string>('LLM_MODEL') ? ['LLM_GENERATOR_MODEL'] : []),
+      ...(!this.config.get<string>('LLM_GENERATOR_MODEL') && !this.config.get<string>('LLM_MODEL')
+        ? ['LLM_GENERATOR_MODEL']
+        : []),
       ...(!this.config.get<string>('LLM_API_KEY') ? ['LLM_API_KEY'] : []),
     ]
   }

@@ -25,15 +25,25 @@ export class AuthService {
   constructor(private readonly database: DatabaseService) {
     const environment = process.env.NODE_ENV
     const configuredSecret = process.env.AUTH_SECRET
-    const secret = configuredSecret || (environment === 'development' || environment === 'test'
-      ? 'nova-local-auth-secret-change-before-deploy-2026'
-      : undefined)
-    if (!secret || secret.length < 32) throw new Error('AUTH_SECRET must contain at least 32 characters')
+    const secret =
+      configuredSecret ||
+      (environment === 'development' || environment === 'test'
+        ? 'nova-local-auth-secret-change-before-deploy-2026'
+        : undefined)
+    if (!secret || secret.length < 32)
+      throw new Error('AUTH_SECRET must contain at least 32 characters')
     this.secret = secret
   }
 
-  async login(email: string, password: string): Promise<{ accessToken: string; user: ApiPrincipal } | undefined> {
-    const [user] = await this.database.db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1)
+  async login(
+    email: string,
+    password: string,
+  ): Promise<{ accessToken: string; user: ApiPrincipal } | undefined> {
+    const [user] = await this.database.db
+      .select()
+      .from(users)
+      .where(eq(users.email, email.toLowerCase()))
+      .limit(1)
     if (!user || !(await verifyPassword(password, user.passwordHash))) return undefined
 
     const principal = this.toPrincipal(user.id, user.role)
@@ -44,7 +54,11 @@ export class AuthService {
     const subject = this.verify(token)
     if (!subject) return undefined
 
-    const [user] = await this.database.db.select({ id: users.id, role: users.role }).from(users).where(eq(users.id, subject)).limit(1)
+    const [user] = await this.database.db
+      .select({ id: users.id, role: users.role })
+      .from(users)
+      .where(eq(users.id, subject))
+      .limit(1)
     return user ? this.toPrincipal(user.id, user.role) : undefined
   }
 
@@ -53,7 +67,9 @@ export class AuthService {
   }
 
   private sign(subject: string): string {
-    const payload = Buffer.from(JSON.stringify({ sub: subject, exp: Math.floor(Date.now() / 1000) + tokenLifetimeSeconds })).toString('base64url')
+    const payload = Buffer.from(
+      JSON.stringify({ sub: subject, exp: Math.floor(Date.now() / 1000) + tokenLifetimeSeconds }),
+    ).toString('base64url')
     return `${payload}.${this.signature(payload)}`
   }
 
@@ -82,7 +98,12 @@ export class AuthService {
 }
 
 function isTokenClaims(value: unknown): value is TokenClaims {
-  return typeof value === 'object' && value !== null &&
-    'sub' in value && typeof value.sub === 'string' &&
-    'exp' in value && typeof value.exp === 'number'
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'sub' in value &&
+    typeof value.sub === 'string' &&
+    'exp' in value &&
+    typeof value.exp === 'number'
+  )
 }

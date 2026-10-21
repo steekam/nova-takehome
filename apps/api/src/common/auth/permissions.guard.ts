@@ -1,4 +1,10 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common'
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import { FastifyRequest } from 'fastify'
 import { PERMISSIONS_KEY } from './permissions.decorator'
@@ -17,7 +23,10 @@ export class PermissionsGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<FastifyRequest>()
     const principal = request.user
     if (!principal) throw new UnauthorizedException()
-    if (permissions.length === 0 || !permissions.every((permission) => principal.permissions.includes(permission))) {
+    if (
+      permissions.length === 0 ||
+      !permissions.every((permission) => principal.permissions.includes(permission))
+    ) {
       throw new ForbiddenException()
     }
     return true

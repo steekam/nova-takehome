@@ -21,7 +21,10 @@ export async function getCurriculumCatalogue() {
 }
 
 export async function getCurriculumTarget(targetRevisionId: string) {
-  const { data, error } = await apiClient.GET('/api/curriculum/library/targets/{targetRevisionId}', { params: { path: { targetRevisionId } } })
+  const { data, error } = await apiClient.GET(
+    '/api/curriculum/library/targets/{targetRevisionId}',
+    { params: { path: { targetRevisionId } } },
+  )
   if (error) throw error
   if (!data) throw new Error('The API returned no curriculum target.')
   return data

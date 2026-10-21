@@ -30,38 +30,71 @@ export class DrizzleCrudRepository<TTable extends IdTable> {
   ) {}
 
   async findById(id: Id<TTable>, executor: DbExecutor = this.db): Promise<Row<TTable> | undefined> {
-    const [row] = await executor.select().from(this.table as unknown as QueryTable).where(eq(this.table.id, id)).limit(1)
+    const [row] = await executor
+      .select()
+      .from(this.table as unknown as QueryTable)
+      .where(eq(this.table.id, id))
+      .limit(1)
     return row as Row<TTable> | undefined
   }
 
   async list(options: ListOptions = {}, executor: DbExecutor = this.db): Promise<Row<TTable>[]> {
     const limit = Math.max(1, Math.min(Math.trunc(options.limit ?? 25), 100))
     const offset = Math.max(0, Math.min(Math.trunc(options.offset ?? 0), 100_000))
-    let query = executor.select().from(this.table as unknown as QueryTable).$dynamic()
+    let query = executor
+      .select()
+      .from(this.table as unknown as QueryTable)
+      .$dynamic()
     if (options.where) query = query.where(options.where)
     if (options.orderBy) query = query.orderBy(options.orderBy)
     const rows = await query.limit(limit).offset(offset)
     return rows as Row<TTable>[]
   }
 
-  async create(values: Insert<TTable>, executor: DbExecutor = this.db): Promise<Row<TTable> | undefined> {
-    const [row] = await executor.insert(this.table as unknown as QueryTable).values(values as unknown as QueryTable['$inferInsert']).returning()
+  async create(
+    values: Insert<TTable>,
+    executor: DbExecutor = this.db,
+  ): Promise<Row<TTable> | undefined> {
+    const [row] = await executor
+      .insert(this.table as unknown as QueryTable)
+      .values(values as unknown as QueryTable['$inferInsert'])
+      .returning()
     return row as Row<TTable> | undefined
   }
 
-  async createMany(values: Insert<TTable>[], executor: DbExecutor = this.db): Promise<Row<TTable>[]> {
+  async createMany(
+    values: Insert<TTable>[],
+    executor: DbExecutor = this.db,
+  ): Promise<Row<TTable>[]> {
     if (values.length === 0) return []
-    const rows = await executor.insert(this.table as unknown as QueryTable).values(values as unknown as QueryTable['$inferInsert'][]).returning()
+    const rows = await executor
+      .insert(this.table as unknown as QueryTable)
+      .values(values as unknown as QueryTable['$inferInsert'][])
+      .returning()
     return rows as Row<TTable>[]
   }
 
-  async updateById(id: Id<TTable>, values: Update<TTable>, executor: DbExecutor = this.db): Promise<Row<TTable> | undefined> {
-    const [row] = await executor.update(this.table as unknown as QueryTable).set(values as QueryTable['$inferInsert']).where(eq(this.table.id, id)).returning()
+  async updateById(
+    id: Id<TTable>,
+    values: Update<TTable>,
+    executor: DbExecutor = this.db,
+  ): Promise<Row<TTable> | undefined> {
+    const [row] = await executor
+      .update(this.table as unknown as QueryTable)
+      .set(values as QueryTable['$inferInsert'])
+      .where(eq(this.table.id, id))
+      .returning()
     return row as Row<TTable> | undefined
   }
 
-  async deleteById(id: Id<TTable>, executor: DbExecutor = this.db): Promise<Row<TTable> | undefined> {
-    const [row] = await executor.delete(this.table as unknown as QueryTable).where(eq(this.table.id, id)).returning()
+  async deleteById(
+    id: Id<TTable>,
+    executor: DbExecutor = this.db,
+  ): Promise<Row<TTable> | undefined> {
+    const [row] = await executor
+      .delete(this.table as unknown as QueryTable)
+      .where(eq(this.table.id, id))
+      .returning()
     return row as Row<TTable> | undefined
   }
 

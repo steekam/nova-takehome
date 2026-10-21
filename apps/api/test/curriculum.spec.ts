@@ -1,13 +1,36 @@
-import { BadRequestException, ForbiddenException, ConflictException, ServiceUnavailableException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, ConflictException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { hasValidReturnComment, type ApiPrincipal, type CurriculumOutcomeDto, type CurriculumSourceDto, type LessonPlanContent } from '@nova/shared'
+import {
+  hasValidReturnComment,
+  type ApiPrincipal,
+  type CurriculumOutcomeDto,
+  type CurriculumSourceDto,
+  type LessonPlanContent,
+} from '@nova/shared'
 import { LessonPlanContentSchema } from '@nova/shared'
-import { assertCanReadPlan, assertTeacherOwns, citationsWithinCandidateSet, formatLessonPlanSchemaIssues, planDurationMatches, transitionPlanStatus, validatePlanQa, validateReviewComment } from '../src/lesson-planning/lesson-planning.service'
-import { createEmbeddingEncoder, EmbeddingError, embeddingCacheKey, retryEmbeddingOperation } from '../src/embeddings/embedding.adapter'
-import { LessonPlanGenerator, validateGeneratedPlan } from '../src/lesson-planning/llm-workflows/lesson-plan-generator'
+import {
+  assertCanReadPlan,
+  assertTeacherOwns,
+  citationsWithinCandidateSet,
+  formatLessonPlanSchemaIssues,
+  planDurationMatches,
+  transitionPlanStatus,
+  validatePlanQa,
+  validateReviewComment,
+} from '../src/lesson-planning/lesson-planning.service'
+import {
+  createEmbeddingEncoder,
+  EmbeddingError,
+  embeddingCacheKey,
+  retryEmbeddingOperation,
+} from '../src/embeddings/embedding.adapter'
+import {
+  LessonPlanGenerator,
+  validateGeneratedPlan,
+} from '../src/lesson-planning/llm-workflows/lesson-plan-generator'
 import { OpenAiCompatibleLessonPlanProvider } from '../src/lesson-planning/llm-workflows/llm-provider'
 import { LangfusePrompts } from '../src/lesson-planning/llm-workflows/langfuse-prompts'
 import { RequestIdService } from '../src/common/request-id.service'
@@ -24,37 +47,68 @@ const outcome: CurriculumOutcomeDto = {
   designVersionId: '00000000-0000-4000-8000-000000000004',
   offeringId: '00000000-0000-4000-8000-000000000005',
   kind: 'specific_learning_outcome',
-  title: 'Changes of state', subject: 'Science', grade: 'Primary 5', programme: 'Primary', framework: 'CBC',
-  editionLabel: 'April 2024', locator: 'Strand 1 / Outcome 1', content: 'Explain changes of state in water.',
-  sourceCount: 1, generationReady: true,
+  title: 'Changes of state',
+  subject: 'Science',
+  grade: 'Primary 5',
+  programme: 'Primary',
+  framework: 'CBC',
+  editionLabel: 'April 2024',
+  locator: 'Strand 1 / Outcome 1',
+  content: 'Explain changes of state in water.',
+  sourceCount: 1,
+  generationReady: true,
 }
 const source: CurriculumSourceDto = {
   linkId: '00000000-0000-4000-8000-000000000006',
   documentId: '00000000-0000-4000-8000-000000000007',
-  resourceRevisionId: '00000000-0000-4000-8000-000000000008', revisionNumber: 1,
-  chunkId: '00000000-0000-4000-8000-000000000002', resourceType: 'curriculum_design',
-  title: 'Changes of state excerpt', subject: 'Science', grade: 'Primary 5',
-  content: 'Official excerpt defining the selected target.', authority: 'official', editionLabel: 'April 2024',
-  sourceUrl: 'https://example.test/cbc', locator: 'Page 3', synthetic: false, role: 'defines_target', status: 'published',
+  resourceRevisionId: '00000000-0000-4000-8000-000000000008',
+  revisionNumber: 1,
+  chunkId: '00000000-0000-4000-8000-000000000002',
+  resourceType: 'curriculum_design',
+  title: 'Changes of state excerpt',
+  subject: 'Science',
+  grade: 'Primary 5',
+  content: 'Official excerpt defining the selected target.',
+  authority: 'official',
+  editionLabel: 'April 2024',
+  sourceUrl: 'https://example.test/cbc',
+  locator: 'Page 3',
+  synthetic: false,
+  role: 'defines_target',
+  status: 'published',
 }
 const plan: LessonPlanContent = {
-  title: 'Water changes state', subject: 'Science', grade: 'Primary 5', learningOutcome: outcome.content,
-  durationMinutes: 40, objectives: ['Explain the change'], materials: ['Water'], starter: 'Observe water.',
+  title: 'Water changes state',
+  subject: 'Science',
+  grade: 'Primary 5',
+  learningOutcome: outcome.content,
+  durationMinutes: 40,
+  objectives: ['Explain the change'],
+  materials: ['Water'],
+  starter: 'Observe water.',
   activities: [{ title: 'Practice', description: outcome.content, durationMinutes: 40 }],
-  checkForUnderstanding: 'Explain the change.', sources: [{ documentId: source.documentId, chunkId: source.chunkId }],
+  checkForUnderstanding: 'Explain the change.',
+  sources: [{ documentId: source.documentId, chunkId: source.chunkId }],
 }
 
 describe('curriculum workflow invariants', () => {
   it('allows separate generator and reviewer model names while supporting the legacy model fallback', () => {
     const config = validateEnvironment({
-      NODE_ENV: 'test', LLM_PROVIDER: 'openai-compatible', LLM_BASE_URL: 'http://localhost:4000/v1',
-      LLM_GENERATOR_MODEL: 'lesson-generator', LLM_REVIEWER_MODEL: 'lesson-reviewer', EMBEDDING_PROVIDER: 'mock',
+      NODE_ENV: 'test',
+      LLM_PROVIDER: 'openai-compatible',
+      LLM_BASE_URL: 'http://localhost:4000/v1',
+      LLM_GENERATOR_MODEL: 'lesson-generator',
+      LLM_REVIEWER_MODEL: 'lesson-reviewer',
+      EMBEDDING_PROVIDER: 'mock',
     })
     expect(config.LLM_GENERATOR_MODEL).toBe('lesson-generator')
     expect(config.LLM_REVIEWER_MODEL).toBe('lesson-reviewer')
     const legacy = validateEnvironment({
-      NODE_ENV: 'test', LLM_PROVIDER: 'openai-compatible', LLM_BASE_URL: 'http://localhost:4000/v1',
-      LLM_MODEL: 'legacy-model', EMBEDDING_PROVIDER: 'mock',
+      NODE_ENV: 'test',
+      LLM_PROVIDER: 'openai-compatible',
+      LLM_BASE_URL: 'http://localhost:4000/v1',
+      LLM_MODEL: 'legacy-model',
+      EMBEDDING_PROVIDER: 'mock',
     })
     expect(legacy.LLM_GENERATOR_MODEL).toBe('legacy-model')
     expect(legacy.LLM_REVIEWER_MODEL).toBe('legacy-model')
@@ -62,7 +116,9 @@ describe('curriculum workflow invariants', () => {
 
   it('returns field-level guidance for invalid workflow requests', async () => {
     try {
-      await new StandardSchemaPipe(z.object({ targetId: z.string().uuid(), durationMinutes: z.number().int().positive() })).transform({ targetId: 'bad', durationMinutes: 0 })
+      await new StandardSchemaPipe(
+        z.object({ targetId: z.string().uuid(), durationMinutes: z.number().int().positive() }),
+      ).transform({ targetId: 'bad', durationMinutes: 0 })
       throw new Error('Expected invalid request to fail')
     } catch (error) {
       expect(error).toHaveProperty('status', 400)
@@ -116,7 +172,9 @@ describe('curriculum workflow invariants', () => {
       })
     }
     expect(() => validateReviewComment('returned', 'a b c d')).toThrow()
-    expect(validateReviewComment('returned', 'Add more learner practice')).toBe('Add more learner practice')
+    expect(validateReviewComment('returned', 'Add more learner practice')).toBe(
+      'Add more learner practice',
+    )
     expect(validateReviewComment('published')).toBeUndefined()
   })
 
@@ -130,13 +188,31 @@ describe('curriculum workflow invariants', () => {
   it('labels citation checks as provenance and states their semantic limit', () => {
     const qa = buildLessonPlanQa(plan, true, true)
     expect(qa.checks.find(({ code }) => code === 'official-target-citation')?.passed).toBe(true)
-    expect(qa.checks.find(({ code }) => code === 'citation-source-membership')?.message).toContain('does not assess whether each claim is supported by the cited text')
+    expect(qa.checks.find(({ code }) => code === 'citation-source-membership')?.message).toContain(
+      'does not assess whether each claim is supported by the cited text',
+    )
   })
 
   it('validates lesson structure, time totals, and source grounding', () => {
-    expect(() => validateGeneratedPlan(LessonPlanContentSchema.parse(plan), outcome, [source], 40)).not.toThrow()
-    const relatedSource: CurriculumSourceDto = { ...source, documentId: '00000000-0000-4000-8000-000000000010', chunkId: '00000000-0000-4000-8000-000000000011', role: 'teaching_support', resourceType: 'teaching_note', authority: 'school' }
-    expect(() => validateGeneratedPlan(LessonPlanContentSchema.parse(plan), outcome, [source, relatedSource], 40)).not.toThrow()
+    expect(() =>
+      validateGeneratedPlan(LessonPlanContentSchema.parse(plan), outcome, [source], 40),
+    ).not.toThrow()
+    const relatedSource: CurriculumSourceDto = {
+      ...source,
+      documentId: '00000000-0000-4000-8000-000000000010',
+      chunkId: '00000000-0000-4000-8000-000000000011',
+      role: 'teaching_support',
+      resourceType: 'teaching_note',
+      authority: 'school',
+    }
+    expect(() =>
+      validateGeneratedPlan(
+        LessonPlanContentSchema.parse(plan),
+        outcome,
+        [source, relatedSource],
+        40,
+      ),
+    ).not.toThrow()
     const badDuration = { ...plan, activities: [{ ...plan.activities[0], durationMinutes: 39 }] }
     expect(planDurationMatches(badDuration)).toBe(false)
     expect(() => validateGeneratedPlan(badDuration, outcome, [source], 40)).toThrow()
@@ -145,38 +221,87 @@ describe('curriculum workflow invariants', () => {
       throw new Error('Expected submission QA to reject the plan')
     } catch (error) {
       expect(error).toHaveProperty('status', 422)
-      expect((error as { getResponse(): { code: string } }).getResponse().code).toBe('LESSON_PLAN_QA_FAILED')
+      expect((error as { getResponse(): { code: string } }).getResponse().code).toBe(
+        'LESSON_PLAN_QA_FAILED',
+      )
     }
-    expect(() => validateGeneratedPlan({ ...plan, sources: [{ documentId: source.documentId, chunkId: '00000000-0000-4000-8000-000000000003' }] }, outcome, [source], 40)).toThrow()
-    expect(() => validateGeneratedPlan({ ...plan, sources: [{ documentId: relatedSource.documentId, chunkId: relatedSource.chunkId }] }, outcome, [source, relatedSource], 40)).toThrow()
+    expect(() =>
+      validateGeneratedPlan(
+        {
+          ...plan,
+          sources: [
+            { documentId: source.documentId, chunkId: '00000000-0000-4000-8000-000000000003' },
+          ],
+        },
+        outcome,
+        [source],
+        40,
+      ),
+    ).toThrow()
+    expect(() =>
+      validateGeneratedPlan(
+        {
+          ...plan,
+          sources: [{ documentId: relatedSource.documentId, chunkId: relatedSource.chunkId }],
+        },
+        outcome,
+        [source, relatedSource],
+        40,
+      ),
+    ).toThrow()
     expect(citationsWithinCandidateSet(plan.sources, plan.sources)).toBe(true)
-    expect(citationsWithinCandidateSet([{ documentId: outcome.id, chunkId: '00000000-0000-4000-8000-000000000003' }], plan.sources)).toBe(false)
+    expect(
+      citationsWithinCandidateSet(
+        [{ documentId: outcome.id, chunkId: '00000000-0000-4000-8000-000000000003' }],
+        plan.sources,
+      ),
+    ).toBe(false)
   })
 
   it('returns field paths and corrections for malformed lesson content', () => {
     const result = LessonPlanContentSchema.safeParse({ ...plan, starter: '' })
     if (result.success) throw new Error('Expected invalid lesson content')
-    expect(formatLessonPlanSchemaIssues(result.error.issues)).toContainEqual({ field: 'starter', message: 'Too small: expected string to have >=1 characters' })
+    expect(formatLessonPlanSchemaIssues(result.error.issues)).toContainEqual({
+      field: 'starter',
+      message: 'Too small: expected string to have >=1 characters',
+    })
   })
 
   it('routes generation through its configured model alias', async () => {
     let requestBody: Record<string, unknown> | undefined
     const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
       requestBody = JSON.parse(init?.body as string) as Record<string, unknown>
-      return new Response(JSON.stringify({
-        model: 'provider-response-model',
-        choices: [{ message: { content: JSON.stringify(plan) } }],
-        usage: { prompt_tokens: 12, completion_tokens: 34, total_tokens: 46 },
-      }), { status: 200, headers: { 'x-litellm-response-cost': '0.0004' } })
+      return new Response(
+        JSON.stringify({
+          model: 'provider-response-model',
+          choices: [{ message: { content: JSON.stringify(plan) } }],
+          usage: { prompt_tokens: 12, completion_tokens: 34, total_tokens: 46 },
+        }),
+        { status: 200, headers: { 'x-litellm-response-cost': '0.0004' } },
+      )
     })
-    const provider = new OpenAiCompatibleLessonPlanProvider({ get: (key: string) => key === 'LLM_BASE_URL' ? 'http://localhost:4000/v1' : key === 'LLM_GENERATOR_MODEL' ? 'lesson-generator-test' : undefined } as ConfigService, new RequestIdService())
+    const provider = new OpenAiCompatibleLessonPlanProvider(
+      {
+        get: (key: string) =>
+          key === 'LLM_BASE_URL'
+            ? 'http://localhost:4000/v1'
+            : key === 'LLM_GENERATOR_MODEL'
+              ? 'lesson-generator-test'
+              : undefined,
+      } as ConfigService,
+      new RequestIdService(),
+    )
     try {
       const result = await provider.complete({ system: 'Return JSON.', user: '{}' })
       expect(requestBody?.model).toBe('lesson-generator-test')
       expect(result).toMatchObject({
-        content: JSON.stringify(plan), provider: 'openai-compatible', model: 'lesson-generator-test',
-        responseModel: 'provider-response-model', usage: { inputTokens: 12, outputTokens: 34, totalTokens: 46 },
-        reportedCostUsd: 0.0004, providerAttempts: 1,
+        content: JSON.stringify(plan),
+        provider: 'openai-compatible',
+        model: 'lesson-generator-test',
+        responseModel: 'provider-response-model',
+        usage: { inputTokens: 12, outputTokens: 34, totalTokens: 46 },
+        reportedCostUsd: 0.0004,
+        providerAttempts: 1,
       })
     } finally {
       fetchMock.mockRestore()
@@ -189,19 +314,31 @@ describe('curriculum workflow invariants', () => {
     const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
       requests.push(init ?? {})
       const content = requests.length === 1 ? invalid : plan
-      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }), { status: 200 })
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }),
+        { status: 200 },
+      )
     })
     const validationMetrics = jest.spyOn(generationTelemetry, 'recordGenerationValidation')
     const config = providerConfig() as ConfigService
-    const generator = new LessonPlanGenerator(new OpenAiCompatibleLessonPlanProvider(config, new RequestIdService()), new LangfusePrompts(config))
+    const generator = new LessonPlanGenerator(
+      new OpenAiCompatibleLessonPlanProvider(config, new RequestIdService()),
+      new LangfusePrompts(config),
+    )
     try {
       await expect(generator.generate(outcome, [source], 40)).resolves.toEqual(plan)
       expect(requests).toHaveLength(2)
-      const secondBody = JSON.parse(requests[1].body as string) as { messages: { content: string }[] }
+      const secondBody = JSON.parse(requests[1].body as string) as {
+        messages: { content: string }[]
+      }
       expect(secondBody.messages.at(-1)?.content).toContain('durationMinutes must match')
       expect(secondBody.messages.at(-1)?.content).toContain('Prior response')
       expect(secondBody.messages.at(-1)?.content).toContain(JSON.stringify(invalid))
-      expect(validationMetrics).toHaveBeenCalledWith({ provider: 'openai-compatible', checkCode: 'OUTPUT_SCHEMA', passed: true })
+      expect(validationMetrics).toHaveBeenCalledWith({
+        provider: 'openai-compatible',
+        checkCode: 'OUTPUT_SCHEMA',
+        passed: true,
+      })
     } finally {
       validationMetrics.mockRestore()
       fetchMock.mockRestore()
@@ -210,12 +347,21 @@ describe('curriculum workflow invariants', () => {
 
   it('returns a stable provider error after one failed correction', async () => {
     const invalid = { ...plan, durationMinutes: 35 }
-    const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(
-      JSON.stringify({ choices: [{ message: { content: JSON.stringify(invalid) } }] }), { status: 200 },
-    ))
+    const fetchMock = jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(
+        async () =>
+          new Response(
+            JSON.stringify({ choices: [{ message: { content: JSON.stringify(invalid) } }] }),
+            { status: 200 },
+          ),
+      )
     const generationMetric = jest.spyOn(generationTelemetry, 'recordGeneration')
     const config = providerConfig() as ConfigService
-    const generator = new LessonPlanGenerator(new OpenAiCompatibleLessonPlanProvider(config, new RequestIdService()), new LangfusePrompts(config))
+    const generator = new LessonPlanGenerator(
+      new OpenAiCompatibleLessonPlanProvider(config, new RequestIdService()),
+      new LangfusePrompts(config),
+    )
     try {
       await expect(generator.generate(outcome, [source], 40)).rejects.toMatchObject({
         status: 503,
@@ -225,7 +371,13 @@ describe('curriculum workflow invariants', () => {
         },
       })
       expect(fetchMock).toHaveBeenCalledTimes(2)
-      expect(generationMetric).toHaveBeenCalledWith(expect.objectContaining({ provider: 'openai-compatible', providerAttempts: 2, repairAttempts: 1 }))
+      expect(generationMetric).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'openai-compatible',
+          providerAttempts: 2,
+          repairAttempts: 1,
+        }),
+      )
     } finally {
       generationMetric.mockRestore()
       fetchMock.mockRestore()
@@ -236,17 +388,29 @@ describe('curriculum workflow invariants', () => {
     const config = providerConfig() as ConfigService
     const provider = new OpenAiCompatibleLessonPlanProvider(config, new RequestIdService())
     const request = { system: 'Return JSON.', user: '{}' }
-    const networkFailure = jest.spyOn(globalThis, 'fetch')
-      .mockImplementationOnce(async () => { throw new TypeError('network unavailable') })
-      .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }), { status: 200 }))
+    const networkFailure = jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementationOnce(async () => {
+        throw new TypeError('network unavailable')
+      })
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }), {
+          status: 200,
+        }),
+      )
     try {
-      await expect(provider.complete(request)).resolves.toMatchObject({ content: '{"ok":true}', providerAttempts: 2 })
+      await expect(provider.complete(request)).resolves.toMatchObject({
+        content: '{"ok":true}',
+        providerAttempts: 2,
+      })
       expect(networkFailure).toHaveBeenCalledTimes(2)
     } finally {
       networkFailure.mockRestore()
     }
 
-    const authFailure = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 401 }))
+    const authFailure = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('', { status: 401 }))
     const generationMetric = jest.spyOn(generationTelemetry, 'recordGeneration')
     try {
       await expect(provider.complete(request)).rejects.toMatchObject({
@@ -256,8 +420,16 @@ describe('curriculum workflow invariants', () => {
       })
       expect(authFailure).toHaveBeenCalledTimes(1)
       const generator = new LessonPlanGenerator(provider, new LangfusePrompts(config))
-      await expect(generator.generate(outcome, [source], 40)).rejects.toMatchObject({ response: { code: 'LLM_PROVIDER_AUTH_FAILED' } })
-      expect(generationMetric).toHaveBeenCalledWith(expect.objectContaining({ provider: 'openai-compatible', outcome: 'provider_error', providerAttempts: 1 }))
+      await expect(generator.generate(outcome, [source], 40)).rejects.toMatchObject({
+        response: { code: 'LLM_PROVIDER_AUTH_FAILED' },
+      })
+      expect(generationMetric).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'openai-compatible',
+          outcome: 'provider_error',
+          providerAttempts: 1,
+        }),
+      )
       expect(authFailure).toHaveBeenCalledTimes(2)
     } finally {
       generationMetric.mockRestore()
@@ -292,7 +464,8 @@ describe('curriculum workflow invariants', () => {
     let attempts = 0
     const result = await retryEmbeddingOperation(async () => {
       attempts += 1
-      if (attempts === 1) throw new EmbeddingError('EMBEDDING_MODEL_LOAD_FAILED', 'Try again.', true)
+      if (attempts === 1)
+        throw new EmbeddingError('EMBEDDING_MODEL_LOAD_FAILED', 'Try again.', true)
       return [1]
     })
     expect(result).toEqual([1])
@@ -301,8 +474,15 @@ describe('curriculum workflow invariants', () => {
 })
 
 function mockEmbeddingSettings() {
-  return { provider: 'mock' as const, model: 'mock-hash-v1', revision: 'v1', dimensions: 384, cacheEnabled: true,
-    vectorCacheDir: '.cache/test-vectors', modelCacheDir: '.cache/test-models' }
+  return {
+    provider: 'mock' as const,
+    model: 'mock-hash-v1',
+    revision: 'v1',
+    dimensions: 384,
+    cacheEnabled: true,
+    vectorCacheDir: '.cache/test-vectors',
+    modelCacheDir: '.cache/test-models',
+  }
 }
 
 function providerConfig() {

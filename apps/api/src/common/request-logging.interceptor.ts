@@ -1,4 +1,11 @@
-import { CallHandler, ExecutionContext, HttpException, Injectable, Logger, NestInterceptor } from '@nestjs/common'
+import {
+  CallHandler,
+  ExecutionContext,
+  HttpException,
+  Injectable,
+  Logger,
+  NestInterceptor,
+} from '@nestjs/common'
 import { FastifyReply, FastifyRequest } from 'fastify'
 import { Observable, tap } from 'rxjs'
 import { performance } from 'node:perf_hooks'
@@ -11,7 +18,9 @@ import { emitTelemetryLog, getTraceCorrelation } from '../telemetry-logger'
 export class RequestLoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger(RequestLoggingInterceptor.name)
   private readonly requests = metrics.getMeter('nova-api').createCounter('api.http.requests')
-  private readonly duration = metrics.getMeter('nova-api').createHistogram('api.http.request.duration', { unit: 'ms' })
+  private readonly duration = metrics
+    .getMeter('nova-api')
+    .createHistogram('api.http.request.duration', { unit: 'ms' })
 
   constructor(private readonly requestIds: RequestIdService) {}
 
@@ -27,15 +36,24 @@ export class RequestLoggingInterceptor implements NestInterceptor {
       const attributes = { method: request.method, route, status_code: statusCode }
       const trace = getTraceCorrelation()
       const traceFields = trace.trace_id ? ` traceId=${trace.trace_id} spanId=${trace.span_id}` : ''
-      this.logger.log(`${request.method} ${route} ${statusCode} ${durationMs}ms requestId=${requestId}${traceFields} ${outcome}`)
-      emitTelemetryLog(`HTTP request ${outcome}`, SeverityNumber.INFO, { ...attributes, request_id: requestId, duration_ms: durationMs })
+      this.logger.log(
+        `${request.method} ${route} ${statusCode} ${durationMs}ms requestId=${requestId}${traceFields} ${outcome}`,
+      )
+      emitTelemetryLog(`HTTP request ${outcome}`, SeverityNumber.INFO, {
+        ...attributes,
+        request_id: requestId,
+        duration_ms: durationMs,
+      })
       this.requests.add(1, attributes)
       this.duration.record(durationMs, attributes)
     }
 
-    return next.handle().pipe(tap({
-      complete: () => log('completed'),
-      error: (error: unknown) => log('failed', error instanceof HttpException ? error.getStatus() : 500),
-    }))
+    return next.handle().pipe(
+      tap({
+        complete: () => log('completed'),
+        error: (error: unknown) =>
+          log('failed', error instanceof HttpException ? error.getStatus() : 500),
+      }),
+    )
   }
 }

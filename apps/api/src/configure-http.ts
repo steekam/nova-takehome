@@ -27,9 +27,18 @@ export async function configureHttp(app: NestFastifyApplication): Promise<void> 
   await app.register(cookie)
   await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024, files: 5 } })
   app.enableCors({
-    origin: (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(',').map((origin) => origin.trim()),
+    origin: (process.env.CORS_ORIGIN ?? 'http://localhost:5173')
+      .split(',')
+      .map((origin) => origin.trim()),
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'traceparent', 'tracestate', 'baggage'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Request-Id',
+      'traceparent',
+      'tracestate',
+      'baggage',
+    ],
     exposedHeaders: ['X-Request-Id'],
     credentials: true,
   })
@@ -44,16 +53,19 @@ export async function configureHttp(app: NestFastifyApplication): Promise<void> 
 
   app.useGlobalFilters(app.get(ApiExceptionFilter))
   app.useGlobalInterceptors(app.get(RequestLoggingInterceptor))
-  app.useGlobalPipes(new ValidationPipe({
-    transform: true,
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    exceptionFactory: (errors) => new BadRequestException({
-      code: 'VALIDATION_ERROR',
-      message: 'Validation failed',
-      errors: flattenValidationErrors(errors),
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      exceptionFactory: (errors) =>
+        new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          errors: flattenValidationErrors(errors),
+        }),
     }),
-  }))
+  )
 
   SwaggerModule.setup('docs', app, createApiDocument(app), { useGlobalPrefix: true, ui: false })
 }

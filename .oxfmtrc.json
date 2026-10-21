@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "tabWidth": 2,
+  "semi": false,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    "**/*.md",
+    "**/*.html",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/.cache/**",
+    "apps/api/openapi.json",
+    "apps/api/drizzle/**",
+    "apps/web/src/lib/api-schema.d.ts"
+  ]
+}

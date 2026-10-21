@@ -6,8 +6,12 @@ import { route as rootRoute } from './root'
 
 function CurriculumLeadLayout() {
   const user = route.useRouteContext()
-  const pathname = useRouterState({ select: state => state.location.pathname })
-  return <AppShell role={user.roles[0]}>{pathname === '/curriculum-lead' ? <LeadDashboard /> : <Outlet />}</AppShell>
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  return (
+    <AppShell role={user.roles[0]}>
+      {pathname === '/curriculum-lead' ? <LeadDashboard /> : <Outlet />}
+    </AppShell>
+  )
 }
 
 export const route = createRoute({

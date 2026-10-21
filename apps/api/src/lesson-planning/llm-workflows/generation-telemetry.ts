@@ -12,9 +12,15 @@ const generationDuration = meter.createHistogram('lesson_plan.generation.duratio
 const generationProviderAttempts = meter.createHistogram('lesson_plan.generation.provider_attempts')
 const generationRepairAttempts = meter.createHistogram('lesson_plan.generation.repair_attempts')
 const generationValidationChecks = meter.createCounter('lesson_plan.generation.validation_checks')
-const generationInputTokens = meter.createHistogram('lesson_plan.generation.input_tokens', { unit: 'token' })
-const generationOutputTokens = meter.createHistogram('lesson_plan.generation.output_tokens', { unit: 'token' })
-const generationReportedCost = meter.createHistogram('lesson_plan.generation.reported_cost', { unit: 'USD' })
+const generationInputTokens = meter.createHistogram('lesson_plan.generation.input_tokens', {
+  unit: 'token',
+})
+const generationOutputTokens = meter.createHistogram('lesson_plan.generation.output_tokens', {
+  unit: 'token',
+})
+const generationReportedCost = meter.createHistogram('lesson_plan.generation.reported_cost', {
+  unit: 'USD',
+})
 const capturePromptContent = process.env.LANGFUSE_CAPTURE_PROMPTS === 'true'
 
 export function setLangfuseInput(span: Span, input: unknown): void {
@@ -25,14 +31,25 @@ export function setLangfuseOutput(span: Span, output: unknown): void {
   if (capturePromptContent) span.setAttribute('langfuse.observation.output', JSON.stringify(output))
 }
 
-export function startLangfuseSpan<T>(name: string, callback: (span: Span) => Promise<T>, requestId?: string): Promise<T> {
-  return startActiveObservation(name, async (observation) => {
-    if (requestId) {
-      observation.update({ metadata: { requestId } })
-      return propagateAttributes({ metadata: { requestId }, traceName: name, asBaggage: true }, () => callback(observation.otelSpan))
-    }
-    return callback(observation.otelSpan)
-  }, { endOnExit: false })
+export function startLangfuseSpan<T>(
+  name: string,
+  callback: (span: Span) => Promise<T>,
+  requestId?: string,
+): Promise<T> {
+  return startActiveObservation(
+    name,
+    async (observation) => {
+      if (requestId) {
+        observation.update({ metadata: { requestId } })
+        return propagateAttributes(
+          { metadata: { requestId }, traceName: name, asBaggage: true },
+          () => callback(observation.otelSpan),
+        )
+      }
+      return callback(observation.otelSpan)
+    },
+    { endOnExit: false },
+  )
 }
 
 export type ProviderAttemptOutcome = 'success' | 'failure'
@@ -58,7 +75,11 @@ export function recordProviderAttempt(input: {
   }
 }
 
-export function recordGenerationValidation(input: { provider: string; checkCode: string; passed: boolean }): void {
+export function recordGenerationValidation(input: {
+  provider: string
+  checkCode: string
+  passed: boolean
+}): void {
   generationValidationChecks.add(1, {
     provider: input.provider,
     check_code: input.checkCode,

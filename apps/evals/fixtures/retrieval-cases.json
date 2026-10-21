@@ -2,13 +2,61 @@
   "schemaVersion": "cbc-retrieval-labels-v1",
   "status": "legacy-fixture-labels",
   "cases": [
-    { "id": "particle-model-explanation", "query": "What must learners explain when comparing matter in different forms?", "relevance": { "chunk-particle-properties": 2, "chunk-target-particles": 2, "chunk-assessment-evidence": 1 } },
-    { "id": "closing-assessment", "query": "What should each learner demonstrate at the end of the lesson?", "relevance": { "chunk-assessment-evidence": 2, "chunk-check-prior-knowledge": 1, "chunk-particle-properties": 1 } },
-    { "id": "elicit-prior-ideas", "query": "How can the teacher find out what learners think before introducing the new explanation?", "relevance": { "chunk-check-prior-knowledge": 2, "chunk-assessment-evidence": 1 } },
-    { "id": "learning-sequence", "query": "What have learners already covered, and what topic follows this lesson?", "relevance": { "chunk-sequence-particles": 2, "chunk-target-particles": 1 } },
-    { "id": "lesson-structure", "query": "What is a useful flow from the lesson opening through paired practice to an individual closing task?", "relevance": { "chunk-exemplar-pacing": 2, "chunk-assessment-evidence": 1 } },
-    { "id": "classroom-preparation", "query": "What should be prepared and arranged in the classroom before learners begin comparing diagrams?", "relevance": { "chunk-classroom-setup": 2, "chunk-lead-constraint": 1, "chunk-accessible-responses": 1 } },
-    { "id": "activity-constraints", "query": "Which classroom activities can represent particles, and what restrictions must the teacher follow?", "relevance": { "chunk-lead-constraint": 2, "chunk-classroom-setup": 1, "chunk-accessible-responses": 1 } },
-    { "id": "accessible-participation", "query": "How can a learner who cannot see the diagrams or join physical activities take part and show understanding at the end?", "relevance": { "chunk-accessible-responses": 2, "chunk-lead-constraint": 1 } }
+    {
+      "id": "particle-model-explanation",
+      "query": "What must learners explain when comparing matter in different forms?",
+      "relevance": {
+        "chunk-particle-properties": 2,
+        "chunk-target-particles": 2,
+        "chunk-assessment-evidence": 1
+      }
+    },
+    {
+      "id": "closing-assessment",
+      "query": "What should each learner demonstrate at the end of the lesson?",
+      "relevance": {
+        "chunk-assessment-evidence": 2,
+        "chunk-check-prior-knowledge": 1,
+        "chunk-particle-properties": 1
+      }
+    },
+    {
+      "id": "elicit-prior-ideas",
+      "query": "How can the teacher find out what learners think before introducing the new explanation?",
+      "relevance": { "chunk-check-prior-knowledge": 2, "chunk-assessment-evidence": 1 }
+    },
+    {
+      "id": "learning-sequence",
+      "query": "What have learners already covered, and what topic follows this lesson?",
+      "relevance": { "chunk-sequence-particles": 2, "chunk-target-particles": 1 }
+    },
+    {
+      "id": "lesson-structure",
+      "query": "What is a useful flow from the lesson opening through paired practice to an individual closing task?",
+      "relevance": { "chunk-exemplar-pacing": 2, "chunk-assessment-evidence": 1 }
+    },
+    {
+      "id": "classroom-preparation",
+      "query": "What should be prepared and arranged in the classroom before learners begin comparing diagrams?",
+      "relevance": {
+        "chunk-classroom-setup": 2,
+        "chunk-lead-constraint": 1,
+        "chunk-accessible-responses": 1
+      }
+    },
+    {
+      "id": "activity-constraints",
+      "query": "Which classroom activities can represent particles, and what restrictions must the teacher follow?",
+      "relevance": {
+        "chunk-lead-constraint": 2,
+        "chunk-classroom-setup": 1,
+        "chunk-accessible-responses": 1
+      }
+    },
+    {
+      "id": "accessible-participation",
+      "query": "How can a learner who cannot see the diagrams or join physical activities take part and show understanding at the end?",
+      "relevance": { "chunk-accessible-responses": 2, "chunk-lead-constraint": 1 }
+    }
   ]
 }

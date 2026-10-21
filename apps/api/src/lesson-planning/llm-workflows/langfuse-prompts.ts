@@ -43,14 +43,21 @@ export class LangfusePrompts {
       fallback,
     })
     const promptConfig = prompt.config
-    const model = typeof promptConfig === 'object' && promptConfig !== null &&
-      'model' in promptConfig && typeof promptConfig.model === 'string'
-      ? promptConfig.model
-      : undefined
+    const model =
+      typeof promptConfig === 'object' &&
+      promptConfig !== null &&
+      'model' in promptConfig &&
+      typeof promptConfig.model === 'string'
+        ? promptConfig.model
+        : undefined
     return {
       text: prompt.compile(),
       model,
-      reference: { name: prompt.name, version: prompt.version, isFallback: prompt.isFallback ?? false },
+      reference: {
+        name: prompt.name,
+        version: prompt.version,
+        isFallback: prompt.isFallback ?? false,
+      },
     }
   }
 }

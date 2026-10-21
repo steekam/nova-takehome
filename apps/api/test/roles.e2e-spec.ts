@@ -25,12 +25,20 @@ describe('server-side role checks', () => {
   })
 
   it('rejects teachers from the curriculum lead review queue', () => {
-    const teacher: ApiPrincipal = { subject: 'teacher-1', roles: ['teacher'], permissions: ['lesson_plan:write'] }
+    const teacher: ApiPrincipal = {
+      subject: 'teacher-1',
+      roles: ['teacher'],
+      permissions: ['lesson_plan:write'],
+    }
     expect(() => guard.canActivate(contextFor(teacher))).toThrow(ForbiddenException)
   })
 
   it('allows curriculum leads to access the review queue', () => {
-    const lead: ApiPrincipal = { subject: 'lead-1', roles: ['curriculum_lead'], permissions: ['lesson_plan:review'] }
+    const lead: ApiPrincipal = {
+      subject: 'lead-1',
+      roles: ['curriculum_lead'],
+      permissions: ['lesson_plan:review'],
+    }
     expect(guard.canActivate(contextFor(lead))).toBe(true)
   })
 })

@@ -8,10 +8,25 @@ function PublishedPlansRoute() {
 }
 
 function PublishedPlanRoute() {
-  return <PublishedPlanPage user={publishedPlanRoute.useRouteContext()} planId={publishedPlanRoute.useParams().planId} />
+  return (
+    <PublishedPlanPage
+      user={publishedPlanRoute.useRouteContext()}
+      planId={publishedPlanRoute.useParams().planId}
+    />
+  )
 }
 
-export const publishedRoute = createRoute({ getParentRoute: () => rootRoute, path: '/lesson-plans', beforeLoad: ({ location }) => requireUser(location.href), component: PublishedPlansRoute })
-const publishedPlanRoute = createRoute({ getParentRoute: () => rootRoute, path: '/lesson-plans/$planId', beforeLoad: ({ location }) => requireUser(location.href), component: PublishedPlanRoute })
+export const publishedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/lesson-plans',
+  beforeLoad: ({ location }) => requireUser(location.href),
+  component: PublishedPlansRoute,
+})
+const publishedPlanRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/lesson-plans/$planId',
+  beforeLoad: ({ location }) => requireUser(location.href),
+  component: PublishedPlanRoute,
+})
 export const route = publishedRoute
 export const detailRouteForPublishedPlan = publishedPlanRoute

@@ -1,6 +1,10 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common'
 import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger'
-import { CurriculumLibrarySourceInputSchema, type ApiPrincipal, type CurriculumLibrarySourceInput } from '@nova/shared'
+import {
+  CurriculumLibrarySourceInputSchema,
+  type ApiPrincipal,
+  type CurriculumLibrarySourceInput,
+} from '@nova/shared'
 import { CurrentUser } from '../common/auth/current-user.decorator'
 import { Roles } from '../common/auth/roles.decorator'
 import { CurriculumLibraryService } from './curriculum-library.service'
@@ -19,7 +23,10 @@ export class CurriculumLibraryController {
 
   @Get('curriculum/library/targets/:targetRevisionId')
   @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/CurriculumLibraryTarget' } })
-  async target(@Param('targetRevisionId') targetRevisionId: string, @CurrentUser() principal: ApiPrincipal) {
+  async target(
+    @Param('targetRevisionId') targetRevisionId: string,
+    @CurrentUser() principal: ApiPrincipal,
+  ) {
     return this.library.target(targetRevisionId, principal)
   }
 
@@ -31,7 +38,13 @@ export class CurriculumLibraryController {
   async addSource(
     @Param('targetRevisionId') targetRevisionId: string,
     @CurrentUser() principal: ApiPrincipal,
-    @Body(new StandardSchemaPipe(CurriculumLibrarySourceInputSchema, 'Correct the listed source fields and try again.')) input: CurriculumLibrarySourceInput,
+    @Body(
+      new StandardSchemaPipe(
+        CurriculumLibrarySourceInputSchema,
+        'Correct the listed source fields and try again.',
+      ),
+    )
+    input: CurriculumLibrarySourceInput,
   ) {
     return this.library.addSource(targetRevisionId, input, principal)
   }
@@ -45,9 +58,13 @@ export class CurriculumLibraryController {
 
   @Get('outcomes')
   @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/CurriculumOutcomesResponse' } })
-  async outcomes() { return { items: await this.library.outcomes() } }
+  async outcomes() {
+    return { items: await this.library.outcomes() }
+  }
 
   @Get('sources')
   @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/CurriculumSourcesResponse' } })
-  async sources(@CurrentUser() principal: ApiPrincipal) { return { items: await this.library.allSources(principal) } }
+  async sources(@CurrentUser() principal: ApiPrincipal) {
+    return { items: await this.library.allSources(principal) }
+  }
 }

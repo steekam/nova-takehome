@@ -18,10 +18,13 @@ describe('ApiExceptionFilter', () => {
     const errorLog = jest.spyOn(Logger.prototype, 'error').mockImplementation()
 
     try {
-      filter.catch(new ServiceUnavailableException({
-        code: 'DATABASE_MIGRATIONS_REQUIRED',
-        message: 'Database schema is not current. Run pnpm db:migrate.',
-      }), host)
+      filter.catch(
+        new ServiceUnavailableException({
+          code: 'DATABASE_MIGRATIONS_REQUIRED',
+          message: 'Database schema is not current. Run pnpm db:migrate.',
+        }),
+        host,
+      )
 
       expect(reply.status).toHaveBeenCalledWith(503)
       expect(reply.send).toHaveBeenCalledWith({

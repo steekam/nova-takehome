@@ -18,21 +18,35 @@ type CachedEncoder = { encoder: Promise<FeatureExtractionPipeline> }
 type CachedVector = { vector: number[] }
 
 export class EmbeddingError extends Error {
-  constructor(readonly code: string, message: string, readonly retryable = false) {
+  constructor(
+    readonly code: string,
+    message: string,
+    readonly retryable = false,
+  ) {
     super(message)
   }
 }
 
 const models = new Map<string, CachedEncoder>()
 const vectors = new Map<string, number[]>()
-export const EMBEDDING_PIPELINE_VERSION = 'query-prefix-v1:mean-pooling:normalized-v1:content-only-v1'
+export const EMBEDDING_PIPELINE_VERSION =
+  'query-prefix-v1:mean-pooling:normalized-v1:content-only-v1'
 
-export function embeddingCacheKey(settings: EmbeddingSettings, role: 'query' | 'document', text: string) {
-  return createHash('sha256').update(`${settings.provider}\n${settings.model}\n${settings.revision}\n${EMBEDDING_PIPELINE_VERSION}\n${settings.dimensions}\n${role}\n${text}`).digest('hex')
+export function embeddingCacheKey(
+  settings: EmbeddingSettings,
+  role: 'query' | 'document',
+  text: string,
+) {
+  return createHash('sha256')
+    .update(
+      `${settings.provider}\n${settings.model}\n${settings.revision}\n${EMBEDDING_PIPELINE_VERSION}\n${settings.dimensions}\n${role}\n${text}`,
+    )
+    .digest('hex')
 }
 
 export function createEmbeddingEncoder(settings: EmbeddingSettings): Encoder {
-  if (!Number.isInteger(settings.dimensions) || settings.dimensions !== 384) throw new EmbeddingError('EMBEDDING_CONFIG_INVALID', 'EMBEDDING_DIMENSIONS must be 384')
+  if (!Number.isInteger(settings.dimensions) || settings.dimensions !== 384)
+    throw new EmbeddingError('EMBEDDING_CONFIG_INVALID', 'EMBEDDING_DIMENSIONS must be 384')
   return async (role, text) => {
     const key = embeddingCacheKey(settings, role, text)
     const memoryCached = vectors.get(key)
@@ -43,7 +57,12 @@ export function createEmbeddingEncoder(settings: EmbeddingSettings): Encoder {
       try {
         cachedContents = await readFile(cacheFile, 'utf8')
       } catch (error) {
-        if (!isMissingFile(error)) throw new EmbeddingError('EMBEDDING_CACHE_READ_FAILED', 'The embedding cache could not be read. Check cache directory permissions.', false)
+        if (!isMissingFile(error))
+          throw new EmbeddingError(
+            'EMBEDDING_CACHE_READ_FAILED',
+            'The embedding cache could not be read. Check cache directory permissions.',
+            false,
+          )
       }
       if (cachedContents !== undefined) {
         try {
@@ -58,11 +77,17 @@ export function createEmbeddingEncoder(settings: EmbeddingSettings): Encoder {
       }
     }
 
-    const input = role === 'query' ? `Represent this sentence for searching relevant passages: ${text}` : text
-    const vector = settings.provider === 'mock'
-      ? mockVector(input, settings.dimensions)
-      : await retryEmbeddingOperation(() => localVector(settings, input))
-    if (!isValidVector(vector, settings.dimensions)) throw new EmbeddingError('EMBEDDING_OUTPUT_INVALID', 'The embedding model returned an invalid vector.')
+    const input =
+      role === 'query' ? `Represent this sentence for searching relevant passages: ${text}` : text
+    const vector =
+      settings.provider === 'mock'
+        ? mockVector(input, settings.dimensions)
+        : await retryEmbeddingOperation(() => localVector(settings, input))
+    if (!isValidVector(vector, settings.dimensions))
+      throw new EmbeddingError(
+        'EMBEDDING_OUTPUT_INVALID',
+        'The embedding model returned an invalid vector.',
+      )
     if (settings.cacheEnabled) await writeVectorCache(cacheFile, vector)
     vectors.set(key, vector)
     return vector
@@ -89,11 +114,17 @@ async function writeVectorCache(file: string, vector: number[]) {
       await rename(temporaryFile, file)
     } catch {
       await unlink(temporaryFile).catch(() => undefined)
-      throw new EmbeddingError('EMBEDDING_CACHE_WRITE_FAILED', 'The embedding cache could not be saved. Check cache directory permissions.')
+      throw new EmbeddingError(
+        'EMBEDDING_CACHE_WRITE_FAILED',
+        'The embedding cache could not be saved. Check cache directory permissions.',
+      )
     }
   } catch (error) {
     if (error instanceof EmbeddingError) throw error
-    throw new EmbeddingError('EMBEDDING_CACHE_WRITE_FAILED', 'The embedding cache could not be saved. Check cache directory permissions.')
+    throw new EmbeddingError(
+      'EMBEDDING_CACHE_WRITE_FAILED',
+      'The embedding cache could not be saved. Check cache directory permissions.',
+    )
   }
 }
 
@@ -103,7 +134,11 @@ async function localVector(settings: EmbeddingSettings, text: string): Promise<n
   if (!cached) {
     const encoder = import('@huggingface/transformers').then(({ env, pipeline }) => {
       env.cacheDir = settings.modelCacheDir
-      return pipeline('feature-extraction', settings.model, { dtype: 'fp32', device: 'cpu', revision: settings.revision })
+      return pipeline('feature-extraction', settings.model, {
+        dtype: 'fp32',
+        device: 'cpu',
+        revision: settings.revision,
+      })
     })
     cached = { encoder }
     models.set(key, cached)
@@ -113,18 +148,26 @@ async function localVector(settings: EmbeddingSettings, text: string): Promise<n
     model = await cached.encoder
   } catch {
     if (models.get(key) === cached) models.delete(key)
-    throw new EmbeddingError('EMBEDDING_MODEL_LOAD_FAILED', 'The local embedding model could not be loaded. Check model availability and retry.', true)
+    throw new EmbeddingError(
+      'EMBEDDING_MODEL_LOAD_FAILED',
+      'The local embedding model could not be loaded. Check model availability and retry.',
+      true,
+    )
   }
   try {
     const output = await model([text], { pooling: 'mean', normalize: true })
     return (output.tolist() as number[][])[0]
   } catch {
-    throw new EmbeddingError('EMBEDDING_INFERENCE_FAILED', 'The local embedding model could not encode the curriculum text.', true)
+    throw new EmbeddingError(
+      'EMBEDDING_INFERENCE_FAILED',
+      'The local embedding model could not encode the curriculum text.',
+      true,
+    )
   }
 }
 
 function mockVector(text: string, dimensions: number): number[] {
-  const vector = new Array<number>(dimensions).fill(0)
+  const vector = Array.from({ length: dimensions }, () => 0)
   for (const token of text.toLowerCase().match(/[a-z0-9]+/g) ?? []) {
     let hash = 2166136261
     for (const character of token) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619)
@@ -135,7 +178,11 @@ function mockVector(text: string, dimensions: number): number[] {
 }
 
 function isValidVector(value: unknown, dimensions: number): value is number[] {
-  return Array.isArray(value) && value.length === dimensions && value.every((entry) => typeof entry === 'number' && Number.isFinite(entry))
+  return (
+    Array.isArray(value) &&
+    value.length === dimensions &&
+    value.every((entry) => typeof entry === 'number' && Number.isFinite(entry))
+  )
 }
 
 function isMissingFile(error: unknown) {

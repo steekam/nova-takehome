@@ -1,4 +1,14 @@
-import { index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, vector } from 'drizzle-orm/pg-core'
+import {
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  vector,
+} from 'drizzle-orm/pg-core'
 
 export const curriculumDocumentType = pgEnum('curriculum_document_type', [
   'scheme_of_work',
@@ -20,7 +30,9 @@ export const curriculumChunks = pgTable(
   'curriculum_chunks',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    documentId: uuid('document_id').references(() => curriculumDocuments.id).notNull(),
+    documentId: uuid('document_id')
+      .references(() => curriculumDocuments.id)
+      .notNull(),
     ordinal: integer('ordinal').notNull(),
     content: text('content').notNull(),
     embedding: vector('embedding', { dimensions: 384 }).notNull(),

@@ -23,8 +23,8 @@ datasources:
       tracesToLogsV2:
         datasourceUid: loki
         filterByTraceID: true
-        spanStartTimeShift: "-5m"
-        spanEndTimeShift: "5m"
+        spanStartTimeShift: '-5m'
+        spanEndTimeShift: '5m'
         tags:
           - key: service.name
             value: service_name

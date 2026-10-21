@@ -15,7 +15,9 @@ export type ModelCall = {
   model: string
   system?: string
   prompt: string
-  output?: { type: 'json-object' } | { type: 'json-schema'; name: string; schema: Record<string, unknown> }
+  output?:
+    | { type: 'json-object' }
+    | { type: 'json-schema'; name: string; schema: Record<string, unknown> }
   timeoutMs?: number
   temperature?: number
   maxOutputTokens?: number
@@ -45,7 +47,12 @@ export type ModelErrorCode =
   | 'PROVIDER_TIMEOUT'
 
 export class ModelRuntimeError extends Error {
-  constructor(readonly code: ModelErrorCode, message: string, readonly retryable: boolean, readonly retryAfterMs?: number) {
+  constructor(
+    readonly code: ModelErrorCode,
+    message: string,
+    readonly retryable: boolean,
+    readonly retryAfterMs?: number,
+  ) {
     super(message)
     this.name = 'ModelRuntimeError'
   }
@@ -63,7 +70,10 @@ export async function callModel(call: ModelCall): Promise<ModelResponse> {
       const response = await fetch(input, init)
       const cost = call.reportedCostHeader ? response.headers.get(call.reportedCostHeader) : null
       const parsedCost = cost === null ? undefined : Number(cost)
-      reportedCostUsd = parsedCost !== undefined && Number.isFinite(parsedCost) && parsedCost >= 0 ? parsedCost : undefined
+      reportedCostUsd =
+        parsedCost !== undefined && Number.isFinite(parsedCost) && parsedCost >= 0
+          ? parsedCost
+          : undefined
       return response
     },
   })
@@ -79,9 +89,17 @@ export async function callModel(call: ModelCall): Promise<ModelResponse> {
       maxOutputTokens: call.maxOutputTokens ?? 8192,
       providerOptions: {
         [call.connection.id]: {
-          response_format: call.output?.type === 'json-schema'
-            ? { type: 'json_schema', json_schema: { name: call.output.name, strict: true, schema: JSON.parse(JSON.stringify(call.output.schema)) as JsonValue } }
-            : { type: 'json_object' },
+          response_format:
+            call.output?.type === 'json-schema'
+              ? {
+                  type: 'json_schema',
+                  json_schema: {
+                    name: call.output.name,
+                    strict: true,
+                    schema: JSON.parse(JSON.stringify(call.output.schema)) as JsonValue,
+                  },
+                }
+              : { type: 'json_object' },
           ...(call.disableThinking ? { chat_template_kwargs: { thinking: false } } : {}),
         },
       },
@@ -107,17 +125,36 @@ export async function callModel(call: ModelCall): Promise<ModelResponse> {
 function classifyModelError(error: unknown): ModelRuntimeError {
   if (APICallError.isInstance(error)) {
     const status = error.statusCode
-    if (error.cause instanceof Error && (error.cause.name === 'TimeoutError' || error.cause.name === 'AbortError')) {
+    if (
+      error.cause instanceof Error &&
+      (error.cause.name === 'TimeoutError' || error.cause.name === 'AbortError')
+    ) {
       return new ModelRuntimeError('PROVIDER_TIMEOUT', 'The model request timed out.', true)
     }
-    const code: ModelErrorCode = status === 401 || status === 403 ? 'PROVIDER_AUTH_ERROR'
-      : status === 429 ? 'PROVIDER_RATE_LIMITED'
-        : status === 408 || status === undefined || status >= 500 ? 'PROVIDER_UNAVAILABLE'
-          : status >= 200 && status < 300 ? 'PROVIDER_INVALID_RESPONSE'
-          : 'PROVIDER_REQUEST_REJECTED'
-    const retryable = code !== 'PROVIDER_AUTH_ERROR' && code !== 'PROVIDER_REQUEST_REJECTED' &&
-      (error.isRetryable || status === undefined || status === 408 || status === 429 || status >= 500)
-    return new ModelRuntimeError(code, safeMessage(code), retryable, parseRetryAfter(error.responseHeaders))
+    const code: ModelErrorCode =
+      status === 401 || status === 403
+        ? 'PROVIDER_AUTH_ERROR'
+        : status === 429
+          ? 'PROVIDER_RATE_LIMITED'
+          : status === 408 || status === undefined || status >= 500
+            ? 'PROVIDER_UNAVAILABLE'
+            : status >= 200 && status < 300
+              ? 'PROVIDER_INVALID_RESPONSE'
+              : 'PROVIDER_REQUEST_REJECTED'
+    const retryable =
+      code !== 'PROVIDER_AUTH_ERROR' &&
+      code !== 'PROVIDER_REQUEST_REJECTED' &&
+      (error.isRetryable ||
+        status === undefined ||
+        status === 408 ||
+        status === 429 ||
+        status >= 500)
+    return new ModelRuntimeError(
+      code,
+      safeMessage(code),
+      retryable,
+      parseRetryAfter(error.responseHeaders),
+    )
   }
   if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
     return new ModelRuntimeError('PROVIDER_TIMEOUT', 'The model request timed out.', true)
@@ -125,11 +162,17 @@ function classifyModelError(error: unknown): ModelRuntimeError {
   if (error instanceof TypeError) {
     return new ModelRuntimeError('PROVIDER_UNAVAILABLE', safeMessage('PROVIDER_UNAVAILABLE'), true)
   }
-  return new ModelRuntimeError('PROVIDER_INVALID_RESPONSE', safeMessage('PROVIDER_INVALID_RESPONSE'), false)
+  return new ModelRuntimeError(
+    'PROVIDER_INVALID_RESPONSE',
+    safeMessage('PROVIDER_INVALID_RESPONSE'),
+    false,
+  )
 }
 
 function parseRetryAfter(headers: Record<string, string> | undefined): number | undefined {
-  const value = Object.entries(headers ?? {}).find(([name]) => name.toLowerCase() === 'retry-after')?.[1]?.trim()
+  const value = Object.entries(headers ?? {})
+    .find(([name]) => name.toLowerCase() === 'retry-after')?.[1]
+    ?.trim()
   if (!value) return undefined
   const seconds = Number(value)
   if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds * 1000)

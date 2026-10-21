@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "react"],
+  "categories": {
+    "correctness": "error"
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/coverage/**",
+    "**/.cache/**",
+    "apps/api/openapi.json",
+    "apps/api/drizzle/**",
+    "apps/web/src/lib/api-schema.d.ts"
+  ]
+}

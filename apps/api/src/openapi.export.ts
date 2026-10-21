@@ -11,7 +11,10 @@ import { createApiDocument } from './openapi'
 async function exportOpenApi(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter())
   await configureHttp(app)
-  await writeFile(resolve(__dirname, '../../openapi.json'), `${JSON.stringify(createApiDocument(app), null, 2)}\n`)
+  await writeFile(
+    resolve(__dirname, '../../openapi.json'),
+    `${JSON.stringify(createApiDocument(app), null, 2)}\n`,
+  )
   await app.close()
 }
 

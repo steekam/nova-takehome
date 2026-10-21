@@ -18,6 +18,10 @@ export class EmbeddingAdapter {
     })
   }
 
-  embedQuery(text: string) { return this.encode('query', text) }
-  embedDocument(text: string) { return this.encode('document', text) }
+  embedQuery(text: string) {
+    return this.encode('query', text)
+  }
+  embedDocument(text: string) {
+    return this.encode('document', text)
+  }
 }

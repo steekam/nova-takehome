@@ -14,5 +14,9 @@ export function emitTelemetryLog(
   severityNumber: SeverityNumber,
   attributes: Record<string, string | number>,
 ): void {
-  logger.emit({ body: message, severityNumber, attributes: { ...getTraceCorrelation(), ...attributes } })
+  logger.emit({
+    body: message,
+    severityNumber,
+    attributes: { ...getTraceCorrelation(), ...attributes },
+  })
 }

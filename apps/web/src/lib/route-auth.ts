@@ -8,7 +8,13 @@ export function homeForUser(user: { roles: UserRole[] }) {
 }
 
 export function safeRedirectTarget(target: unknown): string | undefined {
-  if (typeof target !== 'string' || !target.startsWith('/') || target.startsWith('//') || target.includes('\\')) return undefined
+  if (
+    typeof target !== 'string' ||
+    !target.startsWith('/') ||
+    target.startsWith('//') ||
+    target.includes('\\')
+  )
+    return undefined
 
   const url = new URL(target, 'http://nova.local')
   if (url.origin !== 'http://nova.local') return undefined

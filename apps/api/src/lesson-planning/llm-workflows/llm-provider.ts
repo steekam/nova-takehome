@@ -3,7 +3,12 @@ import { ConfigService } from '@nestjs/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { updateActiveObservation } from '@langfuse/tracing'
 import type { ModelRuntimeError } from '@nova/model-runtime'
-import { recordProviderAttempt, setLangfuseInput, setLangfuseOutput, startLangfuseSpan } from './generation-telemetry'
+import {
+  recordProviderAttempt,
+  setLangfuseInput,
+  setLangfuseOutput,
+  startLangfuseSpan,
+} from './generation-telemetry'
 import { RequestIdService } from '../../common/request-id.service'
 import type { LangfusePromptReference } from './langfuse-prompts'
 
@@ -26,7 +31,10 @@ export interface LessonPlanCompletionResult {
 }
 
 export interface LessonPlanProvider {
-  complete(request: LessonPlanCompletionRequest, modelOverride?: string): Promise<LessonPlanCompletionResult>
+  complete(
+    request: LessonPlanCompletionRequest,
+    modelOverride?: string,
+  ): Promise<LessonPlanCompletionResult>
 }
 
 export class LessonPlanProviderFailure extends ServiceUnavailableException {
@@ -47,15 +55,25 @@ const RETRY_MAX_DELAY_MS = 8_000
 
 @Injectable()
 export class OpenAiCompatibleLessonPlanProvider implements LessonPlanProvider {
-  constructor(private readonly config: ConfigService, private readonly requestIds: RequestIdService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly requestIds: RequestIdService,
+  ) {}
 
-  async complete(request: LessonPlanCompletionRequest, modelOverride?: string): Promise<LessonPlanCompletionResult> {
+  async complete(
+    request: LessonPlanCompletionRequest,
+    modelOverride?: string,
+  ): Promise<LessonPlanCompletionResult> {
     const baseUrl = this.config.get<string>('LLM_BASE_URL')
-    const model = modelOverride ?? this.config.get<string>('LLM_GENERATOR_MODEL') ?? this.config.get<string>('LLM_MODEL')
+    const model =
+      modelOverride ??
+      this.config.get<string>('LLM_GENERATOR_MODEL') ??
+      this.config.get<string>('LLM_MODEL')
     if (!baseUrl || !model) {
       throw new LessonPlanProviderFailure('openai-compatible', model ?? 'unknown', 0, {
         code: 'LLM_PROVIDER_UNAVAILABLE',
-        message: 'LLM_BASE_URL and LLM_GENERATOR_MODEL are required for openai-compatible provider.',
+        message:
+          'LLM_BASE_URL and LLM_GENERATOR_MODEL are required for openai-compatible provider.',
       })
     }
 
@@ -66,7 +84,6 @@ export class OpenAiCompatibleLessonPlanProvider implements LessonPlanProvider {
     for (let attempt = 0; attempt <= MAX_PROVIDER_RETRIES; attempt += 1) {
       let response: Awaited<ReturnType<typeof callModel>>
       let retryDelayMs: number | undefined
-      let retryAfterMs: number | undefined
       try {
         response = await startLangfuseSpan('nova.llm.provider.call', async (span) => {
           span.setAttribute('llm.provider', 'openai-compatible')
@@ -96,18 +113,26 @@ export class OpenAiCompatibleLessonPlanProvider implements LessonPlanProvider {
               output: { type: 'json-object' },
               timeoutMs: 20_000,
               temperature: 0,
-              maxOutputTokens: configuredMaxOutputTokens(this.config.get<string>('LLM_MAX_OUTPUT_TOKENS')),
+              maxOutputTokens: configuredMaxOutputTokens(
+                this.config.get<string>('LLM_MAX_OUTPUT_TOKENS'),
+              ),
               disableThinking: true,
               reportedCostHeader: 'x-litellm-response-cost',
             })
             outcome = 'success'
             span.setAttribute('llm.provider.outcome', 'success')
-            if (response.responseModel) span.setAttribute('gen_ai.response.model', response.responseModel)
-            if (response.finishReason) span.setAttribute('gen_ai.response.finish_reason', response.finishReason)
-            if (response.usage?.inputTokens !== undefined) span.setAttribute('gen_ai.usage.input_tokens', response.usage.inputTokens)
-            if (response.usage?.outputTokens !== undefined) span.setAttribute('gen_ai.usage.output_tokens', response.usage.outputTokens)
-            if (response.usage?.totalTokens !== undefined) span.setAttribute('gen_ai.usage.total_tokens', response.usage.totalTokens)
-            if (response.reportedCostUsd !== undefined) span.setAttribute('gen_ai.usage.cost', response.reportedCostUsd)
+            if (response.responseModel)
+              span.setAttribute('gen_ai.response.model', response.responseModel)
+            if (response.finishReason)
+              span.setAttribute('gen_ai.response.finish_reason', response.finishReason)
+            if (response.usage?.inputTokens !== undefined)
+              span.setAttribute('gen_ai.usage.input_tokens', response.usage.inputTokens)
+            if (response.usage?.outputTokens !== undefined)
+              span.setAttribute('gen_ai.usage.output_tokens', response.usage.outputTokens)
+            if (response.usage?.totalTokens !== undefined)
+              span.setAttribute('gen_ai.usage.total_tokens', response.usage.totalTokens)
+            if (response.reportedCostUsd !== undefined)
+              span.setAttribute('gen_ai.usage.cost', response.reportedCostUsd)
             setLangfuseOutput(span, {
               content: parseProviderContent(response.content),
               responseModel: response.responseModel,
@@ -118,11 +143,15 @@ export class OpenAiCompatibleLessonPlanProvider implements LessonPlanProvider {
             span.setAttribute('llm.provider.outcome', 'failure')
             if (error instanceof ModelRuntimeError) {
               errorCode = error.code
-              retryAfterMs = error.retryAfterMs
               span.setAttribute('error.type', error.code)
               span.setAttribute('llm.provider.retryable', error.retryable)
-              setLangfuseOutput(span, { errorCode: error.code, retryable: error.retryable, retryAfterMs: error.retryAfterMs })
-              if (error.retryAfterMs !== undefined) span.setAttribute('llm.provider.retry_after_ms', error.retryAfterMs)
+              setLangfuseOutput(span, {
+                errorCode: error.code,
+                retryable: error.retryable,
+                retryAfterMs: error.retryAfterMs,
+              })
+              if (error.retryAfterMs !== undefined)
+                span.setAttribute('llm.provider.retry_after_ms', error.retryAfterMs)
               if (error.retryable && attempt < MAX_PROVIDER_RETRIES) {
                 retryDelayMs = providerRetryDelayMs(error.retryAfterMs, attempt + 1)
                 span.setAttribute('llm.provider.retry_scheduled', true)
@@ -165,17 +194,23 @@ export class OpenAiCompatibleLessonPlanProvider implements LessonPlanProvider {
         model,
         responseModel: response.responseModel,
         finishReason: response.finishReason,
-        usage: response.usage ? {
-          inputTokens: response.usage.inputTokens,
-          outputTokens: response.usage.outputTokens,
-          totalTokens: response.usage.totalTokens,
-        } : undefined,
+        usage: response.usage
+          ? {
+              inputTokens: response.usage.inputTokens,
+              outputTokens: response.usage.outputTokens,
+              totalTokens: response.usage.totalTokens,
+            }
+          : undefined,
         reportedCostUsd: response.reportedCostUsd,
         durationMs: Date.now() - startedAt,
         providerAttempts: attempt + 1,
       }
     }
-    throw new ServiceUnavailableException({ code: 'LLM_PROVIDER_UNAVAILABLE', message: 'The lesson plan service did not respond after retries. No draft was saved; try again.' })
+    throw new ServiceUnavailableException({
+      code: 'LLM_PROVIDER_UNAVAILABLE',
+      message:
+        'The lesson plan service did not respond after retries. No draft was saved; try again.',
+    })
   }
 }
 
@@ -183,7 +218,9 @@ type ModelRuntime = typeof import('@nova/model-runtime')
 
 function loadModelRuntime(): Promise<ModelRuntime> {
   // Preserve native import(); TypeScript lowers import() to require() in the CommonJS API build.
-  return new Function('specifier', 'return import(specifier)')('@nova/model-runtime') as Promise<ModelRuntime>
+  return new Function('specifier', 'return import(specifier)')(
+    '@nova/model-runtime',
+  ) as Promise<ModelRuntime>
 }
 
 function configuredMaxOutputTokens(value: string | undefined): number {
@@ -196,7 +233,11 @@ function configuredMaxOutputTokens(value: string | undefined): number {
 
 function parseProviderContent(content: string | undefined): unknown {
   if (!content) return null
-  try { return JSON.parse(content) as unknown } catch { return content }
+  try {
+    return JSON.parse(content) as unknown
+  } catch {
+    return content
+  }
 }
 
 function providerRetryDelayMs(retryAfterMs: number | undefined, retryNumber: number): number {
@@ -213,12 +254,36 @@ function wait(durationMs: number): Promise<void> {
 
 function providerErrorResponse(error: ModelRuntimeError): { code: string; message: string } {
   const messages: Record<ModelRuntimeError['code'], { code: string; message: string }> = {
-    PROVIDER_AUTH_ERROR: { code: 'LLM_PROVIDER_AUTH_FAILED', message: 'The lesson plan provider rejected its credentials or model access. No draft was saved; check provider access.' },
-    PROVIDER_RATE_LIMITED: { code: 'LLM_PROVIDER_RATE_LIMITED', message: 'The lesson plan provider is rate limited. No draft was saved; wait briefly and try again.' },
-    PROVIDER_UNAVAILABLE: { code: 'LLM_PROVIDER_UNAVAILABLE', message: 'The lesson plan provider did not respond after retries. No draft was saved; try again later.' },
-    PROVIDER_TIMEOUT: { code: 'LLM_PROVIDER_UNAVAILABLE', message: 'The lesson plan provider timed out after retries. No draft was saved; try again later.' },
-    PROVIDER_REQUEST_REJECTED: { code: 'LLM_PROVIDER_REJECTED', message: 'The lesson plan provider rejected the request. No draft was saved; check provider configuration.' },
-    PROVIDER_INVALID_RESPONSE: { code: 'LLM_PROVIDER_INVALID_RESPONSE', message: 'The lesson plan provider returned an invalid response. No draft was saved; try again.' },
+    PROVIDER_AUTH_ERROR: {
+      code: 'LLM_PROVIDER_AUTH_FAILED',
+      message:
+        'The lesson plan provider rejected its credentials or model access. No draft was saved; check provider access.',
+    },
+    PROVIDER_RATE_LIMITED: {
+      code: 'LLM_PROVIDER_RATE_LIMITED',
+      message:
+        'The lesson plan provider is rate limited. No draft was saved; wait briefly and try again.',
+    },
+    PROVIDER_UNAVAILABLE: {
+      code: 'LLM_PROVIDER_UNAVAILABLE',
+      message:
+        'The lesson plan provider did not respond after retries. No draft was saved; try again later.',
+    },
+    PROVIDER_TIMEOUT: {
+      code: 'LLM_PROVIDER_UNAVAILABLE',
+      message:
+        'The lesson plan provider timed out after retries. No draft was saved; try again later.',
+    },
+    PROVIDER_REQUEST_REJECTED: {
+      code: 'LLM_PROVIDER_REJECTED',
+      message:
+        'The lesson plan provider rejected the request. No draft was saved; check provider configuration.',
+    },
+    PROVIDER_INVALID_RESPONSE: {
+      code: 'LLM_PROVIDER_INVALID_RESPONSE',
+      message:
+        'The lesson plan provider returned an invalid response. No draft was saved; try again.',
+    },
   }
   return messages[error.code]
 }

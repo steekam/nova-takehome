@@ -47,7 +47,10 @@ export class CurriculumLibraryRepository {
     const nodes = designs.flatMap((design) => design.nodes)
     const targets = designs.flatMap((design) => design.targets)
     const sources = targets.length
-      ? await this.sourceRows(targets.map((target) => target.id), includeDraft)
+      ? await this.sourceRows(
+          targets.map((target) => target.id),
+          includeDraft,
+        )
       : []
 
     return {
@@ -60,45 +63,87 @@ export class CurriculumLibraryRepository {
   }
 
   targetDesign(targetRevisionId: string, executor: DbExecutor = this.database.db) {
-    return executor.select({ designVersionId: curriculumTargetRevisions.designVersionId })
-      .from(curriculumTargetRevisions).where(eq(curriculumTargetRevisions.id, targetRevisionId)).limit(1)
+    return executor
+      .select({ designVersionId: curriculumTargetRevisions.designVersionId })
+      .from(curriculumTargetRevisions)
+      .where(eq(curriculumTargetRevisions.id, targetRevisionId))
+      .limit(1)
   }
 
   design(id: string, executor: DbExecutor = this.database.db) {
-    return executor.select().from(curriculumDesignVersions).where(eq(curriculumDesignVersions.id, id)).limit(1)
+    return executor
+      .select()
+      .from(curriculumDesignVersions)
+      .where(eq(curriculumDesignVersions.id, id))
+      .limit(1)
   }
 
   resourceForUpdate(id: string, executor: DbExecutor = this.database.db) {
-    return executor.select().from(libraryResources).where(eq(libraryResources.id, id)).for('update').limit(1)
+    return executor
+      .select()
+      .from(libraryResources)
+      .where(eq(libraryResources.id, id))
+      .for('update')
+      .limit(1)
   }
 
   latestResourceRevision(resourceId: string, executor: DbExecutor = this.database.db) {
-    return executor.select().from(libraryResourceRevisions).where(eq(libraryResourceRevisions.resourceId, resourceId))
-      .orderBy(desc(libraryResourceRevisions.revisionNumber)).limit(1)
+    return executor
+      .select()
+      .from(libraryResourceRevisions)
+      .where(eq(libraryResourceRevisions.resourceId, resourceId))
+      .orderBy(desc(libraryResourceRevisions.revisionNumber))
+      .limit(1)
   }
 
-  createResource(values: { resourceType: typeof libraryResources.$inferInsert.resourceType; title: string; authority: typeof libraryResources.$inferInsert.authority }, executor: DbExecutor = this.database.db) {
+  createResource(
+    values: {
+      resourceType: typeof libraryResources.$inferInsert.resourceType
+      title: string
+      authority: typeof libraryResources.$inferInsert.authority
+    },
+    executor: DbExecutor = this.database.db,
+  ) {
     return executor.insert(libraryResources).values(values).returning()
   }
 
-  createResourceRevision(values: typeof libraryResourceRevisions.$inferInsert, executor: DbExecutor = this.database.db) {
+  createResourceRevision(
+    values: typeof libraryResourceRevisions.$inferInsert,
+    executor: DbExecutor = this.database.db,
+  ) {
     return executor.insert(libraryResourceRevisions).values(values).returning()
   }
 
-  createChunks(values: (typeof libraryResourceChunks.$inferInsert)[], executor: DbExecutor = this.database.db) {
+  createChunks(
+    values: (typeof libraryResourceChunks.$inferInsert)[],
+    executor: DbExecutor = this.database.db,
+  ) {
     return executor.insert(libraryResourceChunks).values(values).returning()
   }
 
-  createSourceLink(values: typeof curriculumSourceLinks.$inferInsert, executor: DbExecutor = this.database.db) {
+  createSourceLink(
+    values: typeof curriculumSourceLinks.$inferInsert,
+    executor: DbExecutor = this.database.db,
+  ) {
     return executor.insert(curriculumSourceLinks).values(values).returning()
   }
 
   sourceLinkForUpdate(id: string, executor: DbExecutor = this.database.db) {
-    return executor.select().from(curriculumSourceLinks).where(eq(curriculumSourceLinks.id, id)).for('update').limit(1)
+    return executor
+      .select()
+      .from(curriculumSourceLinks)
+      .where(eq(curriculumSourceLinks.id, id))
+      .for('update')
+      .limit(1)
   }
 
   resourceRevisionForUpdate(id: string, executor: DbExecutor = this.database.db) {
-    return executor.select().from(libraryResourceRevisions).where(eq(libraryResourceRevisions.id, id)).for('update').limit(1)
+    return executor
+      .select()
+      .from(libraryResourceRevisions)
+      .where(eq(libraryResourceRevisions.id, id))
+      .for('update')
+      .limit(1)
   }
 
   resource(id: string, executor: DbExecutor = this.database.db) {
@@ -106,27 +151,46 @@ export class CurriculumLibraryRepository {
   }
 
   firstChunkForRevision(revisionId: string, executor: DbExecutor = this.database.db) {
-    return executor.select().from(libraryResourceChunks).where(eq(libraryResourceChunks.resourceRevisionId, revisionId)).limit(1)
+    return executor
+      .select()
+      .from(libraryResourceChunks)
+      .where(eq(libraryResourceChunks.resourceRevisionId, revisionId))
+      .limit(1)
   }
 
   publishResourceRevision(id: string, publishedAt: Date, executor: DbExecutor = this.database.db) {
-    return executor.update(libraryResourceRevisions).set({ status: 'published', publishedAt })
+    return executor
+      .update(libraryResourceRevisions)
+      .set({ status: 'published', publishedAt })
       .where(eq(libraryResourceRevisions.id, id))
   }
 
-  publishSourceLink(id: string, publishedBy: string, publishedAt: Date, executor: DbExecutor = this.database.db) {
-    return executor.update(curriculumSourceLinks).set({ status: 'published', publishedBy, publishedAt })
+  publishSourceLink(
+    id: string,
+    publishedBy: string,
+    publishedAt: Date,
+    executor: DbExecutor = this.database.db,
+  ) {
+    return executor
+      .update(curriculumSourceLinks)
+      .set({ status: 'published', publishedBy, publishedAt })
       .where(eq(curriculumSourceLinks.id, id))
   }
 
-  async sourceRows(targetIds: string[], includeDraft: boolean, executor: DbExecutor = this.database.db) {
+  async sourceRows(
+    targetIds: string[],
+    includeDraft: boolean,
+    executor: DbExecutor = this.database.db,
+  ) {
     if (!targetIds.length) return []
 
     const links = await executor.query.curriculumSourceLinks.findMany({
       columns: { id: true, targetRevisionId: true, role: true, status: true },
       where: {
         targetRevisionId: { in: targetIds },
-        ...(!includeDraft ? { status: 'published', resourceRevision: { status: 'published' } } : {}),
+        ...(!includeDraft
+          ? { status: 'published', resourceRevision: { status: 'published' } }
+          : {}),
       },
       with: {
         targetRevision: {
@@ -147,7 +211,13 @@ export class CurriculumLibraryRepository {
           },
         },
         resourceRevision: {
-          columns: { id: true, revisionNumber: true, editionLabel: true, sourceUrl: true, status: true },
+          columns: {
+            id: true,
+            revisionNumber: true,
+            editionLabel: true,
+            sourceUrl: true,
+            status: true,
+          },
           with: {
             resource: { columns: { id: true, resourceType: true, title: true, authority: true } },
             chunks: { columns: { id: true, locator: true, content: true } },
@@ -156,7 +226,8 @@ export class CurriculumLibraryRepository {
       },
     })
 
-    return links.flatMap((link) => link.resourceRevision.chunks.map((chunk) => ({
+    return links.flatMap((link) =>
+      link.resourceRevision.chunks.map((chunk) => ({
         linkId: link.id,
         targetRevisionId: link.targetRevisionId,
         role: link.role,
@@ -175,62 +246,95 @@ export class CurriculumLibraryRepository {
         locator: chunk.locator,
         content: chunk.content,
         revisionStatus: link.resourceRevision.status,
-      })))
+      })),
+    )
   }
 
   sourceChunksForTarget(targetRevisionId: string, embedding: number[], limit: number) {
     const vectorText = `[${embedding.join(',')}]`
     const distance = sql<number>`${libraryResourceChunks.embedding} <=> ${vectorText}::vector`
-    return this.database.db.select({
-      linkId: curriculumSourceLinks.id,
-      documentId: libraryResources.id,
-      resourceRevisionId: libraryResourceRevisions.id,
-      revisionNumber: libraryResourceRevisions.revisionNumber,
-      chunkId: libraryResourceChunks.id,
-      resourceType: libraryResources.resourceType,
-      title: libraryResources.title,
-      authority: libraryResources.authority,
-      editionLabel: libraryResourceRevisions.editionLabel,
-      sourceUrl: libraryResourceRevisions.sourceUrl,
-      locator: libraryResourceChunks.locator,
-      content: libraryResourceChunks.content,
-      role: curriculumSourceLinks.role,
-      linkStatus: curriculumSourceLinks.status,
-      revisionStatus: libraryResourceRevisions.status,
-    }).from(curriculumSourceLinks)
-      .innerJoin(libraryResourceRevisions, eq(curriculumSourceLinks.resourceRevisionId, libraryResourceRevisions.id))
+    return this.database.db
+      .select({
+        linkId: curriculumSourceLinks.id,
+        documentId: libraryResources.id,
+        resourceRevisionId: libraryResourceRevisions.id,
+        revisionNumber: libraryResourceRevisions.revisionNumber,
+        chunkId: libraryResourceChunks.id,
+        resourceType: libraryResources.resourceType,
+        title: libraryResources.title,
+        authority: libraryResources.authority,
+        editionLabel: libraryResourceRevisions.editionLabel,
+        sourceUrl: libraryResourceRevisions.sourceUrl,
+        locator: libraryResourceChunks.locator,
+        content: libraryResourceChunks.content,
+        role: curriculumSourceLinks.role,
+        linkStatus: curriculumSourceLinks.status,
+        revisionStatus: libraryResourceRevisions.status,
+      })
+      .from(curriculumSourceLinks)
+      .innerJoin(
+        libraryResourceRevisions,
+        eq(curriculumSourceLinks.resourceRevisionId, libraryResourceRevisions.id),
+      )
       .innerJoin(libraryResources, eq(libraryResourceRevisions.resourceId, libraryResources.id))
-      .innerJoin(libraryResourceChunks, eq(libraryResourceChunks.resourceRevisionId, libraryResourceRevisions.id))
-      .where(and(
-        eq(curriculumSourceLinks.targetRevisionId, targetRevisionId),
-        eq(curriculumSourceLinks.status, 'published'),
-        eq(libraryResourceRevisions.status, 'published'),
-      ))
+      .innerJoin(
+        libraryResourceChunks,
+        eq(libraryResourceChunks.resourceRevisionId, libraryResourceRevisions.id),
+      )
+      .where(
+        and(
+          eq(curriculumSourceLinks.targetRevisionId, targetRevisionId),
+          eq(curriculumSourceLinks.status, 'published'),
+          eq(libraryResourceRevisions.status, 'published'),
+        ),
+      )
       .orderBy(distance, asc(curriculumSourceLinks.role), asc(curriculumSourceLinks.id))
       .limit(limit)
   }
 
   async targetDefinitionChunks(targetRevisionId: string) {
     const sources = await this.sourceRows([targetRevisionId], false)
-    return sources.filter((source) => source.role === 'defines_target'
-      && source.resourceType === 'curriculum_design'
-      && source.authority === 'official')
-      .map(({ linkId, documentId, resourceRevisionId, revisionNumber, chunkId, resourceType, title, authority, editionLabel, sourceUrl, locator, content, role, linkStatus, revisionStatus }) => ({
-        linkId,
-        documentId,
-        resourceRevisionId,
-        revisionNumber,
-        chunkId,
-        resourceType,
-        title,
-        authority,
-        editionLabel,
-        sourceUrl,
-        locator,
-        content,
-        role,
-        linkStatus,
-        revisionStatus,
-      }))
+    return sources
+      .filter(
+        (source) =>
+          source.role === 'defines_target' &&
+          source.resourceType === 'curriculum_design' &&
+          source.authority === 'official',
+      )
+      .map(
+        ({
+          linkId,
+          documentId,
+          resourceRevisionId,
+          revisionNumber,
+          chunkId,
+          resourceType,
+          title,
+          authority,
+          editionLabel,
+          sourceUrl,
+          locator,
+          content,
+          role,
+          linkStatus,
+          revisionStatus,
+        }) => ({
+          linkId,
+          documentId,
+          resourceRevisionId,
+          revisionNumber,
+          chunkId,
+          resourceType,
+          title,
+          authority,
+          editionLabel,
+          sourceUrl,
+          locator,
+          content,
+          role,
+          linkStatus,
+          revisionStatus,
+        }),
+      )
   }
 }

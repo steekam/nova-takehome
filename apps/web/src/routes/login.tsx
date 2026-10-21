@@ -31,7 +31,11 @@ function LoginPage() {
       if (target) router.history.push(target)
       else await navigate({ to: homeForUser(data.user) })
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : 'Could not reach Curriculum Design Hub. Check your connection and try again.')
+      setError(
+        cause instanceof ApiError
+          ? cause.message
+          : 'Could not reach Curriculum Design Hub. Check your connection and try again.',
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -53,20 +57,38 @@ function LoginPage() {
     <div className="flex min-h-svh items-center justify-center bg-muted/30 p-5">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <img src="/brand/nova-pioneer-mark.svg" alt="Nova Pioneer" className="mx-auto size-14 object-contain" />
+          <img
+            src="/brand/nova-pioneer-mark.svg"
+            alt="Nova Pioneer"
+            className="mx-auto size-14 object-contain"
+          />
           <CardTitle>Curriculum Design Hub</CardTitle>
         </CardHeader>
         <CardContent>
           <section aria-labelledby="demo-accounts-title" className="mb-5 space-y-3">
             <div>
-              <h2 id="demo-accounts-title" className="text-sm font-semibold">Try a demo account</h2>
-              <p className="mt-1 text-xs text-muted-foreground">One click signs you in with sample data.</p>
+              <h2 id="demo-accounts-title" className="text-sm font-semibold">
+                Try a demo account
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                One click signs you in with sample data.
+              </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
-              <Button disabled={isSubmitting} onClick={() => signInAsDemoAccount('teacher')} type="button" variant="outline">
+              <Button
+                disabled={isSubmitting}
+                onClick={() => signInAsDemoAccount('teacher')}
+                type="button"
+                variant="outline"
+              >
                 {isSubmitting ? 'Signing in…' : 'Continue as teacher'}
               </Button>
-              <Button disabled={isSubmitting} onClick={() => signInAsDemoAccount('curriculum-lead')} type="button" variant="outline">
+              <Button
+                disabled={isSubmitting}
+                onClick={() => signInAsDemoAccount('curriculum-lead')}
+                type="button"
+                variant="outline"
+              >
                 {isSubmitting ? 'Signing in…' : 'Continue as curriculum lead'}
               </Button>
             </div>
@@ -96,7 +118,11 @@ function LoginPage() {
                 value={password}
               />
             </label>
-            {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+            {error && (
+              <p className="text-sm text-destructive" role="alert">
+                {error}
+              </p>
+            )}
             <Button className="w-full" disabled={isSubmitting} type="submit">
               {isSubmitting ? 'Signing in…' : 'Sign in'}
             </Button>
@@ -110,9 +136,10 @@ function LoginPage() {
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
-  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
-    ...(typeof search.redirect === 'string' ? { redirect: search.redirect } : {}),
-  }),
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => {
+    if (typeof search.redirect !== 'string') return {}
+    return { redirect: search.redirect }
+  },
   beforeLoad: async () => {
     const user = await queryClient.fetchQuery(currentUserQuery)
     if (user) throw redirect({ to: homeForUser(user) })

@@ -37,7 +37,11 @@ export function setUnauthorizedHandler(handler: () => void) {
 }
 
 export async function apiResponseError(response: Response): Promise<ApiError> {
-  if (response.status === 401 && !new URL(response.url, window.location.origin).pathname.startsWith('/api/auth/')) onUnauthorized?.()
+  if (
+    response.status === 401 &&
+    !new URL(response.url, window.location.origin).pathname.startsWith('/api/auth/')
+  )
+    onUnauthorized?.()
   return toApiError(response)
 }
 
@@ -45,7 +49,8 @@ const apiBaseUrl = (import.meta.env.VITE_API_URL ?? 'http://localhost:3001').rep
 
 const requestIdMiddleware: Middleware = {
   onRequest({ request }) {
-    if (!request.headers.has('X-Request-Id')) request.headers.set('X-Request-Id', crypto.randomUUID())
+    if (!request.headers.has('X-Request-Id'))
+      request.headers.set('X-Request-Id', crypto.randomUUID())
     return request
   },
   async onResponse({ response }) {
@@ -60,18 +65,22 @@ apiClient.use(requestIdMiddleware)
 async function toApiError(response: Response): Promise<ApiError> {
   const payload: unknown = await response.json().catch(() => undefined)
   const body = isRecord(payload) ? payload : undefined
-  const message = typeof body?.message === 'string'
-    ? body.message
-    : Array.isArray(body?.message) && body.message.every((item: unknown) => typeof item === 'string')
-      ? body.message.join('. ')
-      : response.statusText || 'Request failed'
+  const message =
+    typeof body?.message === 'string'
+      ? body.message
+      : Array.isArray(body?.message) &&
+          body.message.every((item: unknown) => typeof item === 'string')
+        ? body.message.join('. ')
+        : response.statusText || 'Request failed'
 
   return new ApiError({
     status: response.status,
     message,
     code: typeof body?.code === 'string' ? body.code : undefined,
     errors: isValidationIssues(body?.errors) ? body.errors : undefined,
-    requestId: response.headers.get('x-request-id') ?? (typeof body?.requestId === 'string' ? body.requestId : undefined),
+    requestId:
+      response.headers.get('x-request-id') ??
+      (typeof body?.requestId === 'string' ? body.requestId : undefined),
   })
 }
 
@@ -80,10 +89,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isValidationIssues(value: unknown): value is ApiValidationIssue[] {
-  return Array.isArray(value) && value.every((issue: unknown) =>
-    isRecord(issue) &&
-    typeof issue.field === 'string' &&
-    Array.isArray(issue.constraints) &&
-    issue.constraints.every((constraint: unknown) => typeof constraint === 'string'),
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (issue: unknown) =>
+        isRecord(issue) &&
+        typeof issue.field === 'string' &&
+        Array.isArray(issue.constraints) &&
+        issue.constraints.every((constraint: unknown) => typeof constraint === 'string'),
+    )
   )
 }

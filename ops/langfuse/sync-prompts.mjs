@@ -2,8 +2,12 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 const requireApi = createRequire(new URL('../../apps/api/package.json', import.meta.url))
-const { lessonPlanGenerationPrompt } = require('../../apps/api/dist/src/lesson-planning/llm-workflows/generation-prompt.js')
-const { lessonPlanRubricPrompt } = require('../../apps/api/dist/src/lesson-planning/llm-workflows/rubric-prompt.js')
+const {
+  lessonPlanGenerationPrompt,
+} = require('../../apps/api/dist/src/lesson-planning/llm-workflows/generation-prompt.js')
+const {
+  lessonPlanRubricPrompt,
+} = require('../../apps/api/dist/src/lesson-planning/llm-workflows/rubric-prompt.js')
 const { LangfuseClient } = requireApi('@langfuse/client')
 
 const publicKey = process.env.LANGFUSE_PUBLIC_KEY
@@ -33,10 +37,18 @@ for (const definition of [lessonPlanGenerationPrompt, lessonPlanRubricPrompt]) {
     continue
   }
   if (current && !publishSource) {
-    process.stdout.write(`${definition.name}: keeping Langfuse-managed ${label} v${current.version}; use the publish command to replace it\n`)
+    process.stdout.write(
+      `${definition.name}: keeping Langfuse-managed ${label} v${current.version}; use the publish command to replace it\n`,
+    )
     continue
   }
-  const prompt = await client.prompt.create({ name: definition.name, type: 'text', prompt: definition.prompt, config: definition.config, labels: [label] })
+  const prompt = await client.prompt.create({
+    name: definition.name,
+    type: 'text',
+    prompt: definition.prompt,
+    config: definition.config,
+    labels: [label],
+  })
   process.stdout.write(`${definition.name}: published ${label} v${prompt.version}\n`)
 }
 

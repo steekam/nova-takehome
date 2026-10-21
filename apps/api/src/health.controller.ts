@@ -34,10 +34,16 @@ export class HealthController {
   async getReadiness() {
     const readiness = await this.database.readiness()
     if (readiness.status === 'database-unavailable') {
-      throw new ServiceUnavailableException({ code: 'DATABASE_UNAVAILABLE', message: 'Database is unavailable.' })
+      throw new ServiceUnavailableException({
+        code: 'DATABASE_UNAVAILABLE',
+        message: 'Database is unavailable.',
+      })
     }
     if (readiness.status === 'migrations-required') {
-      throw new ServiceUnavailableException({ code: 'DATABASE_MIGRATIONS_REQUIRED', message: 'Database schema is not current. Run pnpm db:migrate.' })
+      throw new ServiceUnavailableException({
+        code: 'DATABASE_MIGRATIONS_REQUIRED',
+        message: 'Database schema is not current. Run pnpm db:migrate.',
+      })
     }
     return { status: readiness.status }
   }

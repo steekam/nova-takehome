@@ -9,4 +9,12 @@ import { route as publishedRoute, detailRouteForPublishedPlan } from './routes/p
 
 const curriculumLeadTree = curriculumLeadRoute.addChildren([planRoute])
 
-export const routeTree = rootRoute.addChildren([homeRoute, teacherRoute, curriculumLeadTree, libraryRoute, publishedRoute, detailRouteForPublishedPlan, loginRoute])
+export const routeTree = rootRoute.addChildren([
+  homeRoute,
+  teacherRoute,
+  curriculumLeadTree,
+  libraryRoute,
+  publishedRoute,
+  detailRouteForPublishedPlan,
+  loginRoute,
+])
