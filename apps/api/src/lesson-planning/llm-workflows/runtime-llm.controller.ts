@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Put } from '@nestjs/common'
 import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { RuntimeLessonPlanProvider } from './runtime-lesson-plan-provider'
-import { StandardSchemaPipe } from '../common/validation/standard-schema.pipe'
+import { StandardSchemaPipe } from '../../common/validation/standard-schema.pipe'
 import { RuntimeLlmModeRequestSchema, type LlmMode } from '@nova/shared'
 
 @ApiTags('Runtime configuration')

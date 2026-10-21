@@ -2,7 +2,8 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 const requireApi = createRequire(new URL('../../apps/api/package.json', import.meta.url))
-const { lessonPlanGenerationPrompt, lessonPlanRubricPrompt } = require('../../apps/api/dist/src/lesson-planning/prompt-definitions.js')
+const { lessonPlanGenerationPrompt } = require('../../apps/api/dist/src/lesson-planning/llm-workflows/generation-prompt.js')
+const { lessonPlanRubricPrompt } = require('../../apps/api/dist/src/lesson-planning/llm-workflows/rubric-prompt.js')
 const { LangfuseClient } = requireApi('@langfuse/client')
 
 const publicKey = process.env.LANGFUSE_PUBLIC_KEY

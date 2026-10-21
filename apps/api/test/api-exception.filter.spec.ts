@@ -6,7 +6,7 @@ describe('ApiExceptionFilter', () => {
   it('preserves the actionable database migration readiness response', () => {
     const reply = { status: jest.fn().mockReturnThis(), send: jest.fn() }
     const request = {
-      headers: {},
+      headers: { 'x-request-id': 'request-123' },
       method: 'GET',
       url: '/health/ready',
       routeOptions: { url: '/health/ready' },
@@ -14,7 +14,7 @@ describe('ApiExceptionFilter', () => {
     const host = {
       switchToHttp: () => ({ getRequest: () => request, getResponse: () => reply }),
     } as unknown as ArgumentsHost
-    const filter = new ApiExceptionFilter({ getOrCreate: () => 'request-123' } as RequestIdService)
+    const filter = new ApiExceptionFilter(new RequestIdService())
     const errorLog = jest.spyOn(Logger.prototype, 'error').mockImplementation()
 
     try {

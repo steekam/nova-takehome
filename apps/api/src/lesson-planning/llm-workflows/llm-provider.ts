@@ -2,9 +2,9 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { updateActiveObservation } from '@langfuse/tracing'
-import { callModel, ModelRuntimeError } from '@nova/model-runtime'
+import type { ModelRuntimeError } from '@nova/model-runtime'
 import { recordProviderAttempt, setLangfuseInput, setLangfuseOutput, startLangfuseSpan } from './generation-telemetry'
-import { RequestIdService } from '../common/request-id.service'
+import { RequestIdService } from '../../common/request-id.service'
 import type { LangfusePromptReference } from './langfuse-prompts'
 
 export interface LessonPlanCompletionRequest {
@@ -58,6 +58,8 @@ export class OpenAiCompatibleLessonPlanProvider implements LessonPlanProvider {
         message: 'LLM_BASE_URL and LLM_GENERATOR_MODEL are required for openai-compatible provider.',
       })
     }
+
+    const { callModel, ModelRuntimeError } = await loadModelRuntime()
 
     const startedAt = Date.now()
     const requestId = this.requestIds.current()
@@ -175,6 +177,13 @@ export class OpenAiCompatibleLessonPlanProvider implements LessonPlanProvider {
     }
     throw new ServiceUnavailableException({ code: 'LLM_PROVIDER_UNAVAILABLE', message: 'The lesson plan service did not respond after retries. No draft was saved; try again.' })
   }
+}
+
+type ModelRuntime = typeof import('@nova/model-runtime')
+
+function loadModelRuntime(): Promise<ModelRuntime> {
+  // Preserve native import(); TypeScript lowers import() to require() in the CommonJS API build.
+  return new Function('specifier', 'return import(specifier)')('@nova/model-runtime') as Promise<ModelRuntime>
 }
 
 function configuredMaxOutputTokens(value: string | undefined): number {

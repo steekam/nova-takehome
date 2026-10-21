@@ -7,9 +7,11 @@ import { hasValidReturnComment, type ApiPrincipal, type CurriculumOutcomeDto, ty
 import { LessonPlanContentSchema } from '@nova/shared'
 import { assertCanReadPlan, assertTeacherOwns, citationsWithinCandidateSet, formatLessonPlanSchemaIssues, planDurationMatches, transitionPlanStatus, validatePlanQa, validateReviewComment } from '../src/lesson-planning/lesson-planning.service'
 import { createEmbeddingEncoder, EmbeddingError, embeddingCacheKey, retryEmbeddingOperation } from '../src/embeddings/embedding.adapter'
-import { LessonPlanGenerator, validateGeneratedPlan } from '../src/lesson-planning/lesson-plan-generator'
-import { OpenAiCompatibleLessonPlanProvider } from '../src/lesson-planning/llm-provider'
-import * as generationTelemetry from '../src/lesson-planning/generation-telemetry'
+import { LessonPlanGenerator, validateGeneratedPlan } from '../src/lesson-planning/llm-workflows/lesson-plan-generator'
+import { OpenAiCompatibleLessonPlanProvider } from '../src/lesson-planning/llm-workflows/llm-provider'
+import { LangfusePrompts } from '../src/lesson-planning/llm-workflows/langfuse-prompts'
+import { RequestIdService } from '../src/common/request-id.service'
+import * as generationTelemetry from '../src/lesson-planning/llm-workflows/generation-telemetry'
 import { buildLessonPlanQa } from '../src/lesson-planning/lesson-planning.controller'
 import { StandardSchemaPipe } from '../src/common/validation/standard-schema.pipe'
 import { validateEnvironment } from '../src/configuration'
@@ -167,7 +169,7 @@ describe('curriculum workflow invariants', () => {
         usage: { prompt_tokens: 12, completion_tokens: 34, total_tokens: 46 },
       }), { status: 200, headers: { 'x-litellm-response-cost': '0.0004' } })
     })
-    const provider = new OpenAiCompatibleLessonPlanProvider({ get: (key: string) => key === 'LLM_BASE_URL' ? 'http://localhost:4000/v1' : key === 'LLM_GENERATOR_MODEL' ? 'lesson-generator-test' : undefined } as ConfigService)
+    const provider = new OpenAiCompatibleLessonPlanProvider({ get: (key: string) => key === 'LLM_BASE_URL' ? 'http://localhost:4000/v1' : key === 'LLM_GENERATOR_MODEL' ? 'lesson-generator-test' : undefined } as ConfigService, new RequestIdService())
     try {
       const result = await provider.complete({ system: 'Return JSON.', user: '{}' })
       expect(requestBody?.model).toBe('lesson-generator-test')
@@ -190,12 +192,15 @@ describe('curriculum workflow invariants', () => {
       return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }), { status: 200 })
     })
     const validationMetrics = jest.spyOn(generationTelemetry, 'recordGenerationValidation')
-    const generator = new LessonPlanGenerator(new OpenAiCompatibleLessonPlanProvider(providerConfig() as ConfigService))
+    const config = providerConfig() as ConfigService
+    const generator = new LessonPlanGenerator(new OpenAiCompatibleLessonPlanProvider(config, new RequestIdService()), new LangfusePrompts(config))
     try {
       await expect(generator.generate(outcome, [source], 40)).resolves.toEqual(plan)
       expect(requests).toHaveLength(2)
       const secondBody = JSON.parse(requests[1].body as string) as { messages: { content: string }[] }
       expect(secondBody.messages.at(-1)?.content).toContain('durationMinutes must match')
+      expect(secondBody.messages.at(-1)?.content).toContain('Prior response')
+      expect(secondBody.messages.at(-1)?.content).toContain(JSON.stringify(invalid))
       expect(validationMetrics).toHaveBeenCalledWith({ provider: 'openai-compatible', checkCode: 'OUTPUT_SCHEMA', passed: true })
     } finally {
       validationMetrics.mockRestore()
@@ -209,7 +214,8 @@ describe('curriculum workflow invariants', () => {
       JSON.stringify({ choices: [{ message: { content: JSON.stringify(invalid) } }] }), { status: 200 },
     ))
     const generationMetric = jest.spyOn(generationTelemetry, 'recordGeneration')
-    const generator = new LessonPlanGenerator(new OpenAiCompatibleLessonPlanProvider(providerConfig() as ConfigService))
+    const config = providerConfig() as ConfigService
+    const generator = new LessonPlanGenerator(new OpenAiCompatibleLessonPlanProvider(config, new RequestIdService()), new LangfusePrompts(config))
     try {
       await expect(generator.generate(outcome, [source], 40)).rejects.toMatchObject({
         status: 503,
@@ -227,7 +233,8 @@ describe('curriculum workflow invariants', () => {
   })
 
   it('retries a transient provider failure once and does not retry authentication failures', async () => {
-    const provider = new OpenAiCompatibleLessonPlanProvider(providerConfig() as ConfigService)
+    const config = providerConfig() as ConfigService
+    const provider = new OpenAiCompatibleLessonPlanProvider(config, new RequestIdService())
     const request = { system: 'Return JSON.', user: '{}' }
     const networkFailure = jest.spyOn(globalThis, 'fetch')
       .mockImplementationOnce(async () => { throw new TypeError('network unavailable') })
@@ -248,7 +255,7 @@ describe('curriculum workflow invariants', () => {
         response: { code: 'LLM_PROVIDER_AUTH_FAILED' },
       })
       expect(authFailure).toHaveBeenCalledTimes(1)
-      const generator = new LessonPlanGenerator(provider)
+      const generator = new LessonPlanGenerator(provider, new LangfusePrompts(config))
       await expect(generator.generate(outcome, [source], 40)).rejects.toMatchObject({ response: { code: 'LLM_PROVIDER_AUTH_FAILED' } })
       expect(generationMetric).toHaveBeenCalledWith(expect.objectContaining({ provider: 'openai-compatible', outcome: 'provider_error', providerAttempts: 1 }))
       expect(authFailure).toHaveBeenCalledTimes(2)
