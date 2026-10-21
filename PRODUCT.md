@@ -29,12 +29,12 @@ Teachers work with drafts, returned plans, and plans published by curriculum lea
 - Curriculum leads review submitted plans, publish them, or return them with feedback.
 - Submission and publication depend on lesson-plan quality checks, including valid structure, matching activity durations, and citations from the plan's retrieved source set.
 - Returned plans need an edit and resubmission before another review.
-- The web library is browse-and-inspect only. The API has curriculum-lead source ingestion and publishing endpoints for seeded/imported data; the product UI does not expose those controls.
+- The web library is browse-and-inspect only. Curriculum Leads can submit source text and metadata through API endpoints. This creates a draft resource revision, chunks, and target link; a separate endpoint publishes the link. There is no file upload, extraction pipeline, or source-management UI.
 - The web app uses role guards for teacher and curriculum-lead routes.
 
 ## Brand Commitments
 
-The product is **Curriculum Design Hub**, by Nova Pioneer. The app uses Nova Pioneer's multicolor mark and Montserrat Variable, bundled locally. Branding sources are recorded in `docs/branding.md`.
+The product is **Curriculum Design Hub**, by Nova Pioneer. The app uses Nova Pioneer's mark from `apps/web/public/brand/nova-pioneer-mark.svg` and Montserrat Variable through the local Fontsource package, imported in `apps/web/src/styles.css`.
 
 ## Evidence on Hand
 

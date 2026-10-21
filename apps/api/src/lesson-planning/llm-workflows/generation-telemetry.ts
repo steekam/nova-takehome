@@ -31,6 +31,19 @@ export function setLangfuseOutput(span: Span, output: unknown): void {
   if (capturePromptContent) span.setAttribute('langfuse.observation.output', JSON.stringify(output))
 }
 
+export async function recordGenerationValidationAttempt(input: {
+  attempt: number
+  passed: boolean
+  checks: Array<{ code: string; passed: boolean }>
+}): Promise<void> {
+  await startActiveObservation('curriculum.lesson_plan.validation', async (observation) => {
+    observation.update({
+      input: { attempt: input.attempt },
+      output: { passed: input.passed, checks: input.checks },
+    })
+  })
+}
+
 export function startLangfuseSpan<T>(
   name: string,
   callback: (span: Span) => Promise<T>,

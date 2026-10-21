@@ -58,15 +58,15 @@ Use these terms consistently in the app, schema, demo, and project docs. Curricu
 
 **ISBN.** An optional publication identifier for a particular edition or format. It is not an ID for every file revision or internal curriculum target. Keep internal resource and revision IDs, file hashes, release labels, and locators as well.
 
-**Chunk.** A searchable passage made from a corpus document. Keep its document ID, heading, outcome IDs, and source locator so retrieval can return a traceable reference.
+**Chunk.** A searchable passage stored with its resource-revision ID, ordinal, optional locator, content, and embedding. The curriculum source link associates the revision with a target; the lesson version cites individual chunks.
 
 **Embedding.** A numeric representation of a chunk used for similarity search. It supports retrieval; it does not establish that the chunk is correct or official.
 
-**Retrieval.** Selecting corpus chunks relevant to the teacher's selected outcome and duration. Filter by curriculum metadata before ranking semantic similarity.
+**Retrieval.** The API filters to published source revisions linked to the selected curriculum target, ranks chunks by similarity to the selected outcome, pins official target-defining chunks, and adds up to six supporting chunks. Lesson duration is sent to generation, not used to rank retrieval candidates.
 
-**Grounding.** The plan's claims and activities have support in approved, in-scope source chunks. AI citations must belong to the frozen retrieval set; teacher-added citations must point to explicitly selected, approved, in-scope chunks. A source list alone does not prove support.
+**Grounding.** The plan's claims and activities have support in in-scope source chunks. Generated citations must belong to the frozen retrieval set, and edited plans must cite chunks linked to the selected target and present in that set. These checks establish identity and provenance; they do not prove publication approval or that a passage supports a claim.
 
-**Deterministic grounding check.** A check a program can decide from structured data, such as curriculum scope matching, target IDs, AI citation membership in the frozen retrieval set, required fields, and duration arithmetic. Teacher-added citations must be explicitly selected approved sources in scope. These checks prove traceability and constraints, not that a cited passage truly supports a claim.
+**Deterministic grounding check.** A program check over structured data, such as target matching, citation identity, membership in the frozen retrieval set, required fields, and duration arithmetic. Current checks prove traceability and constraints, not source approval or whether a cited passage supports a claim.
 
 **Semantic review.** A person checks whether a source actually supports the lesson's subject claim and whether the activity is accurate, suitable, feasible, and safe. Keep this separate from mechanical validation.
 
@@ -78,11 +78,11 @@ Use these terms consistently in the app, schema, demo, and project docs. Curricu
 
 **AI-drafted plan.** A structured lesson plan returned by the generation step. It remains a draft for the teacher to review and edit; AI does not submit, approve, or publish it.
 
-**Post-draft AI review.** An optional design extension that evaluates an immutable plan version and returns separate findings or suggestions. The performance brief requires grounded generation and human editing/review; it does not require a second AI review call. Review output cannot silently edit or approve the plan.
+**Rubric QA.** Advisory model review of a saved immutable lesson-plan version. It returns six scored dimensions with rationale, evidence fields, and suggestions. It runs after generation and through `POST /lesson-plans/:id/validate`; it does not edit the plan or change workflow status. Results are tied to the exact version reviewed.
 
-**Jev.** TypeSafe AI's typed model-evaluation interface. In this project it may provide optional semantic QA signals (for example, a `Choice`, `Score`, or `Noul` question). Its outputs are advisory and do not replace deterministic checks or Curriculum Lead decisions.
+**Rubric QA status.** `completed`, `invalid_output`, or `unavailable`. These describe the model review call; deterministic checks and Curriculum Lead decisions remain separate.
 
-**QA status triad.** Separate results for `mechanicalValidation` (hard invariants), `semanticQa` (advisory evidence), and `humanReview` (Curriculum Lead decision). Keep all three tied to the exact plan version they describe.
+**Jev.** TypeSafe AI's model-evaluation/classification option discussed for this project. The current API workflow does not use it.
 
 **Plan content schema.** The structured lesson fields shared by AI drafts and teacher edits: title, duration, lesson objectives, materials, timed activities, checks for understanding, and source uses. Curriculum-specific labels such as 5E phases are optional extensions.
 
@@ -96,11 +96,7 @@ Use these terms consistently in the app, schema, demo, and project docs. Curricu
 
 **Lesson exemplar.** A reviewed, published past plan or plan section that can inform teaching craft, pacing, or activity structure. It is not curriculum authority. Record its alignment, reuse permission, and eligibility separately.
 
-**Plan version.** An immutable snapshot of lesson-plan content and its source references. Save a new version when the teacher edits; retain prior versions for review and traceability.
-
-**Version envelope.** Server-managed metadata around a plan version: creator, origin, parent version, schema version, curriculum target, generation run, and timestamps. It is separate from editable lesson content.
-
-**Version origin.** How a version was created: `ai_draft`, `teacher_edit`, or `teacher_authored`. It records provenance, not approval or ownership; the Teacher owns the plan workflow.
+**Plan version.** An immutable snapshot of lesson-plan content, selected curriculum target, source citations, version number, creator, and timestamp. Save a new version when the teacher edits; retain prior versions for review and traceability. The schema does not currently record an origin, parent-version link, or generation-run ID.
 
 **Draft, Submitted, Returned, Published.** The plan workflow states. Editing a returned plan moves it to Draft; the teacher must submit it again before review.
 

@@ -37,33 +37,33 @@ Database table definitions live in feature-oriented files under
 and response contracts live in `packages/shared` and are used to generate the
 OpenAPI description and web client types.
 
-## Lesson-plan workflow
+## Workflows
 
-```mermaid
-stateDiagram-v2
-  [*] --> Draft
-  Draft --> Draft: Teacher edits; save immutable version
-  Draft --> Submitted: Teacher submits
-  Submitted --> Returned: Lead returns with comment
-  Submitted --> Published: Lead publishes
-  Returned --> Draft: Teacher edits; save immutable version
-  Published --> [*]
-```
+See [workflow state charts](workflow-state-charts.md) for the implemented
+lesson-plan lifecycle, generation and repair path, provider retries, standalone
+rubric validation, and source revision publication. The shared package defines
+allowed lesson-plan transitions; review decisions reference the exact immutable
+version reviewed.
 
-The shared package defines the allowed transitions. The API checks role,
-ownership, status, and deterministic content rules before committing changes.
-Review decisions reference the exact immutable lesson version. A returned plan
-must be edited and submitted again. Published plans are terminal.
+## Access policy
 
-Generation is a use case: resolve the selected curriculum target, retrieve its
-eligible sources, call the configured provider, parse and validate the output,
-then persist a Draft and its provenance. One corrective model attempt follows
-deterministic validation failure. If both attempts fail, no plan is saved.
+Protected product routes require authentication. Server-side role checks
+protect role-specific writes.
 
-The teacher can run rubric QA separately on a saved version. Rubric QA is
-advisory; deterministic checks govern workflow validity. A new edit creates a
-new version, so QA attached to an earlier version remains an auditable result
-for that version.
+| Action | Teacher | Curriculum Lead |
+| --- | --- | --- |
+| List plans | Own plans and published plans | Submitted and published plans |
+| Read a plan | Own plans and published plans | Own, submitted, and published plans |
+| Generate, edit, submit | Generate plans; edit own drafts or returned plans; submit own drafts | — |
+| Run rubric QA | Any plan the user may read | Any plan the user may read |
+| Return or publish | — | Submitted plans |
+| Browse curriculum library | Published catalogue and sources | Published catalogue plus draft designs and source revisions/links |
+| Add and publish curriculum sources | — | Yes |
+
+Source intake accepts text and metadata through the API. It creates a resource
+or a draft revision of an existing resource, chunks, and target link; a
+separate action publishes the link. The web library does not expose source
+management. Any authenticated user can read published plans.
 
 ## Change guide
 

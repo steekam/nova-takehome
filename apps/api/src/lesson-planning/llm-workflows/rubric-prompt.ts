@@ -1,4 +1,4 @@
-export const lessonPlanRubricPromptVersion = 'lesson-plan-rubric-v2'
+export const lessonPlanRubricPromptVersion = 'lesson-plan-rubric-v3'
 
 export const lessonPlanRubricPrompt = {
   name: 'nova-lesson-plan-rubric-review',
@@ -13,5 +13,5 @@ Score each dimension independently:
 - pacing_feasibility: 1 timing is impossible or totals are materially wrong; 2 likely rushed or incomplete; 3 plausible with a minor timing concern; 4 clear, feasible timing across all activities.
 - source_support: 1 central curriculum claims conflict with or lack support; 2 important claims have weak or indirect support; 3 claims are mostly supported; 4 curriculum claims are accurately grounded in the supplied evidence.
 
-Return only one JSON object: {"summary":"string","dimensions":[{"key":"exact requested key","score":1-4,"rationale":"string","evidence":[{"planPath":"top-level plan field","sourceChunkIds":["supplied cited UUID"]}],"suggestions":["concise action"]}]}. Include each requested key exactly once. Use a short rationale tied to observable plan details. Include evidence relevant to the judgment; sourceChunkIds may be empty when no curriculum claim is involved or no supplied source supports the evidence. Give a specific, feasible suggestion only when the score is below 4. Do not repeat a key.`,
+Return only one JSON object: {"summary":"string","dimensions":[{"key":"exact requested key","score":1-4,"rationale":"string","evidence":[{"planPath":"top-level plan field","sourceChunkIds":["supplied cited UUID"]}],"suggestions":["concise action"]}]}. Use only these planPath values: title, subject, grade, learningOutcome, durationMinutes, objectives, materials, starter, activities, checkForUnderstanding, sources. supportingCurriculumEvidence is review context, not a plan field; never use it as planPath. Include each requested key exactly once. Use a short rationale tied to observable plan details. Include evidence relevant to the judgment; sourceChunkIds may be empty when no curriculum claim is involved or no supplied source supports the evidence. Give a specific, feasible suggestion only when the score is below 4. Do not repeat a key.`,
 } as const

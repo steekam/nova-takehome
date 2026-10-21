@@ -1,20 +1,32 @@
 # AI log
 
-- **Tools and use:** I used Codex and parallel review agents to inspect the
-  codebase, shape the API and web architecture, implement features, and review
-  changes. I used web research for provider, Langfuse, and OpenTelemetry
-  integration guidance, then checked behavior with the project build and test
-  commands.
-- **AI output I corrected:** An early schema proposal kept curriculum
-  hierarchy inside source documents and treated printed outcome locators as
-  stable identifiers. I caught the problem while modeling new grade/subject
-  paths and curriculum editions. I separated the controlled catalogue
-  hierarchy from library resources, immutable revisions, chunks, and explicit
-  target-to-source links. Internal UUIDs identify targets; publisher locators
-  remain scoped to a design version.
-- **Decision I made:** I kept document upload, extraction, and a full approval
-  UI out of this slice, despite AI-generated proposals to add that pipeline.
-  Seed/import data populates versioned resources; source links preserve role
-  and publication state. This keeps the corpus auditable while prioritizing
-  the required grounded generation, teacher editing, and Curriculum Lead
-  review flow.
+## How I used AI
+
+I used Codex to explore the domain model, implement the API and web app, and
+write tests and documentation. Parallel agents reviewed architecture,
+correctness, and cleanup. Web research helped with provider, Langfuse, and
+OpenTelemetry integrations. I reviewed the proposals and checked the result
+through tests and live workflow runs.
+
+## A schema proposal I corrected
+
+The early design kept curriculum hierarchy inside source documents. I asked
+how it would handle another grade, subject, curriculum edition, or source
+update. Working through those examples exposed the coupling between the
+curriculum catalogue and its supporting material.
+
+I directed a separate, structured catalogue with versioned curriculum targets
+and explicit links to source revisions. Publisher outcome locators are scoped
+to a curriculum design version; internal IDs identify records. This makes
+curriculum selection and validation explicit while preserving which sources
+supported a lesson.
+
+## A scope decision I made
+
+I narrowed source ingestion to text and metadata: create a draft revision,
+chunk and embed it, and link it to a curriculum target. A separate Curriculum
+Lead action publishes it. File upload, extraction, and source-management
+screens remain outside this slice.
+
+That preserves source history and publication control while keeping the work
+focused on the required CBC flow: generate, edit, submit, review, and publish.

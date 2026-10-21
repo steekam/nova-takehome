@@ -30,24 +30,29 @@ paths demonstrate catalogue browsing.
 ```text
 Library resource → immutable resource revision → chunks + embedding
                                              └→ curriculum source link
+Lesson plan ─────→ retrieval candidate chunks
 Lesson version ──→ cited chunks
-Generation run ──→ frozen retrieval candidate IDs
 ```
 
 Resources have a type and authority. Revisions have content, edition, hash, and
 publication state. Chunks belong to one revision and store 384-dimensional
-BGE-small vectors. Curriculum source links connect revisions or chunks to
+BGE-small vectors. Curriculum source links connect resource revisions to
 curriculum targets with a role, such as `defines_target`, `lead_guidance`, or
-`exemplar`.
+`exemplar`. Lesson-version citations point to individual chunks.
 
 Retrieval scopes to the selected target and its published eligible sources. It
 pins the official target-defining material and selects supporting chunks. The
-generation run stores candidate IDs; the lesson version stores citations.
-Retiring a source affects future retrieval and leaves prior versions and
-citations intact.
+lesson plan stores the candidate set from generation; each lesson version
+stores its citations. Candidate membership is shared across edits to that
+plan. Link and revision records have a `retired` status, and retrieval only
+uses published records. No source-retirement action is exposed through the API;
+existing plan candidates and citations remain stored if a record's status
+changes.
 
-The library screens browse catalogue content. Seed/import paths populate the
-demo corpus; a full source-upload and approval workflow is not implemented.
+The web library browses catalogue content. Curriculum Leads can submit source
+text and metadata through the API; this creates a draft resource revision,
+chunks, and target link. A separate API action publishes the link. File upload,
+extraction, and source-management screens are not implemented.
 
 ## Lesson plan content
 
@@ -80,12 +85,6 @@ evidence, suggestions, trace ID, and timestamp. The six dimensions are outcome
 alignment, objective measurability, activity alignment, assessment quality,
 pacing feasibility, and source support. QA results do not change workflow state.
 
-```text
-Draft → Submitted → Published
-          └→ Returned → edit creates Draft version → Submit again
-```
-
 Teachers author and edit their own plans. Curriculum Leads review submitted
-plans. Return decisions require a meaningful comment. Invalid transitions and
-failed deterministic checks return stable API error codes and do not mutate the
-plan.
+plans. State transitions and guards are shown in the
+[workflow state charts](workflow-state-charts.md).

@@ -27,7 +27,7 @@ function matchesFramework(actual: string, requested: string): boolean {
   )
 }
 
-async function apiRequest<T>(
+export async function apiRequest<T>(
   baseUrl: string,
   token: string,
   pathname: string,
@@ -56,7 +56,7 @@ async function apiRequest<T>(
   return { value: value as T, requestId: responseRequestId }
 }
 
-async function login(baseUrl: string, email: string, password: string): Promise<string> {
+export async function login(baseUrl: string, email: string, password: string): Promise<string> {
   const requestId = randomUUID()
   const response = await fetch(new URL('/api/auth/login', baseUrl), {
     method: 'POST',

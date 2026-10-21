@@ -1,6 +1,8 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { runApiEvaluation } from './api-eval.js'
+import { runWorkflowCases } from './workflow-cases.js'
+import { startProviderStub } from './provider-stub.js'
 import {
   apiReportsToDatasetItems,
   datasetItemsToJsonl,
@@ -59,11 +61,13 @@ async function main(): Promise<void> {
   const [command = 'help', ...options] = args
   if (command === 'help' || command === '--help' || command === '-h') {
     process.stdout.write(
-      'Usage: pnpm evals -- eval-api [API selection options] | dataset export [--name NAME] [--out PATH] [--sync]\n',
+      'Usage: pnpm evals -- eval-api [API selection options] | workflow-cases --case CASE_ID [--api URL] [--stub URL] | provider-stub [--port PORT] | dataset export [--name NAME] [--out PATH] [--sync]\n',
     )
     return
   }
   if (command === 'eval-api') return runApiEvaluation(options)
+  if (command === 'workflow-cases') return runWorkflowCases(options)
+  if (command === 'provider-stub') return startProviderStub(options)
   if (command === 'dataset' && options[0] === 'export') return exportDataset(options.slice(1))
   throw new Error(
     'Usage: pnpm evals -- eval-api | dataset export [--name NAME] [--out PATH] [--sync]',

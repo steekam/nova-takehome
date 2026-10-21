@@ -15,7 +15,7 @@ describe('lesson planning prompts', () => {
   })
 
   it('anchors each review dimension and permits relevant evidence reuse', () => {
-    expect(lessonPlanRubricPromptVersion).toBe('lesson-plan-rubric-v2')
+    expect(lessonPlanRubricPromptVersion).toBe('lesson-plan-rubric-v3')
     for (const dimension of [
       'outcome_alignment',
       'objective_measurability',
@@ -30,5 +30,8 @@ describe('lesson planning prompts', () => {
       'same field or source may support more than one dimension',
     )
     expect(lessonPlanRubricPrompt.prompt).not.toContain('Never repeat evidence')
+    expect(lessonPlanRubricPrompt.prompt).toContain(
+      'supportingCurriculumEvidence is review context, not a plan field',
+    )
   })
 })

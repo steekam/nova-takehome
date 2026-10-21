@@ -13,6 +13,7 @@ import {
 } from './llm-provider'
 import {
   recordGeneration,
+  recordGenerationValidationAttempt,
   recordGenerationValidation,
   setLangfuseInput,
   setLangfuseOutput,
@@ -108,6 +109,11 @@ export class LessonPlanGenerator {
           const parsedJson = parseJson(completion.content)
           const checks = generatedPlanChecks(parsedJson, outcome, sources, durationMinutes)
           validationAttempts.push({
+            attempt: attempt + 1,
+            passed: checks.every((check) => check.passed),
+            checks: checks.map(({ code, passed }) => ({ code, passed })),
+          })
+          await recordGenerationValidationAttempt({
             attempt: attempt + 1,
             passed: checks.every((check) => check.passed),
             checks: checks.map(({ code, passed }) => ({ code, passed })),
