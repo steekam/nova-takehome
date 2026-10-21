@@ -3,13 +3,13 @@ import type { InferInsertModel, InferSelectModel, SQL } from 'drizzle-orm'
 import type { PgColumn, PgTable, PgTableWithColumns } from 'drizzle-orm/pg-core'
 import type { DbExecutor } from '../executor'
 
-type IdTable = PgTable & { id: PgColumn }
 type QueryTable = PgTableWithColumns<{
   name: string
   schema: string | undefined
   columns: Record<string, PgColumn>
   dialect: 'pg'
 }>
+type IdTable = PgTable & { id: PgColumn }
 type Row<TTable extends IdTable> = InferSelectModel<TTable>
 type Insert<TTable extends IdTable> = InferInsertModel<TTable>
 type Update<TTable extends IdTable> = Partial<Omit<Insert<TTable>, 'id'>>
@@ -45,13 +45,13 @@ export class DrizzleCrudRepository<TTable extends IdTable> {
   }
 
   async create(values: Insert<TTable>, executor: DbExecutor = this.db): Promise<Row<TTable> | undefined> {
-    const [row] = await executor.insert(this.table).values(values).returning()
+    const [row] = await executor.insert(this.table as unknown as QueryTable).values(values as unknown as QueryTable['$inferInsert']).returning()
     return row as Row<TTable> | undefined
   }
 
   async createMany(values: Insert<TTable>[], executor: DbExecutor = this.db): Promise<Row<TTable>[]> {
     if (values.length === 0) return []
-    const rows = await executor.insert(this.table).values(values).returning()
+    const rows = await executor.insert(this.table as unknown as QueryTable).values(values as unknown as QueryTable['$inferInsert'][]).returning()
     return rows as Row<TTable>[]
   }
 
@@ -61,7 +61,7 @@ export class DrizzleCrudRepository<TTable extends IdTable> {
   }
 
   async deleteById(id: Id<TTable>, executor: DbExecutor = this.db): Promise<Row<TTable> | undefined> {
-    const [row] = await executor.delete(this.table).where(eq(this.table.id, id)).returning()
+    const [row] = await executor.delete(this.table as unknown as QueryTable).where(eq(this.table.id, id)).returning()
     return row as Row<TTable> | undefined
   }
 

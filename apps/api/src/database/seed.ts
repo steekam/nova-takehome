@@ -59,7 +59,7 @@ async function seed(): Promise<void> {
   }
 
   const pool = new Pool({ connectionString: databaseUrl })
-  const db = drizzle(pool)
+  const db = drizzle({ client: pool })
   const environment = validateEnvironment(process.env)
   const embed = createEmbeddingEncoder({
     provider: environment.EMBEDDING_PROVIDER,

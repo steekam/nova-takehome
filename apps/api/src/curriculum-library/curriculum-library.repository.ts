@@ -1,14 +1,10 @@
 import { Injectable } from '@nestjs/common'
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import { DatabaseService } from '../database/database.service'
 import type { DbExecutor } from '../database/executor'
 import {
   curriculumDesignVersions,
-  curriculumLevels,
-  curriculumOfferings,
-  curriculumProgrammes,
   curriculumSourceLinks,
-  curriculumSubjects,
   curriculumTargetRevisions,
   libraryResourceChunks,
   libraryResourceRevisions,
@@ -26,7 +22,7 @@ export class CurriculumLibraryRepository {
         level: true,
         subject: true,
         designs: {
-          where: includeDraft ? undefined : eq(curriculumDesignVersions.status, 'published'),
+          ...(!includeDraft ? { where: { status: 'published' } } : {}),
           with: {
             nodes: true,
             targets: true,
@@ -123,41 +119,63 @@ export class CurriculumLibraryRepository {
       .where(eq(curriculumSourceLinks.id, id))
   }
 
-  sourceRows(targetIds: string[], includeDraft: boolean, executor: DbExecutor = this.database.db) {
-    return executor.select({
-      linkId: curriculumSourceLinks.id,
-      targetRevisionId: curriculumSourceLinks.targetRevisionId,
-      role: curriculumSourceLinks.role,
-      linkStatus: curriculumSourceLinks.status,
-      documentId: libraryResources.id,
-      resourceRevisionId: libraryResourceRevisions.id,
-      revisionNumber: libraryResourceRevisions.revisionNumber,
-      chunkId: libraryResourceChunks.id,
-      resourceType: libraryResources.resourceType,
-      title: libraryResources.title,
-      authority: libraryResources.authority,
-      editionLabel: libraryResourceRevisions.editionLabel,
-      sourceUrl: libraryResourceRevisions.sourceUrl,
-      subject: curriculumSubjects.name,
-      grade: curriculumLevels.label,
-      locator: libraryResourceChunks.locator,
-      content: libraryResourceChunks.content,
-      revisionStatus: libraryResourceRevisions.status,
-    }).from(curriculumSourceLinks)
-      .innerJoin(libraryResourceRevisions, eq(curriculumSourceLinks.resourceRevisionId, libraryResourceRevisions.id))
-      .innerJoin(libraryResources, eq(libraryResourceRevisions.resourceId, libraryResources.id))
-      .innerJoin(curriculumTargetRevisions, eq(curriculumSourceLinks.targetRevisionId, curriculumTargetRevisions.id))
-      .innerJoin(curriculumDesignVersions, eq(curriculumTargetRevisions.designVersionId, curriculumDesignVersions.id))
-      .innerJoin(curriculumOfferings, eq(curriculumDesignVersions.offeringId, curriculumOfferings.id))
-      .innerJoin(curriculumProgrammes, eq(curriculumOfferings.programmeId, curriculumProgrammes.id))
-      .innerJoin(curriculumSubjects, eq(curriculumOfferings.subjectId, curriculumSubjects.id))
-      .leftJoin(curriculumLevels, eq(curriculumOfferings.levelId, curriculumLevels.id))
-      .innerJoin(libraryResourceChunks, eq(libraryResourceChunks.resourceRevisionId, libraryResourceRevisions.id))
-      .where(and(
-        inArray(curriculumSourceLinks.targetRevisionId, targetIds),
-        includeDraft ? undefined : eq(curriculumSourceLinks.status, 'published'),
-        includeDraft ? undefined : eq(libraryResourceRevisions.status, 'published'),
-      ))
+  async sourceRows(targetIds: string[], includeDraft: boolean, executor: DbExecutor = this.database.db) {
+    if (!targetIds.length) return []
+
+    const links = await executor.query.curriculumSourceLinks.findMany({
+      columns: { id: true, targetRevisionId: true, role: true, status: true },
+      where: {
+        targetRevisionId: { in: targetIds },
+        ...(!includeDraft ? { status: 'published', resourceRevision: { status: 'published' } } : {}),
+      },
+      with: {
+        targetRevision: {
+          columns: { id: true },
+          with: {
+            designVersion: {
+              columns: { offeringId: true },
+              with: {
+                offering: {
+                  columns: { id: true },
+                  with: {
+                    subject: { columns: { name: true } },
+                    level: { columns: { label: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+        resourceRevision: {
+          columns: { id: true, revisionNumber: true, editionLabel: true, sourceUrl: true, status: true },
+          with: {
+            resource: { columns: { id: true, resourceType: true, title: true, authority: true } },
+            chunks: { columns: { id: true, locator: true, content: true } },
+          },
+        },
+      },
+    })
+
+    return links.flatMap((link) => link.resourceRevision.chunks.map((chunk) => ({
+        linkId: link.id,
+        targetRevisionId: link.targetRevisionId,
+        role: link.role,
+        linkStatus: link.status,
+        documentId: link.resourceRevision.resource.id,
+        resourceRevisionId: link.resourceRevision.id,
+        revisionNumber: link.resourceRevision.revisionNumber,
+        chunkId: chunk.id,
+        resourceType: link.resourceRevision.resource.resourceType,
+        title: link.resourceRevision.resource.title,
+        authority: link.resourceRevision.resource.authority,
+        editionLabel: link.resourceRevision.editionLabel,
+        sourceUrl: link.resourceRevision.sourceUrl,
+        subject: link.targetRevision.designVersion.offering.subject.name,
+        grade: link.targetRevision.designVersion.offering.level?.label ?? null,
+        locator: chunk.locator,
+        content: chunk.content,
+        revisionStatus: link.resourceRevision.status,
+      })))
   }
 
   sourceChunksForTarget(targetRevisionId: string, embedding: number[], limit: number) {
@@ -192,34 +210,27 @@ export class CurriculumLibraryRepository {
       .limit(limit)
   }
 
-  targetDefinitionChunks(targetRevisionId: string) {
-    return this.database.db.select({
-      linkId: curriculumSourceLinks.id,
-      documentId: libraryResources.id,
-      resourceRevisionId: libraryResourceRevisions.id,
-      revisionNumber: libraryResourceRevisions.revisionNumber,
-      chunkId: libraryResourceChunks.id,
-      resourceType: libraryResources.resourceType,
-      title: libraryResources.title,
-      authority: libraryResources.authority,
-      editionLabel: libraryResourceRevisions.editionLabel,
-      sourceUrl: libraryResourceRevisions.sourceUrl,
-      locator: libraryResourceChunks.locator,
-      content: libraryResourceChunks.content,
-      role: curriculumSourceLinks.role,
-      linkStatus: curriculumSourceLinks.status,
-      revisionStatus: libraryResourceRevisions.status,
-    }).from(curriculumSourceLinks)
-      .innerJoin(libraryResourceRevisions, eq(curriculumSourceLinks.resourceRevisionId, libraryResourceRevisions.id))
-      .innerJoin(libraryResources, eq(libraryResourceRevisions.resourceId, libraryResources.id))
-      .innerJoin(libraryResourceChunks, eq(libraryResourceChunks.resourceRevisionId, libraryResourceRevisions.id))
-      .where(and(
-        eq(curriculumSourceLinks.targetRevisionId, targetRevisionId),
-        eq(curriculumSourceLinks.role, 'defines_target'),
-        eq(libraryResources.resourceType, 'curriculum_design'),
-        eq(libraryResources.authority, 'official'),
-        eq(curriculumSourceLinks.status, 'published'),
-        eq(libraryResourceRevisions.status, 'published'),
-      ))
+  async targetDefinitionChunks(targetRevisionId: string) {
+    const sources = await this.sourceRows([targetRevisionId], false)
+    return sources.filter((source) => source.role === 'defines_target'
+      && source.resourceType === 'curriculum_design'
+      && source.authority === 'official')
+      .map(({ linkId, documentId, resourceRevisionId, revisionNumber, chunkId, resourceType, title, authority, editionLabel, sourceUrl, locator, content, role, linkStatus, revisionStatus }) => ({
+        linkId,
+        documentId,
+        resourceRevisionId,
+        revisionNumber,
+        chunkId,
+        resourceType,
+        title,
+        authority,
+        editionLabel,
+        sourceUrl,
+        locator,
+        content,
+        role,
+        linkStatus,
+        revisionStatus,
+      }))
   }
 }
