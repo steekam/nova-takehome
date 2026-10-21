@@ -4,8 +4,6 @@ A lesson-planning app for Kenya's Competency-Based Curriculum (CBC). Teachers
 generate a draft from curriculum sources, edit it, and submit it. A Curriculum
 Lead returns it with feedback or publishes it to the shared lesson bank.
 
-**Loom:** author to add the 3–5 minute recording before submission.
-
 ## Run locally
 
 Use **Node 24**, **pnpm 12.11.2**, and a running **Docker** engine with Compose:
@@ -19,7 +17,8 @@ The lite command creates `.env.local`, starts PostgreSQL, a one-shot API
 bootstrap container, API, and web,
 migrates and seeds the database, checks health, and prints app URLs. It uses
 mock generation and skips Langfuse and OpenTelemetry services. The first start
-also downloads the local embedding model.
+also downloads the local embedding model. Switching from full to lite stops the
+telemetry services and keeps their data volumes.
 
 For Langfuse traces, LiteLLM, and the Grafana telemetry stack, start the full
 demo instead:
@@ -79,9 +78,10 @@ Keys stay on the server.
 ## Try the workflow
 
 1. **Teacher:** open Curriculum Library → Grade 8 Integrated Science → July
-   2024 → outcome `1.2(a)`. This is the demo's only generation-ready target;
-   other catalogue entries are browse-only. Choose a duration and generate a
-   plan.
+   2024 → outcome `1.2(a)`. Select **Create a lesson plan** on the target page;
+   it carries that target into the generation form. This is the demo's only
+   generation-ready target; other catalogue entries are browse-only. Choose a
+   duration and generate a plan.
 2. Read the sources and QA guidance. Edit, save, and submit. To try a rejected
    edit, make the activity timings differ from the lesson duration.
 3. **Curriculum Lead:** open the review queue and return the plan with a comment.
@@ -107,7 +107,9 @@ set before saving a draft and its provenance.
 
 Invalid output gets one correction attempt. If that fails, the API returns a
 clear error and saves no draft. Transient provider failures get up to three
-retries with jitter and `Retry-After` support; each call has a 20-second timeout.
+retries with jitter and `Retry-After` support. Generation calls time out after
+20 seconds; rubric review allows 90 seconds by default, adjustable with
+`LLM_REVIEW_TIMEOUT_MS` (20–180 seconds).
 
 Rubric QA runs **after the draft is saved** and provides advisory scores and
 suggestions. Reviewer model or output failures are recorded without blocking

@@ -9,7 +9,13 @@ function LibraryLayout() {
 
 function LibraryTargetLayout() {
   const { targetRevisionId } = libraryTargetRoute.useParams()
-  return <LibraryTargetPage key={targetRevisionId} targetRevisionId={targetRevisionId} />
+  return (
+    <LibraryTargetPage
+      key={targetRevisionId}
+      targetRevisionId={targetRevisionId}
+      user={libraryRoute.useRouteContext()}
+    />
+  )
 }
 
 const libraryRoute = createRoute({

@@ -9,6 +9,7 @@ const EnvironmentSchema = z
     LLM_MODEL: z.string().min(1).optional(),
     LLM_GENERATOR_MODEL: z.string().min(1).optional(),
     LLM_REVIEWER_MODEL: z.string().min(1).optional(),
+    LLM_REVIEW_TIMEOUT_MS: z.coerce.number().int().min(20_000).max(180_000).default(90_000),
     EMBEDDING_PROVIDER: z.enum(['local', 'mock']).default('local'),
     EMBEDDING_MODEL: z.string().min(1).default('Xenova/bge-small-en-v1.5'),
     EMBEDDING_MODEL_REVISION: z.string().min(1).default('main'),

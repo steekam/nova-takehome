@@ -1,8 +1,17 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import type { ApiPrincipal } from '@nova/shared'
-import { ArrowLeft, BookOpen, CheckCircle2, CircleAlert, ExternalLink, Layers3 } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  CheckCircle2,
+  CircleAlert,
+  ExternalLink,
+  Layers3,
+} from 'lucide-react'
 import { AppShell } from '../../components/app-shell'
+import { buttonVariants } from '../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import {
   curriculumLibraryKeys,
@@ -156,7 +165,13 @@ function LibraryIndexPage() {
   )
 }
 
-export function LibraryTargetPage({ targetRevisionId }: { targetRevisionId: string }) {
+export function LibraryTargetPage({
+  targetRevisionId,
+  user,
+}: {
+  targetRevisionId: string
+  user: ApiPrincipal
+}) {
   const catalogue = useCatalogue()
   const selectedFromCatalogue = catalogue.data?.offerings
     .flatMap((offering) => offering.designs.flatMap((design) => design.targets))
@@ -322,6 +337,16 @@ export function LibraryTargetPage({ targetRevisionId }: { targetRevisionId: stri
                 </p>
               </div>
             </div>
+            {target.generationReady && user.roles.includes('teacher') && (
+              <Link
+                className={`${buttonVariants({ size: 'sm' })} mt-4 w-full`}
+                to="/teacher/plans/new"
+                search={{ targetRevisionId: target.id }}
+              >
+                Create a lesson plan
+                <ArrowRight aria-hidden="true" />
+              </Link>
+            )}
           </div>
         </aside>
       </div>

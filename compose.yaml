@@ -21,7 +21,6 @@ services:
 
   api-bootstrap:
     image: nova-takehome:local
-    build: .
     restart: 'no'
     command: ['sh', '-c', 'pnpm --filter @nova/api db:migrate && pnpm --filter @nova/api db:seed']
     environment:
@@ -57,6 +56,7 @@ services:
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_GENERATOR_MODEL: ${LLM_GENERATOR_MODEL:-lesson-planner}
       LLM_REVIEWER_MODEL: ${LLM_REVIEWER_MODEL:-lesson-planner}
+      LLM_REVIEW_TIMEOUT_MS: ${LLM_REVIEW_TIMEOUT_MS:-90000}
       LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-8192}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-Xenova/bge-small-en-v1.5}
@@ -95,7 +95,6 @@ services:
 
   web:
     image: nova-takehome:local
-    build: .
     restart: unless-stopped
     command: ['pnpm', '--filter', '@nova/web', 'dev', '--host', '0.0.0.0']
     environment:

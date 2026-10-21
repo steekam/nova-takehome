@@ -23,7 +23,16 @@ const teacherRoute = createRoute({
 const teacherPlanNewRoute = createRoute({
   getParentRoute: () => teacherRoute,
   path: 'plans/new',
-  component: () => <GeneratePage user={teacherRoute.useRouteContext()} />,
+  validateSearch: (search: Record<string, unknown>): { targetRevisionId?: string } => {
+    if (typeof search.targetRevisionId !== 'string') return {}
+    return { targetRevisionId: search.targetRevisionId }
+  },
+  component: () => (
+    <GeneratePage
+      user={teacherRoute.useRouteContext()}
+      targetRevisionId={teacherPlanNewRoute.useSearch().targetRevisionId}
+    />
+  ),
 })
 function TeacherPlanDetailRoute() {
   return (

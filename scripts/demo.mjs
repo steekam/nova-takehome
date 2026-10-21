@@ -171,6 +171,34 @@ async function main() {
 
     run('pnpm', ['exec', 'varlock', 'load'])
     const composeArgs = ['exec', 'varlock', 'run', '--', 'docker', 'compose']
+    if (!full) {
+      run('pnpm', [
+        'exec',
+        'varlock',
+        'run',
+        '--',
+        'docker',
+        'compose',
+        '-f',
+        'compose.yaml',
+        '-f',
+        'compose.full.yaml',
+        '--profile',
+        'full',
+        'stop',
+        'litellm',
+        'langfuse-clickhouse',
+        'redis',
+        'langfuse-minio',
+        'langfuse-worker',
+        'langfuse-web',
+        'otel-collector',
+        'tempo',
+        'prometheus',
+        'loki',
+        'grafana',
+      ])
+    }
     if (full) composeArgs.push('-f', 'compose.yaml', '-f', 'compose.full.yaml')
     composeArgs.push('--profile', full ? 'full' : 'lite', 'up', '--build', '--detach')
     run('pnpm', composeArgs)
@@ -181,7 +209,8 @@ async function main() {
   if (
     action === 'up' &&
     full &&
-    readLocalConfig().get('LANGFUSE_USE_MANAGED_PROMPTS') !== 'false'
+    (process.env.LANGFUSE_USE_MANAGED_PROMPTS ??
+      readLocalConfig().get('LANGFUSE_USE_MANAGED_PROMPTS')) !== 'false'
   ) {
     run('pnpm', ['langfuse:prompts:sync'])
   }

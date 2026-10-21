@@ -42,13 +42,19 @@ const statusLabel: Record<Plan['status'], string> = {
   published: 'Published',
 }
 
-export function GeneratePage({ user }: { user: ApiPrincipal }) {
+export function GeneratePage({
+  user,
+  targetRevisionId,
+}: {
+  user: ApiPrincipal
+  targetRevisionId?: string
+}) {
   const queryClient = useQueryClient()
   const outcomes = useQuery({
     queryKey: curriculumLibraryKeys.outcomes,
     queryFn: listCurriculumOutcomes,
   })
-  const [targetId, setTargetId] = useState('')
+  const [targetId, setTargetId] = useState(targetRevisionId ?? '')
   const [durationMinutes, setDurationMinutes] = useState(45)
   const generate = useMutation({
     mutationFn: () => generateLessonPlan({ targetRevisionId: targetId, durationMinutes }),

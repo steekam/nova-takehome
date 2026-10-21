@@ -16,6 +16,7 @@ export interface LessonPlanCompletionRequest {
   system: string
   user: string
   prompt?: LangfusePromptReference
+  timeoutMs?: number
 }
 
 export interface LessonPlanCompletionResult {
@@ -111,7 +112,7 @@ export class OpenAiCompatibleLessonPlanProvider implements LessonPlanProvider {
               system: request.system,
               prompt: request.user,
               output: { type: 'json-object' },
-              timeoutMs: 20_000,
+              timeoutMs: request.timeoutMs ?? 20_000,
               temperature: 0,
               maxOutputTokens: configuredMaxOutputTokens(
                 this.config.get<string>('LLM_MAX_OUTPUT_TOKENS'),

@@ -103,6 +103,7 @@ describe('curriculum workflow invariants', () => {
     })
     expect(config.LLM_GENERATOR_MODEL).toBe('lesson-generator')
     expect(config.LLM_REVIEWER_MODEL).toBe('lesson-reviewer')
+    expect(config.LLM_REVIEW_TIMEOUT_MS).toBe(90_000)
     const legacy = validateEnvironment({
       NODE_ENV: 'test',
       LLM_PROVIDER: 'openai-compatible',
@@ -112,6 +113,10 @@ describe('curriculum workflow invariants', () => {
     })
     expect(legacy.LLM_GENERATOR_MODEL).toBe('legacy-model')
     expect(legacy.LLM_REVIEWER_MODEL).toBe('legacy-model')
+    expect(
+      validateEnvironment({ NODE_ENV: 'test', LLM_REVIEW_TIMEOUT_MS: '60000' })
+        .LLM_REVIEW_TIMEOUT_MS,
+    ).toBe(60_000)
   })
 
   it('returns field-level guidance for invalid workflow requests', async () => {
