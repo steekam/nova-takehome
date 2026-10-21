@@ -6,8 +6,8 @@ services:
       POSTGRES_DB: nova_hub
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      LITELLM_POSTGRES_PASSWORD: ${LITELLM_POSTGRES_PASSWORD:?Run Compose through Varlock to load .env.local}
-      LANGFUSE_POSTGRES_PASSWORD: ${LANGFUSE_POSTGRES_PASSWORD:?Run Compose through Varlock to load .env.local}
+      LITELLM_POSTGRES_PASSWORD: ${LITELLM_POSTGRES_PASSWORD:-nova-lite-local}
+      LANGFUSE_POSTGRES_PASSWORD: ${LANGFUSE_POSTGRES_PASSWORD:-nova-lite-local}
     ports:
       - '127.0.0.1:5433:5432'
     volumes:
@@ -52,7 +52,7 @@ services:
       PORT: '3001'
       AUTH_SECRET: ${AUTH_SECRET:-nova-local-auth-secret-change-before-deploy-2026}
       CORS_ORIGIN: http://localhost:5173
-      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_PROVIDER: mock
       LLM_BASE_URL: ${COMPOSE_LLM_BASE_URL:-http://litellm:4000/v1}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_GENERATOR_MODEL: ${LLM_GENERATOR_MODEL:-lesson-planner}
@@ -65,13 +65,10 @@ services:
       EMBEDDING_CACHE_ENABLED: ${EMBEDDING_CACHE_ENABLED:-true}
       EMBEDDING_CACHE_DIR: /workspace/.cache/embeddings
       TRANSFORMERS_CACHE_DIR: /workspace/.cache/transformers
-      OTEL_ENABLED: ${OTEL_ENABLED:-true}
+      OTEL_ENABLED: 'false'
       OTEL_SERVICE_NAME: nova-api
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
-      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
-      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
-      LANGFUSE_BASE_URL: ${COMPOSE_LANGFUSE_BASE_URL:-http://langfuse-web:3000}
-      LANGFUSE_CAPTURE_PROMPTS: ${LANGFUSE_CAPTURE_PROMPTS:-false}
+      LANGFUSE_CAPTURE_PROMPTS: ${LANGFUSE_CAPTURE_PROMPTS:-true}
       LANGFUSE_USE_MANAGED_PROMPTS: ${LANGFUSE_USE_MANAGED_PROMPTS:-true}
       LANGFUSE_PROMPT_LABEL: ${LANGFUSE_PROMPT_LABEL:-production}
     ports:
@@ -122,7 +119,7 @@ services:
       start_period: 15s
 
   litellm:
-    profiles: [litellm]
+    profiles: [full]
     image: ghcr.io/berriai/litellm:v1.106.0
     restart: unless-stopped
     command: ['--config', '/app/config.yaml', '--port', '4000', '--prometheus_metrics_port', '4001']
@@ -160,6 +157,7 @@ services:
         condition: service_started
 
   langfuse-clickhouse:
+    profiles: [full]
     image: clickhouse/clickhouse-server:25.12
     restart: unless-stopped
     environment:
@@ -179,6 +177,7 @@ services:
       start_period: 5s
 
   redis:
+    profiles: [full]
     image: redis:7.2-alpine
     restart: unless-stopped
     environment:
@@ -204,6 +203,7 @@ services:
       retries: 10
 
   langfuse-minio:
+    profiles: [full]
     image: cgr.dev/chainguard/minio
     restart: unless-stopped
     entrypoint: sh
@@ -228,6 +228,7 @@ services:
       start_period: 5s
 
   langfuse-worker:
+    profiles: [full]
     image: docker.langfuse.com/langfuse/langfuse-worker:4
     restart: unless-stopped
     depends_on: &langfuse-depends-on
@@ -269,6 +270,7 @@ services:
       LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: 'true'
 
   langfuse-web:
+    profiles: [full]
     image: docker.langfuse.com/langfuse/langfuse:4
     restart: unless-stopped
     depends_on: *langfuse-depends-on
@@ -289,6 +291,7 @@ services:
       LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://langfuse-minio:9000
 
   otel-collector:
+    profiles: [full]
     image: otel/opentelemetry-collector-contrib:0.129.1
     restart: unless-stopped
     command: ['--config=/etc/otelcol-contrib/config.yaml']
@@ -305,6 +308,7 @@ services:
       - langfuse-web
 
   tempo:
+    profiles: [full]
     image: grafana/tempo:2.9.0
     restart: unless-stopped
     command: ['-config.file=/etc/tempo.yaml']
@@ -315,6 +319,7 @@ services:
       - '127.0.0.1:3200:3200'
 
   prometheus:
+    profiles: [full]
     image: prom/prometheus:v3.4.2
     restart: unless-stopped
     command:
@@ -328,6 +333,7 @@ services:
       - '127.0.0.1:9091:9090'
 
   loki:
+    profiles: [full]
     image: grafana/loki:3.5
     restart: unless-stopped
     command: ['-config.file=/etc/loki/loki.yaml']
@@ -338,6 +344,7 @@ services:
       - '127.0.0.1:3100:3100'
 
   grafana:
+    profiles: [full]
     image: grafana/grafana:12.0.2
     restart: unless-stopped
     environment:

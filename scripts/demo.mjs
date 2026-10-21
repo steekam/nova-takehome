@@ -4,9 +4,12 @@ import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
 const envPath = resolve(root, '.env.local')
-const urls = [
+const coreUrls = [
   { name: 'Nova lesson studio', url: 'http://localhost:5173/login' },
   { name: 'API readiness', url: 'http://localhost:3001/api/health/ready' },
+]
+const fullUrls = [
+  ...coreUrls,
   { name: 'Grafana', url: 'http://localhost:3000', healthUrl: 'http://localhost:3000/api/health' },
   { name: 'Langfuse', url: 'http://localhost:3002' },
   {
@@ -54,11 +57,15 @@ function readLocalConfig() {
   return values
 }
 
-function printSummary() {
+function printSummary(full) {
   const config = readLocalConfig()
   const configured = (key) => process.env[key]?.trim() || config.get(key)
-  const modeSource = process.env.LLM_PROVIDER?.trim() ? 'command environment' : '.env.local'
-  const requestedLive = configured('LLM_PROVIDER') === 'openai-compatible'
+  const modeSource = full
+    ? process.env.LLM_PROVIDER?.trim()
+      ? 'command environment'
+      : '.env.local'
+    : 'lite profile'
+  const requestedLive = full && configured('LLM_PROVIDER') === 'openai-compatible'
   const missing = [
     ...(!configured('LLM_BASE_URL') ? ['LLM_BASE_URL'] : []),
     ...(!configured('LLM_GENERATOR_MODEL') && !configured('LLM_MODEL')
@@ -69,12 +76,13 @@ function printSummary() {
   const provider = requestedLive && missing.length === 0 ? 'live' : 'mock'
   process.stdout.write('\nNova demo is ready\n')
   process.stdout.write('------------------\n')
-  for (const { name, url } of urls) process.stdout.write(`${name.padEnd(20)} ${url}\n`)
+  for (const { name, url } of full ? fullUrls : coreUrls)
+    process.stdout.write(`${name.padEnd(20)} ${url}\n`)
   process.stdout.write(
     `LLM config default   ${provider} (${modeSource}; app header shows current runtime mode)\n`,
   )
   process.stdout.write(
-    `Langfuse prompts     ${configured('LANGFUSE_USE_MANAGED_PROMPTS') === 'false' ? 'code fallback' : `${configured('LANGFUSE_PROMPT_LABEL') || 'production'} label`}\n`,
+    `Langfuse prompts     ${full && configured('LANGFUSE_USE_MANAGED_PROMPTS') !== 'false' ? `${configured('LANGFUSE_PROMPT_LABEL') || 'production'} label` : 'code fallback'}\n`,
   )
   if (requestedLive && missing.length > 0)
     process.stdout.write(
@@ -83,17 +91,21 @@ function printSummary() {
   process.stdout.write(
     '\nSign in with the Teacher or Curriculum lead demo button. Manual login password: NovaLocal123!\n',
   )
-  process.stdout.write('Langfuse login: admin@example.test; generated password is in .env.local.\n')
+  if (full) {
+    process.stdout.write(
+      'Langfuse login: admin@example.test; generated password is in .env.local.\n',
+    )
+    process.stdout.write(
+      'Edit workflow prompts in Langfuse > Prompts; publish changes to the selected label.\n',
+    )
+  }
   process.stdout.write(
-    'Edit workflow prompts in Langfuse > Prompts; publish changes to the selected label.\n',
-  )
-  process.stdout.write(
-    'To stop the stack: pnpm exec varlock run -- docker compose --profile litellm down\n',
+    `To stop the stack: pnpm exec varlock run -- docker compose ${full ? '-f compose.yaml -f compose.full.yaml --profile full' : '--profile lite'} down\n`,
   )
 }
 
-async function checkServices(wait) {
-  let pending = [...urls]
+async function checkServices(wait, full) {
+  let pending = [...(full ? fullUrls : coreUrls)]
   const attempts = wait ? 90 : 1
   for (let attempt = 0; attempt < attempts && pending.length > 0; attempt += 1) {
     const results = await Promise.all(
@@ -127,10 +139,10 @@ async function checkServices(wait) {
       }
     }
     process.stderr.write(
-      'Inspect service state with: pnpm exec varlock run -- docker compose --profile litellm ps\n',
+      `Inspect service state with: pnpm exec varlock run -- docker compose ${full ? '-f compose.yaml -f compose.full.yaml --profile full' : '--profile lite'} ps\n`,
     )
     process.stderr.write(
-      'Inspect logs with: pnpm exec varlock run -- docker compose --profile litellm logs --tail=100\n',
+      `Inspect logs with: pnpm exec varlock run -- docker compose ${full ? '-f compose.yaml -f compose.full.yaml --profile full' : '--profile lite'} logs --tail=100\n`,
     )
     process.exit(1)
   }
@@ -138,12 +150,16 @@ async function checkServices(wait) {
 
 async function main() {
   const command = process.argv[2] ?? 'check'
-  if (!['up', 'check'].includes(command)) {
-    process.stderr.write('Usage: pnpm demo:up | pnpm demo:check\n')
+  const full = command.endsWith(':full')
+  const action = command.replace(/:full$/, '')
+  if (!['up', 'check'].includes(action)) {
+    process.stderr.write(
+      'Usage: pnpm demo:up | pnpm demo:check | pnpm demo:full | pnpm demo:check:full\n',
+    )
     process.exit(2)
   }
 
-  if (command === 'up') {
+  if (action === 'up') {
     run('docker', ['compose', 'version'])
     checkDocker()
     if (!existsSync(envPath)) {
@@ -154,27 +170,22 @@ async function main() {
     run('pnpm', ['local:prepare'])
 
     run('pnpm', ['exec', 'varlock', 'load'])
-    run('pnpm', [
-      'exec',
-      'varlock',
-      'run',
-      '--',
-      'docker',
-      'compose',
-      '--profile',
-      'litellm',
-      'up',
-      '--build',
-      '--detach',
-    ])
+    const composeArgs = ['exec', 'varlock', 'run', '--', 'docker', 'compose']
+    if (full) composeArgs.push('-f', 'compose.yaml', '-f', 'compose.full.yaml')
+    composeArgs.push('--profile', full ? 'full' : 'lite', 'up', '--build', '--detach')
+    run('pnpm', composeArgs)
   }
 
   process.stdout.write('Checking demo services...\n')
-  await checkServices(command === 'up')
-  if (command === 'up' && readLocalConfig().get('LANGFUSE_USE_MANAGED_PROMPTS') !== 'false') {
+  await checkServices(action === 'up', full)
+  if (
+    action === 'up' &&
+    full &&
+    readLocalConfig().get('LANGFUSE_USE_MANAGED_PROMPTS') !== 'false'
+  ) {
     run('pnpm', ['langfuse:prompts:sync'])
   }
-  printSummary()
+  printSummary(full)
 }
 
 await main()

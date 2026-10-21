@@ -15,10 +15,32 @@ pnpm install
 pnpm demo:up
 ```
 
-The script creates `.env.local`, prepares service credentials, starts the stack,
-migrates and seeds PostgreSQL, checks health, and prints URLs. The first start
-also downloads the local embedding model. Generation starts in **mock mode**:
-no LLM key or usage charges.
+The lite command creates `.env.local`, starts PostgreSQL, a one-shot API
+bootstrap container, API, and web,
+migrates and seeds the database, checks health, and prints app URLs. It uses
+mock generation and skips Langfuse and OpenTelemetry services. The first start
+also downloads the local embedding model.
+
+For Langfuse traces, LiteLLM, and the Grafana telemetry stack, start the full
+demo instead:
+
+```sh
+pnpm demo:full
+```
+
+The full stack captures prompt inputs and outputs in Langfuse by default. Set
+`LANGFUSE_CAPTURE_PROMPTS=false` in `.env.local` to turn capture off. Stop the
+lite stack with:
+
+```sh
+pnpm exec varlock run -- docker compose --profile lite down
+```
+
+Stop the full stack with:
+
+```sh
+pnpm exec varlock run -- docker compose -f compose.yaml -f compose.full.yaml --profile full down
+```
 
 Open **[localhost:5173/login](http://localhost:5173/login)**. Use the demo buttons
 or sign in manually; both accounts use `NovaLocal123!`.
@@ -28,11 +50,8 @@ or sign in manually; both accounts use `NovaLocal123!`.
 | Teacher | `teacher@example.test` |
 | Curriculum Lead | `curriculum-lead@example.test` |
 
-Check services with `pnpm demo:check`. Stop them when finished:
-
-```sh
-pnpm exec varlock run -- docker compose --profile litellm down
-```
+Check the lite stack with `pnpm demo:check`, or the full stack with
+`pnpm demo:check:full`.
 
 ### Use your own LLM
 
@@ -47,7 +66,7 @@ LLM_REVIEWER_MODEL=your-model
 LANGFUSE_USE_MANAGED_PROMPTS=false
 ```
 
-Use your provider's actual URL and model IDs, then run `pnpm demo:up` again.
+Use your provider's actual URL and model IDs, then run `pnpm demo:full` again.
 Disabling managed prompts makes these environment model settings authoritative.
 Langfuse tracing still requires Langfuse credentials. To manage prompts or route
 through LiteLLM, see [observability](docs/observability.md).
@@ -60,7 +79,9 @@ Keys stay on the server.
 ## Try the workflow
 
 1. **Teacher:** open Curriculum Library → Grade 8 Integrated Science → July
-   2024 → outcome `1.2(a)`. Choose a duration and generate a plan.
+   2024 → outcome `1.2(a)`. This is the demo's only generation-ready target;
+   other catalogue entries are browse-only. Choose a duration and generate a
+   plan.
 2. Read the sources and QA guidance. Edit, save, and submit. To try a rejected
    edit, make the activity timings differ from the lesson duration.
 3. **Curriculum Lead:** open the review queue and return the plan with a comment.
@@ -144,10 +165,11 @@ PostgreSQL database; it is skipped when that variable is absent. Unit and role
 checks run without a database. See [evals](apps/evals/README.md) for live runs,
 controlled failure cases, and report export.
 
-The demo supports generation for **one CBC target**; four other catalogue paths
-are browse-only. Leads can ingest source text and publish revisions through the
-API. File upload, extraction, and source-management screens are omitted to keep
-the slice focused on planning and review. Next steps are broader source coverage
+The demo supports generation for **one CBC target**: Grade 8 Integrated Science,
+July 2024, outcome `1.2(a)`. Other catalogue paths are browse-only. Leads can
+ingest source text and publish revisions through the API. File upload,
+extraction, and source-management screens are omitted to keep the slice focused
+on planning and review. Next steps are broader source coverage
 and retrieval evaluations with independently reviewed examples.
 
 [Observability](docs/observability.md) explains Langfuse traces and prompts,

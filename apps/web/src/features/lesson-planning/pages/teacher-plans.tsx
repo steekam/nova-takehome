@@ -55,6 +55,15 @@ export function GeneratePage({ user }: { user: ApiPrincipal }) {
     onSuccess: async () => queryClient.invalidateQueries({ queryKey: lessonPlanningKeys.all }),
   })
   const selectedOutcome = outcomes.data?.find((outcome) => outcome.id === targetId)
+  const supportedPaths = outcomes.data
+    ? [
+        ...new Set(
+          outcomes.data.map(
+            (outcome) => `${outcome.grade} ${outcome.subject} (${outcome.editionLabel})`,
+          ),
+        ),
+      ]
+    : []
   return (
     <AppShell role={user.roles[0]}>
       <div className="mx-auto max-w-4xl space-y-7">
@@ -85,23 +94,30 @@ export function GeneratePage({ user }: { user: ApiPrincipal }) {
               {outcomes.isLoading ? (
                 <div role="status" className="h-11 animate-pulse rounded-md bg-muted" />
               ) : outcomes.isError ? null : outcomes.data?.length ? (
-                <label className="block space-y-2 text-sm font-medium">
-                  Curriculum outcome
-                  <select
-                    required
-                    className="h-11 w-full rounded-md border bg-background px-3 font-normal"
-                    value={targetId}
-                    onChange={(event) => setTargetId(event.target.value)}
-                  >
-                    <option value="">Choose an outcome</option>
-                    {outcomes.data.map((outcome) => (
-                      <option key={outcome.id} value={outcome.id}>
-                        {outcome.framework} · {outcome.programme} · {outcome.grade}{' '}
-                        {outcome.subject} — {outcome.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <>
+                  <label className="block space-y-2 text-sm font-medium">
+                    Curriculum outcome
+                    <select
+                      required
+                      className="h-11 w-full rounded-md border bg-background px-3 font-normal"
+                      value={targetId}
+                      onChange={(event) => setTargetId(event.target.value)}
+                    >
+                      <option value="">Choose an outcome</option>
+                      {outcomes.data.map((outcome) => (
+                        <option key={outcome.id} value={outcome.id}>
+                          {outcome.framework} · {outcome.programme} · {outcome.grade}{' '}
+                          {outcome.subject} — {outcome.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <p className="text-sm text-muted-foreground">
+                    {supportedPaths.length
+                      ? `Plan generation is enabled for ${supportedPaths.join(', ')}. Other catalogue paths are browse-only in this demo.`
+                      : 'No curriculum targets are currently ready for generation. Other catalogue paths are browse-only in this demo.'}
+                  </p>
+                </>
               ) : (
                 <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                   No curriculum outcomes are ready yet. Browse the{' '}

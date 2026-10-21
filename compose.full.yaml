@@ -1,0 +1,13 @@
+services:
+  api:
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      OTEL_ENABLED: ${OTEL_ENABLED:-true}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_BASE_URL: ${COMPOSE_LANGFUSE_BASE_URL:-http://langfuse-web:3000}
+      LANGFUSE_CAPTURE_PROMPTS: ${LANGFUSE_CAPTURE_PROMPTS:-true}
+    depends_on:
+      otel-collector:
+        condition: service_started

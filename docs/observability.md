@@ -1,8 +1,9 @@
 # Observability
 
 This page explains where to inspect lesson-plan AI runs and system health. Run
-`pnpm demo:up` to start the local stack and `pnpm demo:check` to print its
-health and URLs.
+`pnpm demo:full` to start the full telemetry stack and
+`pnpm demo:check:full` to print its health and URLs. For app-only testing, use
+`pnpm demo:up`; that mode does not start Langfuse or the OpenTelemetry stack.
 
 ## Where signals go
 
@@ -23,7 +24,7 @@ The Collector sends distributed traces to Tempo, metrics to Prometheus, and
 structured logs to Loki. Grafana displays metrics. LiteLLM reports provider
 usage, cost, and budgets for proxied calls.
 
-`pnpm demo:check` prints service URLs. The default local endpoints include
+`pnpm demo:check:full` prints service URLs. The full-stack endpoints include
 Grafana at `http://localhost:3000`, Langfuse at `http://localhost:3002`,
 LiteLLM at `http://localhost:4000/ui`, Prometheus at
 `http://localhost:9091`, Tempo at `http://localhost:3200`, and Loki at
@@ -44,10 +45,10 @@ Provider attempts, retry outcomes, latency, token counts, and reported cost
 also feed bounded-cardinality metrics. Plan IDs, target IDs, and request IDs
 stay on traces rather than metric labels.
 
-Prompt input/output capture is controlled by `LANGFUSE_CAPTURE_PROMPTS`.
-Prompt bodies can contain curriculum excerpts and generated lesson content;
-enable capture only in a suitable development environment. The default
-`.env.schema` setting is off.
+Prompt input/output capture is enabled by default through
+`LANGFUSE_CAPTURE_PROMPTS=true`. Prompt bodies can contain curriculum excerpts
+and generated lesson content. Set it to `false` in `.env.local` to turn capture
+off. Lite mode does not export traces to Langfuse.
 
 ## Prompt management
 
@@ -57,7 +58,7 @@ which defaults to `production`. The prompt's Langfuse model config can select
 the LiteLLM model alias; otherwise the API uses its configured generator or
 reviewer model.
 
-`pnpm demo:up` creates missing prompts without overwriting existing edits. Use
+`pnpm demo:full` creates missing prompts without overwriting existing edits. Use
 `pnpm langfuse:prompts:sync` to add missing prompts. Use
 `pnpm langfuse:prompts:publish` to publish code-defined prompt changes. If
 managed prompts are disabled or unavailable, the API uses its source prompt

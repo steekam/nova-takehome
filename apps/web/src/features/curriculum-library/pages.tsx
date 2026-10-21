@@ -42,6 +42,10 @@ function LibraryIndexPage() {
           <p className="mt-2 max-w-2xl text-muted-foreground">
             Browse the structured curriculum and its approved supporting sources.
           </p>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            Only targets marked Ready for generation can start a plan. Other catalogue entries are
+            browse-only in this demo.
+          </p>
         </div>
         <div className="flex gap-2 text-sm">
           <span className="rounded-lg border bg-card px-3 py-2">
@@ -314,7 +318,7 @@ export function LibraryTargetPage({ targetRevisionId }: { targetRevisionId: stri
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
                   {target.generationReady
                     ? 'Published target and supporting sources can ground a lesson plan.'
-                    : 'This catalogue entry is visible for planning. Source updates happen through the full import and review process.'}
+                    : 'Browse-only in this demo. Start a plan from a target marked Ready for generation.'}
                 </p>
               </div>
             </div>
