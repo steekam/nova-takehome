@@ -23,7 +23,7 @@ type ApiEvaluationReport = {
     qa: unknown
     rubricQa?: { traceId?: string; [key: string]: unknown }
   }
-  validation: { validation: { traceId?: string; [key: string]: unknown } }
+  validation: { traceId?: string; [key: string]: unknown }
 }
 
 function canonicalJson(value: unknown): string {
@@ -50,7 +50,7 @@ export function apiReportsToDatasetItems(reports: readonly unknown[], datasetNam
       id,
       datasetName,
       input: { target: report.target, durationMinutes: report.durationMinutes },
-      expectedOutput: { deterministicQa: report.generation.qa, rubricQa: report.validation.validation },
+      expectedOutput: { deterministicQa: report.generation.qa, rubricQa: report.validation },
       metadata: {
         exportVersion: 'api-evaluation-dataset-v1',
         evalRunId: report.evalRunId,
@@ -61,9 +61,9 @@ export function apiReportsToDatasetItems(reports: readonly unknown[], datasetNam
         generationRubricQa: report.generation.rubricQa ?? null,
         requestIds: report.requests,
         generationTraceId: report.generation.rubricQa?.traceId ?? null,
-        validationTraceId: report.validation.validation.traceId ?? null,
+        validationTraceId: report.validation.traceId ?? null,
       },
-      ...(report.validation.validation.traceId ? { sourceTraceId: report.validation.validation.traceId } : {}),
+      ...(report.validation.traceId ? { sourceTraceId: report.validation.traceId } : {}),
     }
     const previous = unique.get(id)
     if (previous && canonicalJson(previous) !== canonicalJson(item)) throw new Error(`Conflicting API evaluation snapshots for ${id}.`)

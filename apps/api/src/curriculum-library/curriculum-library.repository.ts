@@ -29,18 +29,7 @@ export class CurriculumLibraryRepository {
           where: includeDraft ? undefined : eq(curriculumDesignVersions.status, 'published'),
           with: {
             nodes: true,
-            targets: {
-              with: {
-                sourceLinks: {
-                  where: includeDraft ? undefined : eq(curriculumSourceLinks.status, 'published'),
-                  with: {
-                    resourceRevision: {
-                      with: { resource: true, chunks: true },
-                    },
-                  },
-                },
-              },
-            },
+            targets: true,
           },
         },
       },
@@ -61,28 +50,9 @@ export class CurriculumLibraryRepository {
     const designs = rows.flatMap((offering) => offering.designs)
     const nodes = designs.flatMap((design) => design.nodes)
     const targets = designs.flatMap((design) => design.targets)
-    const sources = rows.flatMap((offering) => offering.designs.flatMap((design) => design.targets.flatMap((target) =>
-      target.sourceLinks.flatMap((link) => (includeDraft || link.resourceRevision.status === 'published') ? link.resourceRevision.chunks.map((chunk) => ({
-        linkId: link.id,
-        targetRevisionId: target.id,
-        role: link.role,
-        linkStatus: link.status,
-        documentId: link.resourceRevision.resource.id,
-        resourceRevisionId: link.resourceRevision.id,
-        revisionNumber: link.resourceRevision.revisionNumber,
-        chunkId: chunk.id,
-        resourceType: link.resourceRevision.resource.resourceType,
-        title: link.resourceRevision.resource.title,
-        authority: link.resourceRevision.resource.authority,
-        editionLabel: link.resourceRevision.editionLabel,
-        sourceUrl: link.resourceRevision.sourceUrl,
-        subject: offering.subject.name,
-        grade: offering.level?.label ?? null,
-        locator: chunk.locator,
-        content: chunk.content,
-        revisionStatus: link.resourceRevision.status,
-      })) : []),
-    )))
+    const sources = targets.length
+      ? await this.sourceRows(targets.map((target) => target.id), includeDraft)
+      : []
 
     return {
       offerings,

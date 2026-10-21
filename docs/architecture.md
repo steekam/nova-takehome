@@ -27,8 +27,8 @@ flowchart LR
 - `apps/api` owns authentication, authorization, HTTP validation, use cases,
   database access, retrieval, model calls, and workflow transitions.
 - `packages/shared` owns Zod contracts shared across the API and web app.
-- `packages/model-runtime` owns provider and embedding adapters shared by the
-  API and internal evaluation harness.
+- `packages/model-runtime` owns provider adapters used by the API. The API owns
+  embedding and retrieval behavior.
 - `apps/evals` calls the API for generation and validation, then exports
   evaluation run snapshots to Langfuse. It has no duplicate product workflow.
 
