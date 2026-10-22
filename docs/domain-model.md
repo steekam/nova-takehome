@@ -7,6 +7,7 @@ The diagrams highlight key fields; the schema files define every column and
 constraint.
 
 Zoomable entity diagrams: [system diagram board](https://www.tldraw.com/f/bmp8NfBjhONWbeWKxZ7M9).
+Focused view: [curriculum library structure and versioning](curriculum-library-schema.html).
 
 ## Curriculum catalogue
 
@@ -24,6 +25,21 @@ UUIDs identify records but do not replace source codes or locators.
 Curriculum nodes represent hierarchy such as strands, sub-strands, topics, and
 sections. A target revision stores the teachable statement, kind, and locator.
 The selected target revision is attached to each lesson plan version.
+
+### Design-version lifecycle (planned extension)
+
+The database enforces tree membership: nodes and targets reference one design
+version, and composite foreign keys keep parent nodes and targets within that
+version. It does not prevent changing those rows after publication.
+
+The intended application rule is that only `draft` versions can change. Tree
+writes and publication should lock the design-version row in the same
+transaction; publishing validates the tree and sets `publishedAt`. A write to
+a published or retired version returns `409 CURRICULUM_VERSION_LOCKED` with a
+prompt to create a new revision. A correction creates a draft with the same
+edition label, the next `revisionNumber`, and `supersedesId` pointing to the
+prior version. A database trigger is a later hardening option for writes that
+bypass the application. Source-link status remains separately managed.
 
 The demo catalogue includes multiple CBC paths. Grade 8 Integrated Science,
 July 2024, target `1.2(a)` is the source-backed generation path. Other seeded
