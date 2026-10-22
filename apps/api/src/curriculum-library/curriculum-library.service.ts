@@ -8,10 +8,13 @@ import {
 import { createHash } from 'node:crypto'
 import {
   CurriculumLibraryOfferingDtoSchema,
+  CurriculumLibraryResponseSchema,
   CurriculumLibraryTargetDtoSchema,
   CurriculumOutcomeDtoSchema,
   CurriculumSourceDtoSchema,
   type ApiPrincipal,
+  type CurriculumHierarchyNodeDto,
+  type CurriculumLibraryTargetDto,
   type CurriculumLibrarySourceInput,
   type CurriculumOutcomeDto,
   type CurriculumSourceDto,
@@ -33,11 +36,14 @@ export class CurriculumLibraryService {
   ) {}
 
   async catalogue(principal: ApiPrincipal) {
-    return this.catalogueForVisibility(principal.roles.includes('curriculum_lead'))
+    const offerings = await this.repository.catalogueSummary(
+      principal.roles.includes('curriculum_lead'),
+    )
+    return CurriculumLibraryResponseSchema.parse({ offerings })
   }
 
   async allSources(principal: ApiPrincipal) {
-    const catalogue = await this.catalogue(principal)
+    const catalogue = await this.catalogueForVisibility(principal.roles.includes('curriculum_lead'))
     const unique = new Map<string, CurriculumSourceDto>()
     for (const target of catalogue.offerings.flatMap((offering) =>
       offering.designs.flatMap((design) => design.targets),
@@ -48,8 +54,18 @@ export class CurriculumLibraryService {
     return [...unique.values()]
   }
 
-  private async catalogueForVisibility(includeDraft: boolean) {
-    const data = await this.repository.catalogue(includeDraft)
+  private async catalogueForVisibility(
+    includeDraft: boolean,
+    offeringId?: string,
+    designVersionId?: string,
+    targetRevisionId?: string,
+  ) {
+    const data = await this.repository.catalogue(
+      includeDraft,
+      offeringId,
+      designVersionId,
+      targetRevisionId,
+    )
     const sourcesByTarget = new Map<string, SourceRow[]>()
     for (const source of data.sources) {
       const sources = sourcesByTarget.get(source.targetRevisionId) ?? []
@@ -73,10 +89,16 @@ export class CurriculumLibraryService {
           source.linkStatus === 'published' &&
           source.revisionStatus === 'published',
       )
-      const path: string[] = []
+      const hierarchy: CurriculumHierarchyNodeDto[] = []
       let node = nodesById.get(target.nodeId)
       while (node) {
-        path.unshift(node.label)
+        hierarchy.unshift({
+          id: node.id,
+          kind: node.kind,
+          code: node.code,
+          label: node.label,
+          sortOrder: node.sortOrder,
+        })
         node = node.parentNodeId ? nodesById.get(node.parentNodeId) : undefined
       }
       targetDtos.set(
@@ -95,7 +117,8 @@ export class CurriculumLibraryService {
           title: target.title,
           statement: target.statement,
           locator: target.sourceLocator,
-          path,
+          sortOrder: target.sortOrder,
+          hierarchy,
           sourceCount: new Set(sourceRows.map((source) => source.resourceRevisionId)).size,
           generationReady: design.status === 'published' && linkedDefinitions,
           sources: targetSources,
@@ -106,9 +129,18 @@ export class CurriculumLibraryService {
     const offerings = data.offerings.map((offering) =>
       CurriculumLibraryOfferingDtoSchema.parse({
         id: offering.id,
+        frameworkId: offering.frameworkId,
+        frameworkCode: offering.frameworkCode,
         framework: offering.framework,
+        programmeId: offering.programmeId,
+        programmeCode: offering.programmeCode,
         programme: offering.programme,
+        levelId: offering.levelId,
+        levelKind: offering.levelKind,
+        levelCode: offering.levelCode,
         level: offering.level ?? 'All levels',
+        subjectId: offering.subjectId,
+        subjectCode: offering.subjectCode,
         subject: offering.subject,
         externalCode: offering.externalCode,
         designs: data.designs
@@ -117,8 +149,19 @@ export class CurriculumLibraryService {
             id: design.id,
             editionLabel: design.editionLabel,
             revisionNumber: design.revisionNumber,
+            publishedAt: design.publishedAt?.toISOString() ?? null,
             origin: design.origin,
             status: design.status,
+            nodes: data.nodes
+              .filter((node) => node.designVersionId === design.id)
+              .map((node) => ({
+                id: node.id,
+                parentNodeId: node.parentNodeId,
+                kind: node.kind,
+                code: node.code,
+                label: node.label,
+                sortOrder: node.sortOrder,
+              })),
             targets: data.targets
               .filter((target) => target.designVersionId === design.id)
               .flatMap((target) => targetDtos.get(target.id) ?? []),
@@ -130,7 +173,18 @@ export class CurriculumLibraryService {
   }
 
   async target(targetRevisionId: string, principal: ApiPrincipal) {
-    const catalogue = await this.catalogue(principal)
+    const includeDraft = principal.roles.includes('curriculum_lead')
+    const [targetDesign] = await this.repository.targetDesign(targetRevisionId)
+    if (!targetDesign) throw new NotFoundException('Curriculum target not found')
+    const [design] = await this.repository.design(targetDesign.designVersionId)
+    if (!design || (!includeDraft && design.status !== 'published'))
+      throw new NotFoundException('Curriculum target not found')
+    const catalogue = await this.catalogueForVisibility(
+      includeDraft,
+      design.offeringId,
+      design.id,
+      targetRevisionId,
+    )
     const target = catalogue.offerings
       .flatMap((offering) => offering.designs.flatMap((design) => design.targets))
       .find((item) => item.id === targetRevisionId)
@@ -138,48 +192,50 @@ export class CurriculumLibraryService {
     return target
   }
 
+  async design(designVersionId: string, principal: ApiPrincipal) {
+    const includeDraft = principal.roles.includes('curriculum_lead')
+    const [design] = await this.repository.design(designVersionId)
+    if (!design || (!includeDraft && design.status !== 'published'))
+      throw new NotFoundException('Curriculum edition not found')
+    const catalogue = await this.catalogueForVisibility(includeDraft, design.offeringId, design.id)
+    const offering = catalogue.offerings[0]
+    if (!offering?.designs.length) throw new NotFoundException('Curriculum edition not found')
+    return CurriculumLibraryOfferingDtoSchema.parse(offering)
+  }
+
   async outcomes(): Promise<CurriculumOutcomeDto[]> {
     const catalogue = await this.catalogueForVisibility(false)
     return catalogue.offerings
       .flatMap((offering) => offering.designs.flatMap((design) => design.targets))
       .filter((target) => target.generationReady)
-      .map((target) =>
-        CurriculumOutcomeDtoSchema.parse({
-          id: target.id,
-          designVersionId: target.designVersionId,
-          offeringId: target.offeringId,
-          kind: target.kind,
-          title: target.title,
-          subject: target.subject,
-          grade: target.level,
-          programme: target.programme,
-          framework: target.framework,
-          editionLabel: target.editionLabel,
-          locator: target.locator,
-          content: target.statement,
-          sourceCount: target.sourceCount,
-          generationReady: target.generationReady,
-        }),
-      )
+      .map(toCurriculumOutcome)
   }
 
   async outcomeForGeneration(targetRevisionId: string): Promise<CurriculumOutcomeDto> {
-    const outcomes = await this.outcomes()
-    const outcome = outcomes.find((item) => item.id === targetRevisionId)
-    if (!outcome) {
-      const catalogue = await this.catalogueForVisibility(false)
-      const exists = catalogue.offerings
-        .flatMap((offering) => offering.designs.flatMap((design) => design.targets))
-        .some((target) => target.id === targetRevisionId)
-      if (exists)
-        throw new BadRequestException({
-          code: 'CURRICULUM_SOURCES_MISSING',
-          message:
-            'This curriculum target has no published source that defines it. Choose a source-backed target or ask a curriculum lead to add sources.',
-        })
+    const [targetDesign] = await this.repository.targetDesign(targetRevisionId)
+    if (!targetDesign) throw new NotFoundException('Curriculum target not found')
+    const [design] = await this.repository.design(targetDesign.designVersionId)
+    if (!design || design.status !== 'published')
       throw new NotFoundException('Curriculum target not found')
-    }
-    return outcome
+    const catalogue = await this.catalogueForVisibility(
+      false,
+      design.offeringId,
+      design.id,
+      targetRevisionId,
+    )
+    const target = catalogue.offerings[0]?.designs[0]?.targets[0]
+    if (!target) throw new NotFoundException('Curriculum target not found')
+    if (!target.generationReady)
+      throw new BadRequestException({
+        code: 'CURRICULUM_SOURCES_MISSING',
+        message:
+          'This curriculum target has no published source that defines it. Choose a source-backed target or ask a curriculum lead to add sources.',
+      })
+    return toCurriculumOutcome(target)
+  }
+
+  targetContexts(targetRevisionIds: string[]) {
+    return this.repository.targetContexts(targetRevisionIds)
   }
 
   async sourceChunksForGeneration(
@@ -412,6 +468,25 @@ function toSourceDto(source: SourceRow): CurriculumSourceDto {
           ? 'published'
           : 'draft',
   }
+}
+
+function toCurriculumOutcome(target: CurriculumLibraryTargetDto): CurriculumOutcomeDto {
+  return CurriculumOutcomeDtoSchema.parse({
+    id: target.id,
+    designVersionId: target.designVersionId,
+    offeringId: target.offeringId,
+    kind: target.kind,
+    title: target.title,
+    subject: target.subject,
+    grade: target.level,
+    programme: target.programme,
+    framework: target.framework,
+    editionLabel: target.editionLabel,
+    locator: target.locator,
+    content: target.statement,
+    sourceCount: target.sourceCount,
+    generationReady: target.generationReady,
+  })
 }
 
 function splitContent(content: string) {

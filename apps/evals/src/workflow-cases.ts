@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import {
-  CurriculumLibraryResponseSchema,
+  CurriculumOutcomesResponseSchema,
   LessonPlanListResponseSchema,
   LessonPlanResponseSchema,
 } from '@nova/shared'
@@ -86,25 +86,18 @@ export async function runWorkflowCases(args: string[]): Promise<void> {
     process.env.NOVA_EVAL_TEACHER_EMAIL ?? 'teacher@example.test',
     process.env.NOVA_EVAL_TEACHER_PASSWORD ?? 'NovaLocal123!',
   )
-  const catalogueResponse = await apiRequest<unknown>(baseUrl, token, '/api/curriculum/library')
-  const catalogue = CurriculumLibraryResponseSchema.parse(catalogueResponse.value)
-  const targets = catalogue.offerings
+  const outcomesResponse = await apiRequest<unknown>(baseUrl, token, '/api/outcomes')
+  const outcomes = CurriculumOutcomesResponseSchema.parse(outcomesResponse.value)
+  const targets = outcomes.items
     .filter(
-      (offering) =>
-        offering.framework.toLowerCase().includes('competency based curriculum') &&
-        offering.programme.toLowerCase() === dataset.target.programme.toLowerCase() &&
-        offering.level.toLowerCase() === dataset.target.grade.toLowerCase() &&
-        offering.subject.toLowerCase() === dataset.target.subject.toLowerCase(),
+      (outcome) =>
+        outcome.framework.toLowerCase().includes('competency based curriculum') &&
+        outcome.programme.toLowerCase() === dataset.target.programme.toLowerCase() &&
+        outcome.grade.toLowerCase() === dataset.target.grade.toLowerCase() &&
+        outcome.subject.toLowerCase() === dataset.target.subject.toLowerCase() &&
+        outcome.editionLabel === dataset.target.edition,
     )
-    .flatMap((offering) =>
-      offering.designs
-        .filter(
-          (design) =>
-            design.editionLabel === dataset.target.edition && design.status === 'published',
-        )
-        .flatMap((design) => design.targets),
-    )
-    .filter((target) => target.locator === dataset.target.locator && target.generationReady)
+    .filter((outcome) => outcome.locator === dataset.target.locator && outcome.generationReady)
   if (targets.length !== 1)
     throw new Error(
       `Expected one generation-ready CBC target at ${dataset.target.locator}; found ${targets.length}.`,

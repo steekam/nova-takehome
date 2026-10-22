@@ -70,6 +70,13 @@ export async function submitLessonPlan(id: string) {
   return data
 }
 
+export async function deleteLessonPlan(id: string) {
+  const { error } = await apiClient.DELETE('/api/lesson-plans/{id}', {
+    params: { path: { id } },
+  })
+  if (error) throw error
+}
+
 export async function reviewLessonPlan(
   id: string,
   input: { decision: 'returned' | 'published'; comment?: string },

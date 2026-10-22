@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import {
   CurriculumLibraryResponseSchema,
+  CurriculumLibraryDesignResponseSchema,
   CurriculumLibrarySourceInputSchema,
   CurriculumLibraryTargetResponseSchema,
   CurriculumOutcomesResponseSchema,
@@ -38,6 +39,7 @@ export function createApiDocument(app: INestApplication) {
   document.components.schemas = {
     ...document.components.schemas,
     CurriculumLibrary: toOpenApiSchema(CurriculumLibraryResponseSchema),
+    CurriculumLibraryDesign: toOpenApiSchema(CurriculumLibraryDesignResponseSchema),
     CurriculumLibraryTarget: toOpenApiSchema(CurriculumLibraryTargetResponseSchema),
     CurriculumOutcomesResponse: toOpenApiSchema(CurriculumOutcomesResponseSchema),
     CurriculumSourcesResponse: toOpenApiSchema(CurriculumSourcesResponseSchema),

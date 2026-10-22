@@ -1,4 +1,5 @@
 import type { LessonPlanContent } from '@nova/shared'
+import { ChevronRight } from 'lucide-react'
 
 export type LessonPlanVersion = {
   version: number
@@ -23,12 +24,19 @@ export function PlanVersionHistory({
   currentVersion: number
 }) {
   return (
-    <section aria-labelledby="version-history-heading">
-      <h2 id="version-history-heading" className="font-semibold">
-        Version history
-      </h2>
+    <details className="rounded-xl border bg-card">
+      <summary className="group flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <span>
+          Version history{' '}
+          <span className="text-sm font-normal text-muted-foreground">({versions.length})</span>
+        </span>
+        <ChevronRight
+          aria-hidden="true"
+          className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
+        />
+      </summary>
       {versions.length ? (
-        <ol className="mt-3 divide-y rounded-lg border px-3">
+        <ol className="divide-y border-t px-4">
           {versions.map((version) => (
             <li
               key={version.version}
@@ -50,20 +58,27 @@ export function PlanVersionHistory({
           ))}
         </ol>
       ) : (
-        <p className="mt-2 text-sm text-muted-foreground">No saved versions.</p>
+        <p className="border-t px-4 py-3 text-sm text-muted-foreground">No saved versions.</p>
       )}
-    </section>
+    </details>
   )
 }
 
 export function PlanReviewHistory({ reviews }: { reviews: PlanReview[] }) {
   return (
-    <section aria-labelledby="review-history-heading">
-      <h2 id="review-history-heading" className="font-semibold">
-        Review comments
-      </h2>
+    <details className="rounded-xl border bg-card">
+      <summary className="group flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <span>
+          Review comments{' '}
+          <span className="text-sm font-normal text-muted-foreground">({reviews.length})</span>
+        </span>
+        <ChevronRight
+          aria-hidden="true"
+          className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
+        />
+      </summary>
       {reviews.length ? (
-        <ol className="mt-3 divide-y rounded-lg border px-3">
+        <ol className="divide-y border-t px-4">
           {reviews.map((review) => (
             <li key={review.id} className="py-3 text-sm">
               <p className="font-medium">
@@ -79,8 +94,8 @@ export function PlanReviewHistory({ reviews }: { reviews: PlanReview[] }) {
           ))}
         </ol>
       ) : (
-        <p className="mt-2 text-sm text-muted-foreground">No review feedback yet.</p>
+        <p className="border-t px-4 py-3 text-sm text-muted-foreground">No review feedback yet.</p>
       )}
-    </section>
+    </details>
   )
 }

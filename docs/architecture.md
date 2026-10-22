@@ -3,23 +3,70 @@
 This page maps the running application for reviewers and contributors. The root
 [README](../README.md) covers local setup and the demo flow.
 
-## Runtime shape
+See the [system diagram board](https://www.tldraw.com/f/bmp8NfBjhONWbeWKxZ7M9)
+for zoomable entity, workflow, and service diagrams.
+
+## Product request path
+
+```mermaid
+flowchart TB
+  Teacher[Teacher] --> Browser[Browser]
+  Lead[Curriculum Lead] --> Browser
+  Browser --> Web[React + TanStack Router]
+  Web -->|HTTP + cookie auth| API[NestJS API]
+  API -->|Drizzle| PG[(PostgreSQL + pgvector)]
+```
+
+## Provider routing
 
 ```mermaid
 flowchart LR
-  Teacher[Teacher] --> Web[React + TanStack Router]
-  Lead[Curriculum Lead] --> Web
-  Web --> API[NestJS API]
-  API --> DB[(PostgreSQL + pgvector)]
-  API --> Cache[(Redis)]
-  API --> Proxy[OpenAI-compatible provider / LiteLLM]
-  API --> LF[Langfuse SDK]
-  API --> OTEL[OpenTelemetry]
-  OTEL --> Collector[Collector]
-  Collector --> Tempo[Tempo]
-  Collector --> Prom[Prometheus]
-  Collector --> Loki[Loki]
+  API[NestJS API] --> Runtime[Model runtime]
+  Runtime -->|mock| Mock[Deterministic mock adapter]
+  Runtime -->|live| Adapter[OpenAI-compatible adapter]
+  Adapter --> LiteLLM[LiteLLM proxy · full profile]
+  LiteLLM -->|model alias routing| Provider[Baseten or configured provider]
 ```
+
+## Embedding and retrieval
+
+```mermaid
+flowchart LR
+  API[NestJS API] -->|source chunks or target query| BGE[BGE-small · local, 384 dimensions]
+  BGE --> Cache[Local embedding cache]
+  Cache --> PG[(PostgreSQL + pgvector)]
+  PG --> Evidence[Target-scoped retrieved evidence]
+  Evidence --> API
+```
+
+## Telemetry paths
+
+```mermaid
+flowchart LR
+  API[NestJS AI workflows] -->|AI traces and captured prompts| SDK[Langfuse SDK]
+  SDK --> LF[Langfuse · traces and prompts]
+  Evals[Evaluation runner] -->|dataset export| LF
+  API -->|system telemetry| Collector[OpenTelemetry Collector]
+  LiteLLM[LiteLLM] -->|OpenTelemetry| Collector
+  Collector --> Tempo[Tempo · traces]
+  Collector --> Prom[Prometheus · metrics]
+  Collector --> Loki[Loki · logs]
+  Tempo --> Grafana[Grafana]
+  Prom --> Grafana
+  Loki --> Grafana
+```
+
+The Langfuse web and worker use shared backing services; they exchange work
+through Redis queues rather than a direct web-to-worker call. The zoomable
+[system diagram board](https://www.tldraw.com/f/bmp8NfBjhONWbeWKxZ7M9) shows
+those services and the three database connections separately.
+
+The default Compose configuration runs the product services and PostgreSQL.
+The `full` profile adds LiteLLM, Langfuse, Redis, ClickHouse, MinIO, and the
+OpenTelemetry/Grafana stack. One PostgreSQL service hosts separate Nova,
+LiteLLM, and Langfuse databases. Redis serves Langfuse; the API does not use it
+as an application cache. AI workflow traces go directly to Langfuse; system
+telemetry goes through the Collector.
 
 ## Code boundaries
 
@@ -44,6 +91,9 @@ lesson-plan lifecycle, generation and repair path, provider retries, standalone
 rubric validation, and source revision publication. The shared package defines
 allowed lesson-plan transitions; review decisions reference the exact immutable
 version reviewed.
+
+See [data flows](data-flows.md) for source ingestion, grounded generation,
+versioned editing, rubric validation, and human review.
 
 ## Access policy
 

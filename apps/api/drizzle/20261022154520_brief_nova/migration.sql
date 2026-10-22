@@ -1,0 +1,1 @@
+ALTER TABLE "lesson_plans" ADD COLUMN "deleted_at" timestamp with time zone;

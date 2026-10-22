@@ -1,8 +1,9 @@
 import 'varlock/auto-load'
 import { createHash } from 'node:crypto'
 import { Pool } from 'pg'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
+import type { LessonPlanContent } from '@nova/shared'
 import { hashPassword } from '../auth/password'
 import {
   curriculumDesignVersions,
@@ -14,6 +15,9 @@ import {
   curriculumSourceLinks,
   curriculumSubjects,
   curriculumTargetRevisions,
+  lessonPlanVersionSources,
+  lessonPlanVersions,
+  lessonPlans,
   libraryResourceChunks,
   libraryResourceRevisions,
   libraryResources,
@@ -107,44 +111,20 @@ const supportingSources = [
   },
   {
     type: 'lead_guidance' as const,
-    title: 'Demo curriculum-lead note',
+    title: 'Demo curriculum-lead guidance',
     locator: 'Lead note 1',
     role: 'guidance' as const,
     content:
-      'DEMO ONLY, SYNTHETIC LEAD NOTE: Prefer paper cards, drawings, counters, or learner movement to model particles. Do not require heating, burning, or open flames. Give learners a non-movement option for activities involving body movement.',
+      'DEMO ONLY, SYNTHETIC LEAD NOTE: Use paper cards, drawings, or counters; do not require heating, burning, or open flames. Offer spoken descriptions and static response cards so every task works without visual access or body movement.',
   },
-  {
-    type: 'exemplar' as const,
-    title: 'Demo reviewed lesson excerpt',
-    locator: 'Excerpt 1',
-    role: 'exemplar' as const,
-    content:
-      'DEMO ONLY, SYNTHETIC EXEMPLAR: A short lesson can begin with contrasting diagrams, use pairs to build and compare models, then end with an individual explanation. The exemplar informs teaching structure; the learning target still comes from the target source.',
-  },
-  {
-    type: 'assessment_item' as const,
-    title: 'Demo particle assessment pack — diagnostic prompt',
-    locator: 'Assessment 2',
-    role: 'assessment_support' as const,
-    content:
-      'DEMO ONLY, SYNTHETIC DIAGNOSTIC: Show two particle diagrams and ask learners what is similar and what differs. Listen for claims about spacing, movement, and particle size before teaching.',
-  },
-  {
-    type: 'lead_guidance' as const,
-    title: 'Demo curriculum-lead guidance — accessible responses',
-    locator: 'Lead note 2',
-    role: 'guidance' as const,
-    content:
-      'DEMO ONLY, SYNTHETIC ACCESSIBILITY GUIDANCE: For diagram comparisons, provide two equivalent spoken descriptions and static response cards. This option must work without visual access or body movement, including the closing check. Tactile counters are another option, with movement represented as vibration, sliding, or free movement.',
-  },
-  {
-    type: 'teaching_note' as const,
-    title: 'Demo particle teaching note — classroom setup',
-    locator: 'Setup note 1',
-    role: 'teaching_support' as const,
-    content:
-      'DEMO ONLY, SYNTHETIC CLASSROOM SETUP NOTE: Prepare same-size particle cards, counters, spoken-description cards, and one response sheet per learner before the lesson. Display all three diagrams together for comparison. Use paper or counters; no heating demonstration or electrical equipment is needed.',
-  },
+]
+
+const retiredSeedSourceTitles = [
+  'Demo curriculum-lead note',
+  'Demo reviewed lesson excerpt',
+  'Demo particle assessment pack — diagnostic prompt',
+  'Demo curriculum-lead guidance — accessible responses',
+  'Demo particle teaching note — classroom setup',
 ]
 
 async function seed(): Promise<void> {
@@ -189,6 +169,7 @@ async function seed(): Promise<void> {
       accountRows.push(row)
     }
     const leadId = accountRows.find((row) => row.role === 'curriculum_lead')!.id
+    const teacherId = accountRows.find((row) => row.role === 'teacher')!.id
 
     const framework = await findOrInsert(
       () =>
@@ -439,6 +420,7 @@ async function seed(): Promise<void> {
       'defines_target',
       leadId,
     )
+    const supportResources = new Map<string, Awaited<ReturnType<typeof seedResource>>>()
     for (const source of supportingSources) {
       const created = await seedResource({
         title: source.title,
@@ -450,11 +432,79 @@ async function seed(): Promise<void> {
         creatorId: leadId,
         embed,
       })
+      supportResources.set(source.title, created)
       await linkPublishedSource(officialTargetId, created.revision.id, source.role, leadId)
     }
+    await retireSeedSources(officialTargetId)
+
+    const teachingNote = supportResources.get('Demo particle teaching note')!
+    const seedPlanId = '00000000-0000-4000-8000-000000000101'
+    const seedVersionId = '00000000-0000-4000-8000-000000000102'
+    const content: LessonPlanContent = {
+      title: 'Demo draft: particle models in solids, liquids and gases',
+      subject: 'Integrated Science',
+      grade: '8',
+      learningOutcome: 'Describe the characteristics of particles in the three states of matter.',
+      durationMinutes: 45,
+      objectives: [
+        'Describe particle spacing and arrangement in solids, liquids, and gases.',
+        'Compare how particles move in each state.',
+        'Explain that particles do not change size when a substance changes state.',
+      ],
+      materials: ['Same-size particle cards', 'Learner recording sheet'],
+      starter:
+        'Show three particle diagrams. Ask learners to match each diagram to a solid, liquid, or gas and explain their choice.',
+      activities: [
+        {
+          title: 'Build particle models',
+          description:
+            'In pairs, arrange same-size cards to model a solid, a liquid, and a gas. Label the spacing and movement in each model.',
+          durationMinutes: 15,
+        },
+        {
+          title: 'Compare the models',
+          description:
+            'Groups compare their models and correct any claim that particles grow or shrink when the state changes.',
+          durationMinutes: 15,
+        },
+        {
+          title: 'Explain one state change',
+          description:
+            'Learners draw or describe how particle arrangement and movement change when a solid becomes a liquid.',
+          durationMinutes: 10,
+        },
+      ],
+      checkForUnderstanding:
+        'Ask learners to explain why a gas fills its container without its particles becoming larger. Look for spacing and movement in the explanation.',
+      sources: [
+        { documentId: officialResource.resource.id, chunkId: officialResource.chunk.id },
+        { documentId: teachingNote.resource.id, chunkId: teachingNote.chunk.id },
+      ],
+    }
+    await db.insert(lessonPlans).values({ id: seedPlanId, teacherId }).onConflictDoNothing()
+    await db
+      .insert(lessonPlanVersions)
+      .values({
+        id: seedVersionId,
+        lessonPlanId: seedPlanId,
+        targetRevisionId: officialTargetId,
+        version: 1,
+        content,
+        createdBy: teacherId,
+      })
+      .onConflictDoNothing()
+    await db
+      .insert(lessonPlanVersionSources)
+      .values(
+        content.sources.map((source) => ({
+          lessonPlanVersionId: seedVersionId,
+          resourceChunkId: source.chunkId,
+        })),
+      )
+      .onConflictDoNothing()
 
     console.log(
-      `Seeded ${seedAccounts.length} local accounts and ${supportedPaths.length} CBC catalogue paths. One target has published sources; the remaining targets are browse-only demo entries.`,
+      `Seeded ${seedAccounts.length} local accounts, ${supportedPaths.length} CBC catalogue paths, ${supportingSources.length + 1} source passages, and one target-linked lesson-plan draft.`,
     )
   } finally {
     await pool.end()
@@ -542,7 +592,18 @@ async function seed(): Promise<void> {
         embedding: await input.embed('document', input.content),
       })
     }
-    return { resource, revision }
+    const [chunk] = await db
+      .select()
+      .from(libraryResourceChunks)
+      .where(
+        and(
+          eq(libraryResourceChunks.resourceRevisionId, revision.id),
+          eq(libraryResourceChunks.ordinal, 0),
+        ),
+      )
+      .limit(1)
+    if (!chunk) throw new Error(`Resource chunk seed failed for ${input.title}`)
+    return { resource, revision, chunk }
   }
 
   async function linkPublishedSource(
@@ -572,6 +633,36 @@ async function seed(): Promise<void> {
         publishedBy: actorId,
         publishedAt: new Date(),
       })
+  }
+
+  async function retireSeedSources(targetRevisionId: string) {
+    const obsoleteLinks = await db
+      .select({ id: curriculumSourceLinks.id })
+      .from(curriculumSourceLinks)
+      .innerJoin(
+        libraryResourceRevisions,
+        eq(curriculumSourceLinks.resourceRevisionId, libraryResourceRevisions.id),
+      )
+      .innerJoin(libraryResources, eq(libraryResourceRevisions.resourceId, libraryResources.id))
+      .where(
+        and(
+          eq(curriculumSourceLinks.targetRevisionId, targetRevisionId),
+          eq(curriculumSourceLinks.status, 'published'),
+          eq(libraryResources.authority, 'synthetic'),
+          inArray(libraryResources.title, retiredSeedSourceTitles),
+        ),
+      )
+
+    if (obsoleteLinks.length === 0) return
+    await db
+      .update(curriculumSourceLinks)
+      .set({ status: 'retired' })
+      .where(
+        inArray(
+          curriculumSourceLinks.id,
+          obsoleteLinks.map(({ id }) => id),
+        ),
+      )
   }
 }
 

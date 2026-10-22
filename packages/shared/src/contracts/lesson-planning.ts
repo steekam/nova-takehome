@@ -164,6 +164,25 @@ export const LessonPlanDtoSchema = z
   .strict()
 export type LessonPlanDto = z.infer<typeof LessonPlanDtoSchema>
 
+export const LessonPlanCurriculumContextSchema = z
+  .object({
+    framework: z.string(),
+    programme: z.string(),
+    grade: z.string(),
+    subject: z.string(),
+    releaseLabel: z.string(),
+    locator: z.string(),
+    targetTitle: z.string(),
+  })
+  .strict()
+export type LessonPlanCurriculumContext = z.infer<typeof LessonPlanCurriculumContextSchema>
+
+export const LessonPlanListItemSchema = LessonPlanDtoSchema.extend({
+  curriculumContext: LessonPlanCurriculumContextSchema.nullable(),
+  canDelete: z.boolean(),
+}).strict()
+export type LessonPlanListItem = z.infer<typeof LessonPlanListItemSchema>
+
 export const LessonPlanReviewDtoSchema = z
   .object({
     id: z.string().uuid(),
@@ -180,7 +199,7 @@ export type LessonPlanReviewDto = z.infer<typeof LessonPlanReviewDtoSchema>
 
 export const LessonPlanListResponseSchema = z
   .object({
-    items: z.array(LessonPlanDtoSchema),
+    items: z.array(LessonPlanListItemSchema),
   })
   .strict()
 

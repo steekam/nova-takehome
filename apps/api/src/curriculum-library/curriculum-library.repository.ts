@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common'
-import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, count, countDistinct, desc, eq, inArray, sql } from 'drizzle-orm'
 import { DatabaseService } from '../database/database.service'
 import type { DbExecutor } from '../database/executor'
 import {
+  curriculumFrameworks,
+  curriculumLevels,
+  curriculumOfferings,
+  curriculumProgrammes,
+  curriculumSubjects,
   curriculumDesignVersions,
   curriculumSourceLinks,
   curriculumTargetRevisions,
@@ -15,17 +20,133 @@ import {
 export class CurriculumLibraryRepository {
   constructor(private readonly database: DatabaseService) {}
 
-  async catalogue(includeDraft: boolean) {
+  async catalogueSummary(includeDraft: boolean) {
     const rows = await this.database.db.query.curriculumOfferings.findMany({
+      columns: { id: true, externalCode: true },
+      with: {
+        programme: {
+          columns: { id: true, code: true, name: true },
+          with: {
+            framework: { columns: { id: true, code: true, name: true } },
+          },
+        },
+        level: { columns: { id: true, kind: true, code: true, label: true } },
+        subject: { columns: { id: true, code: true, name: true } },
+        designs: {
+          ...(!includeDraft ? { where: { status: 'published' as const } } : {}),
+          columns: {
+            id: true,
+            editionLabel: true,
+            revisionNumber: true,
+            publishedAt: true,
+            origin: true,
+            status: true,
+          },
+        },
+      },
+    })
+    const targetCounts = await this.database.db
+      .select({ designVersionId: curriculumTargetRevisions.designVersionId, count: count() })
+      .from(curriculumTargetRevisions)
+      .groupBy(curriculumTargetRevisions.designVersionId)
+    const readyTargetCounts = await this.database.db
+      .select({
+        designVersionId: curriculumTargetRevisions.designVersionId,
+        count: countDistinct(curriculumTargetRevisions.id),
+      })
+      .from(curriculumTargetRevisions)
+      .innerJoin(
+        curriculumDesignVersions,
+        eq(curriculumTargetRevisions.designVersionId, curriculumDesignVersions.id),
+      )
+      .innerJoin(
+        curriculumSourceLinks,
+        and(
+          eq(curriculumTargetRevisions.id, curriculumSourceLinks.targetRevisionId),
+          eq(curriculumSourceLinks.role, 'defines_target'),
+          eq(curriculumSourceLinks.status, 'published'),
+        ),
+      )
+      .innerJoin(
+        libraryResourceRevisions,
+        and(
+          eq(curriculumSourceLinks.resourceRevisionId, libraryResourceRevisions.id),
+          eq(libraryResourceRevisions.status, 'published'),
+        ),
+      )
+      .innerJoin(
+        libraryResources,
+        and(
+          eq(libraryResourceRevisions.resourceId, libraryResources.id),
+          eq(libraryResources.resourceType, 'curriculum_design'),
+          eq(libraryResources.authority, 'official'),
+        ),
+      )
+      .where(eq(curriculumDesignVersions.status, 'published'))
+      .groupBy(curriculumTargetRevisions.designVersionId)
+    const targetCountByDesign = new Map(
+      targetCounts.map(({ designVersionId, count: targetCount }) => [designVersionId, targetCount]),
+    )
+    const readyTargetCountByDesign = new Map(
+      readyTargetCounts.map(({ designVersionId, count: readyTargetCount }) => [
+        designVersionId,
+        readyTargetCount,
+      ]),
+    )
+
+    return rows.map((offering) => ({
+      id: offering.id,
+      frameworkId: offering.programme.framework.id,
+      frameworkCode: offering.programme.framework.code,
+      framework: offering.programme.framework.name,
+      programmeId: offering.programme.id,
+      programmeCode: offering.programme.code,
+      programme: offering.programme.name,
+      levelId: offering.level?.id ?? null,
+      levelKind: offering.level?.kind ?? null,
+      levelCode: offering.level?.code ?? null,
+      level: offering.level?.label ?? 'All levels',
+      subjectId: offering.subject.id,
+      subjectCode: offering.subject.code,
+      subject: offering.subject.name,
+      externalCode: offering.externalCode,
+      designs: offering.designs.map((design) => ({
+        id: design.id,
+        editionLabel: design.editionLabel,
+        revisionNumber: design.revisionNumber,
+        publishedAt: design.publishedAt?.toISOString() ?? null,
+        origin: design.origin,
+        status: design.status,
+        targetCount: targetCountByDesign.get(design.id) ?? 0,
+        generationReadyCount: readyTargetCountByDesign.get(design.id) ?? 0,
+      })),
+    }))
+  }
+
+  async catalogue(
+    includeDraft: boolean,
+    offeringId?: string,
+    designVersionId?: string,
+    targetRevisionId?: string,
+  ) {
+    const rows = await this.database.db.query.curriculumOfferings.findMany({
+      ...(offeringId ? { where: { id: offeringId } } : {}),
       with: {
         programme: { with: { framework: true } },
         level: true,
         subject: true,
         designs: {
-          ...(!includeDraft ? { where: { status: 'published' } } : {}),
+          ...(!includeDraft || designVersionId
+            ? {
+                where: {
+                  ...(!includeDraft ? { status: 'published' as const } : {}),
+                  ...(designVersionId ? { id: designVersionId } : {}),
+                },
+              }
+            : {}),
           with: {
             nodes: true,
-            targets: true,
+            targets: targetRevisionId ? { where: { id: targetRevisionId } } : true,
           },
         },
       },
@@ -34,12 +155,17 @@ export class CurriculumLibraryRepository {
     const offerings = rows.map((offering) => ({
       id: offering.id,
       frameworkId: offering.programme.framework.id,
+      frameworkCode: offering.programme.framework.code,
       framework: offering.programme.framework.name,
       programmeId: offering.programme.id,
+      programmeCode: offering.programme.code,
       programme: offering.programme.name,
       levelId: offering.level?.id ?? null,
+      levelKind: offering.level?.kind ?? null,
+      levelCode: offering.level?.code ?? null,
       level: offering.level?.label ?? null,
       subjectId: offering.subject.id,
+      subjectCode: offering.subject.code,
       subject: offering.subject.name,
       externalCode: offering.externalCode,
     }))
@@ -68,6 +194,38 @@ export class CurriculumLibraryRepository {
       .from(curriculumTargetRevisions)
       .where(eq(curriculumTargetRevisions.id, targetRevisionId))
       .limit(1)
+  }
+
+  targetContexts(targetRevisionIds: string[]) {
+    if (targetRevisionIds.length === 0) return Promise.resolve([])
+    return this.database.db
+      .select({
+        targetRevisionId: curriculumTargetRevisions.id,
+        targetTitle: curriculumTargetRevisions.title,
+        locator: curriculumTargetRevisions.sourceLocator,
+        releaseLabel: curriculumDesignVersions.editionLabel,
+        grade: curriculumLevels.label,
+        subject: curriculumSubjects.name,
+        programme: curriculumProgrammes.name,
+        framework: curriculumFrameworks.name,
+      })
+      .from(curriculumTargetRevisions)
+      .innerJoin(
+        curriculumDesignVersions,
+        eq(curriculumTargetRevisions.designVersionId, curriculumDesignVersions.id),
+      )
+      .innerJoin(
+        curriculumOfferings,
+        eq(curriculumDesignVersions.offeringId, curriculumOfferings.id),
+      )
+      .innerJoin(curriculumProgrammes, eq(curriculumOfferings.programmeId, curriculumProgrammes.id))
+      .innerJoin(
+        curriculumFrameworks,
+        eq(curriculumProgrammes.frameworkId, curriculumFrameworks.id),
+      )
+      .leftJoin(curriculumLevels, eq(curriculumOfferings.levelId, curriculumLevels.id))
+      .innerJoin(curriculumSubjects, eq(curriculumOfferings.subjectId, curriculumSubjects.id))
+      .where(inArray(curriculumTargetRevisions.id, targetRevisionIds))
   }
 
   design(id: string, executor: DbExecutor = this.database.db) {

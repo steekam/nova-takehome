@@ -82,8 +82,6 @@ Use these terms consistently in the app, schema, demo, and project docs. Curricu
 
 **Rubric QA status.** `completed`, `invalid_output`, or `unavailable`. These describe the model review call; deterministic checks and Curriculum Lead decisions remain separate.
 
-**Jev.** TypeSafe AI's model-evaluation/classification option discussed for this project. The current API workflow does not use it.
-
 **Plan content schema.** The structured lesson fields shared by AI drafts and teacher edits: title, duration, lesson objectives, materials, timed activities, checks for understanding, and source uses. Curriculum-specific labels such as 5E phases are optional extensions.
 
 **Mock mode.** A deterministic generation path that needs no model credentials. Use it to demonstrate the full workflow without an external provider or cost.

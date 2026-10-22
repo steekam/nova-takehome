@@ -89,7 +89,9 @@ Keys stay on the server.
 
 The server enforces roles, ownership, and state transitions. Each edit creates
 an immutable version; review decisions and rubric results reference the exact
-version reviewed. Published plans are read-only. See the
+version reviewed. Teachers can remove unreviewed drafts from their workspace.
+Soft deletion keeps saved versions; plans with review history, in review, or
+published remain available for audit. See the
 [workflow state charts](docs/workflow-state-charts.md) for all transitions.
 
 ## How it works
@@ -130,7 +132,9 @@ PostgreSQL with pgvector stores the catalogue, source revisions, embeddings,
 plans, versions, and reviews. Table definitions are split by feature under
 `apps/api/src/database/schema`. The [architecture](docs/architecture.md) covers
 module boundaries and access rules; the [domain model](docs/domain-model.md)
-covers relationships.
+covers relationships. [Data flows](docs/data-flows.md) document source intake,
+generation, validation, and review. For a zoomable presentation view, open the
+[system diagram board](https://www.tldraw.com/f/bmp8NfBjhONWbeWKxZ7M9).
 
 ### Corpus and lesson content
 
@@ -140,6 +144,9 @@ scheme of work, teaching notes, assessments, lead guidance, and an exemplar.
 Support records have `type`, `title`, `locator`, `role`, and `content`. Seeding
 adds authority and edition metadata, creates immutable resource revisions and
 chunks, embeds them with BGE-small (384 dimensions), and links them to the target.
+It also adds one clearly labelled demo draft linked to the Grade 8 outcome and
+its official and teaching-note citations. Seed records use stable IDs and are
+insert-only; reseeding does not overwrite edits or remove existing plans.
 
 [LessonPlanContentSchema](packages/shared/src/contracts/lesson-planning.ts)
 validates generated and edited content: title, subject, grade, learning outcome,
@@ -176,3 +183,6 @@ and retrieval evaluations with independently reviewed examples.
 [Observability](docs/observability.md) explains Langfuse traces and prompts,
 LiteLLM routing and costs, and system metrics. [AI_LOG.md](AI_LOG.md) records AI
 assistance and decisions made during development.
+
+Use the [presentation walkthrough](docs/presentation.html) for a slide-by-slide
+view of the catalogue, evidence path, workflows, and system architecture.

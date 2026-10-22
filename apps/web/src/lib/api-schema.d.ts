@@ -105,6 +105,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/curriculum/library/designs/{designVersionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["CurriculumLibraryController_design"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/curriculum/library/targets/{targetRevisionId}": {
         parameters: {
             query?: never;
@@ -228,7 +244,8 @@ export interface paths {
         get: operations["LessonPlanningController_get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Remove an unreviewed draft from the teacher workspace */
+        delete: operations["LessonPlanningController_delete"];
         options?: never;
         head?: never;
         patch: operations["LessonPlanningController_edit"];
@@ -329,9 +346,23 @@ export interface components {
             offerings: {
                 /** Format: uuid */
                 id: string;
+                /** Format: uuid */
+                frameworkId: string;
+                frameworkCode: string;
                 framework: string;
+                /** Format: uuid */
+                programmeId: string;
+                programmeCode: string;
                 programme: string;
+                /** Format: uuid */
+                levelId: string | null;
+                /** @enum {string|null} */
+                levelKind: "grade" | "stage" | "year" | "qualification" | null;
+                levelCode: string | null;
                 level: string;
+                /** Format: uuid */
+                subjectId: string;
+                subjectCode: string;
                 subject: string;
                 externalCode: string | null;
                 designs: {
@@ -339,59 +370,118 @@ export interface components {
                     id: string;
                     editionLabel: string;
                     revisionNumber: number;
+                    /** Format: date-time */
+                    publishedAt: string | null;
                     /** @enum {string} */
                     origin: "official_import" | "demo_fixture";
                     /** @enum {string} */
                     status: "draft" | "published" | "retired";
-                    targets: {
+                    targetCount: number;
+                    generationReadyCount: number;
+                }[];
+            }[];
+        };
+        CurriculumLibraryDesign: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            frameworkId: string;
+            frameworkCode: string;
+            framework: string;
+            /** Format: uuid */
+            programmeId: string;
+            programmeCode: string;
+            programme: string;
+            /** Format: uuid */
+            levelId: string | null;
+            /** @enum {string|null} */
+            levelKind: "grade" | "stage" | "year" | "qualification" | null;
+            levelCode: string | null;
+            level: string;
+            /** Format: uuid */
+            subjectId: string;
+            subjectCode: string;
+            subject: string;
+            externalCode: string | null;
+            designs: {
+                /** Format: uuid */
+                id: string;
+                editionLabel: string;
+                revisionNumber: number;
+                /** Format: date-time */
+                publishedAt: string | null;
+                /** @enum {string} */
+                origin: "official_import" | "demo_fixture";
+                /** @enum {string} */
+                status: "draft" | "published" | "retired";
+                nodes: {
+                    /** Format: uuid */
+                    id: string;
+                    /** Format: uuid */
+                    parentNodeId: string | null;
+                    /** @enum {string} */
+                    kind: "strand" | "sub_strand" | "topic" | "subtopic" | "unit" | "section";
+                    code: string | null;
+                    label: string;
+                    sortOrder: number;
+                }[];
+                targets: {
+                    /** Format: uuid */
+                    id: string;
+                    /** Format: uuid */
+                    designVersionId: string;
+                    /** Format: uuid */
+                    offeringId: string;
+                    framework: string;
+                    programme: string;
+                    level: string;
+                    subject: string;
+                    editionLabel: string;
+                    /** @enum {string} */
+                    origin: "official_import" | "demo_fixture";
+                    /** @enum {string} */
+                    kind: "specific_learning_outcome" | "learning_objective" | "syllabus_content_point";
+                    title: string;
+                    statement: string;
+                    locator: string;
+                    sortOrder: number;
+                    hierarchy: {
                         /** Format: uuid */
                         id: string;
-                        /** Format: uuid */
-                        designVersionId: string;
-                        /** Format: uuid */
-                        offeringId: string;
-                        framework: string;
-                        programme: string;
-                        level: string;
-                        subject: string;
-                        editionLabel: string;
                         /** @enum {string} */
-                        origin: "official_import" | "demo_fixture";
+                        kind: "strand" | "sub_strand" | "topic" | "subtopic" | "unit" | "section";
+                        code: string | null;
+                        label: string;
+                        sortOrder: number;
+                    }[];
+                    sourceCount: number;
+                    generationReady: boolean;
+                    sources: {
+                        /** Format: uuid */
+                        linkId: string | null;
+                        /** Format: uuid */
+                        documentId: string;
+                        /** Format: uuid */
+                        resourceRevisionId: string;
+                        revisionNumber: number;
+                        /** Format: uuid */
+                        chunkId: string;
                         /** @enum {string} */
-                        kind: "specific_learning_outcome" | "learning_objective" | "syllabus_content_point";
+                        resourceType: "curriculum_design" | "scheme_of_work" | "assessment_item" | "teaching_note" | "lead_guidance" | "exemplar";
                         title: string;
-                        statement: string;
-                        locator: string;
-                        path: string[];
-                        sourceCount: number;
-                        generationReady: boolean;
-                        sources: {
-                            /** Format: uuid */
-                            linkId: string | null;
-                            /** Format: uuid */
-                            documentId: string;
-                            /** Format: uuid */
-                            resourceRevisionId: string;
-                            revisionNumber: number;
-                            /** Format: uuid */
-                            chunkId: string;
-                            /** @enum {string} */
-                            resourceType: "curriculum_design" | "scheme_of_work" | "assessment_item" | "teaching_note" | "lead_guidance" | "exemplar";
-                            title: string;
-                            subject: string;
-                            grade: string;
-                            content: string;
-                            /** @enum {string} */
-                            authority: "official" | "school" | "internal" | "synthetic";
-                            editionLabel: string | null;
-                            sourceUrl: string | null;
-                            locator: string | null;
-                            synthetic: boolean;
-                            /** @enum {string} */
-                            role: "defines_target" | "teaching_support" | "assessment_support" | "guidance" | "exemplar";
-                            /** @enum {string} */
-                            status: "draft" | "published" | "retired";
-                        }[];
+                        subject: string;
+                        grade: string;
+                        content: string;
+                        /** @enum {string} */
+                        authority: "official" | "school" | "internal" | "synthetic";
+                        editionLabel: string | null;
+                        sourceUrl: string | null;
+                        locator: string | null;
+                        synthetic: boolean;
+                        /** @enum {string} */
+                        role: "defines_target" | "teaching_support" | "assessment_support" | "guidance" | "exemplar";
+                        /** @enum {string} */
+                        status: "draft" | "published" | "retired";
                     }[];
                 }[];
             }[];
@@ -415,7 +505,16 @@ export interface components {
             title: string;
             statement: string;
             locator: string;
-            path: string[];
+            sortOrder: number;
+            hierarchy: {
+                /** Format: uuid */
+                id: string;
+                /** @enum {string} */
+                kind: "strand" | "sub_strand" | "topic" | "subtopic" | "unit" | "section";
+                code: string | null;
+                label: string;
+                sortOrder: number;
+            }[];
             sourceCount: number;
             generationReady: boolean;
             sources: {
@@ -684,7 +783,8 @@ export interface components {
                     score: number;
                     rationale: string;
                     evidence: {
-                        planPath: string;
+                        /** @enum {string} */
+                        planPath: "title" | "subject" | "grade" | "learningOutcome" | "durationMinutes" | "objectives" | "materials" | "starter" | "activities" | "checkForUnderstanding" | "sources";
                         sourceChunkIds: string[];
                     }[];
                     suggestions: string[];
@@ -733,6 +833,16 @@ export interface components {
                 createdAt: string;
                 /** Format: date-time */
                 updatedAt: string;
+                curriculumContext: {
+                    framework: string;
+                    programme: string;
+                    grade: string;
+                    subject: string;
+                    releaseLabel: string;
+                    locator: string;
+                    targetTitle: string;
+                } | null;
+                canDelete: boolean;
             }[];
         };
         LessonPlanResponse: {
@@ -802,7 +912,8 @@ export interface components {
                     score: number;
                     rationale: string;
                     evidence: {
-                        planPath: string;
+                        /** @enum {string} */
+                        planPath: "title" | "subject" | "grade" | "learningOutcome" | "durationMinutes" | "objectives" | "materials" | "starter" | "activities" | "checkForUnderstanding" | "sources";
                         sourceChunkIds: string[];
                     }[];
                     suggestions: string[];
@@ -922,7 +1033,8 @@ export interface components {
                     score: number;
                     rationale: string;
                     evidence: {
-                        planPath: string;
+                        /** @enum {string} */
+                        planPath: "title" | "subject" | "grade" | "learningOutcome" | "durationMinutes" | "objectives" | "materials" | "starter" | "activities" | "checkForUnderstanding" | "sources";
                         sourceChunkIds: string[];
                     }[];
                     suggestions: string[];
@@ -1096,6 +1208,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CurriculumLibrary"];
+                };
+            };
+        };
+    };
+    CurriculumLibraryController_design: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                designVersionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurriculumLibraryDesign"];
                 };
             };
         };
@@ -1281,6 +1414,33 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["LessonPlanDetailsResponse"];
                 };
+            };
+        };
+    };
+    LessonPlanningController_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lesson plan removed from the workspace. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Plan is reviewed, in review, returned, or published. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

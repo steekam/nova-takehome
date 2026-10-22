@@ -5,6 +5,7 @@ import type { ApiPrincipal } from '@nova/shared'
 import { AppShell } from '../../../components/app-shell'
 import { LessonPlanTable } from '../../../components/lesson-plan-table'
 import { PlanReviewHistory, PlanVersionHistory } from '../../../components/plan-history'
+import { SourcePassage, SourceProvenance } from '../../../components/source-evidence'
 import { buttonVariants } from '../../../components/ui/button'
 import { getLessonPlan, lessonPlanningKeys, listLessonPlans } from '../api'
 import { curriculumLibraryKeys, listCurriculumSources } from '../../curriculum-library/api'
@@ -57,6 +58,21 @@ export function PublishedPlans({ user }: { user: ApiPrincipal }) {
             plans={toLessonPlanTableItems(published)}
             actionLabel="View"
             emptyMessage="No published plans yet."
+            emptyAction={
+              user.roles.includes('teacher') ? (
+                <Link className={buttonVariants({ size: 'sm' })} to="/teacher/plans/new">
+                  <Plus aria-hidden="true" /> Create plan
+                </Link>
+              ) : (
+                <Link
+                  className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                  to="/curriculum-lead"
+                >
+                  Open review queue
+                  <ArrowRight aria-hidden="true" />
+                </Link>
+              )
+            }
             renderAction={(plan) => (
               <Link
                 className={buttonVariants({ variant: 'outline', size: 'sm' })}
@@ -154,7 +170,7 @@ export function PublishedPlanPage({ user, planId }: { user: ApiPrincipal; planId
           </Link>
           <div>
             <p className="text-sm font-medium text-primary">
-              {content.subject} · Grade {content.grade} · {content.durationMinutes} minutes
+              {content.subject} · {content.grade} · {content.durationMinutes} minutes
             </p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight">{content.title}</h1>
             <p className="mt-3 max-w-4xl text-sm leading-6">{content.learningOutcome}</p>
@@ -242,15 +258,19 @@ export function PublishedPlanPage({ user, planId }: { user: ApiPrincipal; planId
                     className="rounded-xl border bg-card p-4"
                   >
                     <h3 className="font-semibold">{detail?.title ?? `Source ${index + 1}`}</h3>
-                    {detail && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {detail.resourceType} · {detail.subject} · Grade {detail.grade}
+                    {detail ? (
+                      <>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {detail.subject} · {detail.grade}
+                        </p>
+                        <SourceProvenance source={detail} />
+                        <SourcePassage source={detail} />
+                      </>
+                    ) : (
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Source details are unavailable. The citation remains attached to this plan.
                       </p>
                     )}
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                      {detail?.content ??
-                        `Source reference ${source.documentId} · ${source.chunkId}`}
-                    </p>
                   </article>
                 ))
               ) : (

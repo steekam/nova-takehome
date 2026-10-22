@@ -143,6 +143,36 @@
         ]
       }
     },
+    "/api/curriculum/library/designs/{designVersionId}": {
+      "get": {
+        "operationId": "CurriculumLibraryController_design",
+        "parameters": [
+          {
+            "name": "designVersionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurriculumLibraryDesign"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Curriculum library"
+        ]
+      }
+    },
     "/api/curriculum/library/targets/{targetRevisionId}": {
       "get": {
         "operationId": "CurriculumLibraryController_target",
@@ -383,6 +413,31 @@
             }
           }
         },
+        "tags": [
+          "Lesson planning"
+        ]
+      },
+      "delete": {
+        "operationId": "LessonPlanningController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Lesson plan removed from the workspace."
+          },
+          "409": {
+            "description": "Plan is reviewed, in review, returned, or published."
+          }
+        },
+        "summary": "Remove an unreviewed draft from the teacher workspace",
         "tags": [
           "Lesson planning"
         ]
@@ -734,13 +789,57 @@
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                 },
+                "frameworkId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "frameworkCode": {
+                  "type": "string"
+                },
                 "framework": {
+                  "type": "string"
+                },
+                "programmeId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "programmeCode": {
                   "type": "string"
                 },
                 "programme": {
                   "type": "string"
                 },
+                "levelId": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "levelKind": {
+                  "nullable": true,
+                  "type": "string",
+                  "enum": [
+                    "grade",
+                    "stage",
+                    "year",
+                    "qualification"
+                  ]
+                },
+                "levelCode": {
+                  "nullable": true,
+                  "type": "string"
+                },
                 "level": {
+                  "type": "string"
+                },
+                "subjectId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "subjectCode": {
                   "type": "string"
                 },
                 "subject": {
@@ -769,6 +868,12 @@
                         "exclusiveMinimum": true,
                         "maximum": 9007199254740991
                       },
+                      "publishedAt": {
+                        "nullable": true,
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
                       "origin": {
                         "type": "string",
                         "enum": [
@@ -784,230 +889,26 @@
                           "retired"
                         ]
                       },
-                      "targets": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "string",
-                              "format": "uuid",
-                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                            },
-                            "designVersionId": {
-                              "type": "string",
-                              "format": "uuid",
-                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                            },
-                            "offeringId": {
-                              "type": "string",
-                              "format": "uuid",
-                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                            },
-                            "framework": {
-                              "type": "string"
-                            },
-                            "programme": {
-                              "type": "string"
-                            },
-                            "level": {
-                              "type": "string"
-                            },
-                            "subject": {
-                              "type": "string"
-                            },
-                            "editionLabel": {
-                              "type": "string"
-                            },
-                            "origin": {
-                              "type": "string",
-                              "enum": [
-                                "official_import",
-                                "demo_fixture"
-                              ]
-                            },
-                            "kind": {
-                              "type": "string",
-                              "enum": [
-                                "specific_learning_outcome",
-                                "learning_objective",
-                                "syllabus_content_point"
-                              ]
-                            },
-                            "title": {
-                              "type": "string"
-                            },
-                            "statement": {
-                              "type": "string"
-                            },
-                            "locator": {
-                              "type": "string"
-                            },
-                            "path": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
-                            },
-                            "sourceCount": {
-                              "type": "integer",
-                              "minimum": 0,
-                              "maximum": 9007199254740991
-                            },
-                            "generationReady": {
-                              "type": "boolean"
-                            },
-                            "sources": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "linkId": {
-                                    "nullable": true,
-                                    "type": "string",
-                                    "format": "uuid",
-                                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                                  },
-                                  "documentId": {
-                                    "type": "string",
-                                    "format": "uuid",
-                                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                                  },
-                                  "resourceRevisionId": {
-                                    "type": "string",
-                                    "format": "uuid",
-                                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                                  },
-                                  "revisionNumber": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "exclusiveMinimum": true,
-                                    "maximum": 9007199254740991
-                                  },
-                                  "chunkId": {
-                                    "type": "string",
-                                    "format": "uuid",
-                                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                                  },
-                                  "resourceType": {
-                                    "type": "string",
-                                    "enum": [
-                                      "curriculum_design",
-                                      "scheme_of_work",
-                                      "assessment_item",
-                                      "teaching_note",
-                                      "lead_guidance",
-                                      "exemplar"
-                                    ]
-                                  },
-                                  "title": {
-                                    "type": "string"
-                                  },
-                                  "subject": {
-                                    "type": "string"
-                                  },
-                                  "grade": {
-                                    "type": "string"
-                                  },
-                                  "content": {
-                                    "type": "string"
-                                  },
-                                  "authority": {
-                                    "type": "string",
-                                    "enum": [
-                                      "official",
-                                      "school",
-                                      "internal",
-                                      "synthetic"
-                                    ]
-                                  },
-                                  "editionLabel": {
-                                    "nullable": true,
-                                    "type": "string"
-                                  },
-                                  "sourceUrl": {
-                                    "nullable": true,
-                                    "type": "string"
-                                  },
-                                  "locator": {
-                                    "nullable": true,
-                                    "type": "string"
-                                  },
-                                  "synthetic": {
-                                    "type": "boolean"
-                                  },
-                                  "role": {
-                                    "type": "string",
-                                    "enum": [
-                                      "defines_target",
-                                      "teaching_support",
-                                      "assessment_support",
-                                      "guidance",
-                                      "exemplar"
-                                    ]
-                                  },
-                                  "status": {
-                                    "type": "string",
-                                    "enum": [
-                                      "draft",
-                                      "published",
-                                      "retired"
-                                    ]
-                                  }
-                                },
-                                "required": [
-                                  "linkId",
-                                  "documentId",
-                                  "resourceRevisionId",
-                                  "revisionNumber",
-                                  "chunkId",
-                                  "resourceType",
-                                  "title",
-                                  "subject",
-                                  "grade",
-                                  "content",
-                                  "authority",
-                                  "editionLabel",
-                                  "sourceUrl",
-                                  "locator",
-                                  "synthetic",
-                                  "role",
-                                  "status"
-                                ],
-                                "additionalProperties": false
-                              }
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "designVersionId",
-                            "offeringId",
-                            "framework",
-                            "programme",
-                            "level",
-                            "subject",
-                            "editionLabel",
-                            "origin",
-                            "kind",
-                            "title",
-                            "statement",
-                            "locator",
-                            "path",
-                            "sourceCount",
-                            "generationReady",
-                            "sources"
-                          ],
-                          "additionalProperties": false
-                        }
+                      "targetCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "generationReadyCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
                       }
                     },
                     "required": [
                       "id",
                       "editionLabel",
                       "revisionNumber",
+                      "publishedAt",
                       "origin",
                       "status",
-                      "targets"
+                      "targetCount",
+                      "generationReadyCount"
                     ],
                     "additionalProperties": false
                   }
@@ -1015,9 +916,18 @@
               },
               "required": [
                 "id",
+                "frameworkId",
+                "frameworkCode",
                 "framework",
+                "programmeId",
+                "programmeCode",
                 "programme",
+                "levelId",
+                "levelKind",
+                "levelCode",
                 "level",
+                "subjectId",
+                "subjectCode",
                 "subject",
                 "externalCode",
                 "designs"
@@ -1028,6 +938,460 @@
         },
         "required": [
           "offerings"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumLibraryDesign": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "frameworkId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "frameworkCode": {
+            "type": "string"
+          },
+          "framework": {
+            "type": "string"
+          },
+          "programmeId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "programmeCode": {
+            "type": "string"
+          },
+          "programme": {
+            "type": "string"
+          },
+          "levelId": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "levelKind": {
+            "nullable": true,
+            "type": "string",
+            "enum": [
+              "grade",
+              "stage",
+              "year",
+              "qualification"
+            ]
+          },
+          "levelCode": {
+            "nullable": true,
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "subjectCode": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "externalCode": {
+            "nullable": true,
+            "type": "string"
+          },
+          "designs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "editionLabel": {
+                  "type": "string"
+                },
+                "revisionNumber": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "exclusiveMinimum": true,
+                  "maximum": 9007199254740991
+                },
+                "publishedAt": {
+                  "nullable": true,
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "origin": {
+                  "type": "string",
+                  "enum": [
+                    "official_import",
+                    "demo_fixture"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "draft",
+                    "published",
+                    "retired"
+                  ]
+                },
+                "nodes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "parentNodeId": {
+                        "nullable": true,
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "strand",
+                          "sub_strand",
+                          "topic",
+                          "subtopic",
+                          "unit",
+                          "section"
+                        ]
+                      },
+                      "code": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "sortOrder": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "parentNodeId",
+                      "kind",
+                      "code",
+                      "label",
+                      "sortOrder"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "targets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "designVersionId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "offeringId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "framework": {
+                        "type": "string"
+                      },
+                      "programme": {
+                        "type": "string"
+                      },
+                      "level": {
+                        "type": "string"
+                      },
+                      "subject": {
+                        "type": "string"
+                      },
+                      "editionLabel": {
+                        "type": "string"
+                      },
+                      "origin": {
+                        "type": "string",
+                        "enum": [
+                          "official_import",
+                          "demo_fixture"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "specific_learning_outcome",
+                          "learning_objective",
+                          "syllabus_content_point"
+                        ]
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "statement": {
+                        "type": "string"
+                      },
+                      "locator": {
+                        "type": "string"
+                      },
+                      "sortOrder": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "hierarchy": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "strand",
+                                "sub_strand",
+                                "topic",
+                                "subtopic",
+                                "unit",
+                                "section"
+                              ]
+                            },
+                            "code": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "sortOrder": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind",
+                            "code",
+                            "label",
+                            "sortOrder"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "sourceCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "generationReady": {
+                        "type": "boolean"
+                      },
+                      "sources": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "linkId": {
+                              "nullable": true,
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "documentId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "resourceRevisionId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "revisionNumber": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true,
+                              "maximum": 9007199254740991
+                            },
+                            "chunkId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "resourceType": {
+                              "type": "string",
+                              "enum": [
+                                "curriculum_design",
+                                "scheme_of_work",
+                                "assessment_item",
+                                "teaching_note",
+                                "lead_guidance",
+                                "exemplar"
+                              ]
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "subject": {
+                              "type": "string"
+                            },
+                            "grade": {
+                              "type": "string"
+                            },
+                            "content": {
+                              "type": "string"
+                            },
+                            "authority": {
+                              "type": "string",
+                              "enum": [
+                                "official",
+                                "school",
+                                "internal",
+                                "synthetic"
+                              ]
+                            },
+                            "editionLabel": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "sourceUrl": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "locator": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "synthetic": {
+                              "type": "boolean"
+                            },
+                            "role": {
+                              "type": "string",
+                              "enum": [
+                                "defines_target",
+                                "teaching_support",
+                                "assessment_support",
+                                "guidance",
+                                "exemplar"
+                              ]
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "draft",
+                                "published",
+                                "retired"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "linkId",
+                            "documentId",
+                            "resourceRevisionId",
+                            "revisionNumber",
+                            "chunkId",
+                            "resourceType",
+                            "title",
+                            "subject",
+                            "grade",
+                            "content",
+                            "authority",
+                            "editionLabel",
+                            "sourceUrl",
+                            "locator",
+                            "synthetic",
+                            "role",
+                            "status"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "designVersionId",
+                      "offeringId",
+                      "framework",
+                      "programme",
+                      "level",
+                      "subject",
+                      "editionLabel",
+                      "origin",
+                      "kind",
+                      "title",
+                      "statement",
+                      "locator",
+                      "sortOrder",
+                      "hierarchy",
+                      "sourceCount",
+                      "generationReady",
+                      "sources"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "editionLabel",
+                "revisionNumber",
+                "publishedAt",
+                "origin",
+                "status",
+                "nodes",
+                "targets"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "frameworkId",
+          "frameworkCode",
+          "framework",
+          "programmeId",
+          "programmeCode",
+          "programme",
+          "levelId",
+          "levelKind",
+          "levelCode",
+          "level",
+          "subjectId",
+          "subjectCode",
+          "subject",
+          "externalCode",
+          "designs"
         ],
         "additionalProperties": false
       },
@@ -1088,10 +1452,53 @@
           "locator": {
             "type": "string"
           },
-          "path": {
+          "sortOrder": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "hierarchy": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "strand",
+                    "sub_strand",
+                    "topic",
+                    "subtopic",
+                    "unit",
+                    "section"
+                  ]
+                },
+                "code": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "sortOrder": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "code",
+                "label",
+                "sortOrder"
+              ],
+              "additionalProperties": false
             }
           },
           "sourceCount": {
@@ -1237,7 +1644,8 @@
           "title",
           "statement",
           "locator",
-          "path",
+          "sortOrder",
+          "hierarchy",
           "sourceCount",
           "generationReady",
           "sources"
@@ -2323,7 +2731,19 @@
                         "properties": {
                           "planPath": {
                             "type": "string",
-                            "minLength": 1
+                            "enum": [
+                              "title",
+                              "subject",
+                              "grade",
+                              "learningOutcome",
+                              "durationMinutes",
+                              "objectives",
+                              "materials",
+                              "starter",
+                              "activities",
+                              "checkForUnderstanding",
+                              "sources"
+                            ]
                           },
                           "sourceChunkIds": {
                             "type": "array",
@@ -2561,6 +2981,46 @@
                   "type": "string",
                   "format": "date-time",
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "curriculumContext": {
+                  "nullable": true,
+                  "type": "object",
+                  "properties": {
+                    "framework": {
+                      "type": "string"
+                    },
+                    "programme": {
+                      "type": "string"
+                    },
+                    "grade": {
+                      "type": "string"
+                    },
+                    "subject": {
+                      "type": "string"
+                    },
+                    "releaseLabel": {
+                      "type": "string"
+                    },
+                    "locator": {
+                      "type": "string"
+                    },
+                    "targetTitle": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "framework",
+                    "programme",
+                    "grade",
+                    "subject",
+                    "releaseLabel",
+                    "locator",
+                    "targetTitle"
+                  ],
+                  "additionalProperties": false
+                },
+                "canDelete": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -2572,7 +3032,9 @@
                 "content",
                 "version",
                 "createdAt",
-                "updatedAt"
+                "updatedAt",
+                "curriculumContext",
+                "canDelete"
               ],
               "additionalProperties": false
             }
@@ -2872,7 +3334,19 @@
                         "properties": {
                           "planPath": {
                             "type": "string",
-                            "minLength": 1
+                            "enum": [
+                              "title",
+                              "subject",
+                              "grade",
+                              "learningOutcome",
+                              "durationMinutes",
+                              "objectives",
+                              "materials",
+                              "starter",
+                              "activities",
+                              "checkForUnderstanding",
+                              "sources"
+                            ]
                           },
                           "sourceChunkIds": {
                             "type": "array",
@@ -3417,7 +3891,19 @@
                         "properties": {
                           "planPath": {
                             "type": "string",
-                            "minLength": 1
+                            "enum": [
+                              "title",
+                              "subject",
+                              "grade",
+                              "learningOutcome",
+                              "durationMinutes",
+                              "objectives",
+                              "materials",
+                              "starter",
+                              "activities",
+                              "checkForUnderstanding",
+                              "sources"
+                            ]
                           },
                           "sourceChunkIds": {
                             "type": "array",

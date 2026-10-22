@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import {
-  CurriculumLibraryResponseSchema,
+  CurriculumOutcomesResponseSchema,
   LessonPlanResponseSchema,
   LessonPlanRubricQaResponseSchema,
 } from '@nova/shared'
@@ -97,33 +97,25 @@ export async function runApiEvaluation(args: string[]): Promise<void> {
   }
 
   const token = await login(baseUrl, email, password)
-  const catalogueResponse = await apiRequest<unknown>(baseUrl, token, '/api/curriculum/library')
-  const catalogue = CurriculumLibraryResponseSchema.parse(catalogueResponse.value)
-  const matches = catalogue.offerings
+  const outcomesResponse = await apiRequest<unknown>(baseUrl, token, '/api/outcomes')
+  const outcomes = CurriculumOutcomesResponseSchema.parse(outcomesResponse.value)
+  const matches = outcomes.items
     .filter(
-      (offering) =>
-        matchesFramework(offering.framework, targetFilters.framework) &&
-        offering.programme.toLowerCase() === targetFilters.programme.toLowerCase() &&
-        offering.level.toLowerCase() === targetFilters.grade.toLowerCase() &&
-        offering.subject.toLowerCase() === targetFilters.subject.toLowerCase(),
-    )
-    .flatMap((offering) =>
-      offering.designs
-        .filter(
-          (design) =>
-            design.editionLabel.toLowerCase() === targetFilters.edition.toLowerCase() &&
-            design.status === 'published',
-        )
-        .flatMap((design) => design.targets),
+      (outcome) =>
+        matchesFramework(outcome.framework, targetFilters.framework) &&
+        outcome.programme.toLowerCase() === targetFilters.programme.toLowerCase() &&
+        outcome.grade.toLowerCase() === targetFilters.grade.toLowerCase() &&
+        outcome.subject.toLowerCase() === targetFilters.subject.toLowerCase() &&
+        outcome.editionLabel.toLowerCase() === targetFilters.edition.toLowerCase(),
     )
     .filter(
-      (target) =>
-        target.generationReady &&
-        (!targetFilters.locator || target.locator === targetFilters.locator),
+      (outcome) =>
+        outcome.generationReady &&
+        (!targetFilters.locator || outcome.locator === targetFilters.locator),
     )
 
   if (matches.length !== 1) {
-    const choices = matches.map((target) => `${target.locator}: ${target.title}`).join('\n')
+    const choices = matches.map((outcome) => `${outcome.locator}: ${outcome.title}`).join('\n')
     throw new Error(
       matches.length
         ? `Target selection matched ${matches.length} outcomes. Pass --locator to select one:\n${choices}`
@@ -159,14 +151,14 @@ export async function runApiEvaluation(args: string[]): Promise<void> {
       id: target.id,
       framework: target.framework,
       programme: target.programme,
-      grade: target.level,
+      grade: target.grade,
       subject: target.subject,
       edition: target.editionLabel,
       locator: target.locator,
       title: target.title,
     },
     requests: {
-      catalogue: catalogueResponse.requestId,
+      outcomes: outcomesResponse.requestId,
       generate: generated.requestId,
       validate: validated.requestId,
     },
@@ -184,7 +176,7 @@ export async function runApiEvaluation(args: string[]): Promise<void> {
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`)
 
   process.stdout.write(
-    `API eval · ${target.framework} ${target.level} ${target.subject} · ${target.editionLabel} · ${target.locator}\n`,
+    `API eval · ${target.framework} ${target.grade} ${target.subject} · ${target.editionLabel} · ${target.locator}\n`,
   )
   process.stdout.write(
     `Plan ${generation.plan.id} · ${generation.plan.status} · deterministic QA ${generation.qa.passed ? 'pass' : 'fail'}\n`,
@@ -196,7 +188,7 @@ export async function runApiEvaluation(args: string[]): Promise<void> {
     `Explicit validation ${validation.validation.status} · ${validation.validation.reviewerModel} · trace ${validation.validation.traceId ?? 'not reported'}\n`,
   )
   process.stdout.write(
-    `Requests: catalogue ${catalogueResponse.requestId} · generate ${generated.requestId} · validate ${validated.requestId}\n`,
+    `Requests: outcomes ${outcomesResponse.requestId} · generate ${generated.requestId} · validate ${validated.requestId}\n`,
   )
   process.stdout.write(`Report: ${reportPath}\n`)
   if (!generation.qa.passed || validation.validation.status !== 'completed') process.exitCode = 1

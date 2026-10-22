@@ -8,6 +8,7 @@ export type CurriculumSource = components['schemas']['CurriculumSourcesResponse'
 
 export const curriculumLibraryKeys = {
   catalogue: ['curriculum-library'] as const,
+  design: (id: string) => ['curriculum-library-design', id] as const,
   target: (id: string) => ['curriculum-library-target', id] as const,
   outcomes: ['outcomes'] as const,
   sources: ['curriculum-sources'] as const,
@@ -17,6 +18,15 @@ export async function getCurriculumCatalogue() {
   const { data, error } = await apiClient.GET('/api/curriculum/library')
   if (error) throw error
   if (!data) throw new Error('The API returned no curriculum catalogue.')
+  return data
+}
+
+export async function getCurriculumDesign(designVersionId: string) {
+  const { data, error } = await apiClient.GET('/api/curriculum/library/designs/{designVersionId}', {
+    params: { path: { designVersionId } },
+  })
+  if (error) throw error
+  if (!data) throw new Error('The API returned no curriculum edition.')
   return data
 }
 

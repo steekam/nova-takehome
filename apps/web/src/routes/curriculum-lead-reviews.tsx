@@ -4,7 +4,10 @@ import { requireRole } from '../lib/route-auth'
 import { route as curriculumLeadRoute } from './curriculum-lead'
 
 function SelectedPlan() {
-  return <LeadReviewPage key={planRoute.useParams().planId} planId={planRoute.useParams().planId} />
+  const planId = planRoute.useParams().planId
+  return (
+    <LeadReviewPage key={planId} planId={planId} overviewSearch={curriculumLeadRoute.useSearch()} />
+  )
 }
 
 export const planRoute = createRoute({

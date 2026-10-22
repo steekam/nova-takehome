@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { and, desc, eq, inArray, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import type { LessonPlanContent } from '@nova/shared'
 import { DatabaseService } from '../database/database.service'
 import { DrizzleCrudRepository } from '../database/crud/drizzle-crud.repository'
@@ -66,7 +66,41 @@ export class LessonPlanningRepository {
   }
 
   planForUpdate(id: string, executor: DbExecutor = this.database.db) {
+    return executor
+      .select()
+      .from(lessonPlans)
+      .where(and(eq(lessonPlans.id, id), isNull(lessonPlans.deletedAt)))
+      .for('update')
+      .limit(1)
+  }
+
+  planForDelete(id: string, executor: DbExecutor = this.database.db) {
     return executor.select().from(lessonPlans).where(eq(lessonPlans.id, id)).for('update').limit(1)
+  }
+
+  plansWithReviewHistory(planIds: string[]) {
+    if (planIds.length === 0) return Promise.resolve([])
+    return this.database.db
+      .selectDistinct({ lessonPlanId: planReviews.lessonPlanId })
+      .from(planReviews)
+      .where(inArray(planReviews.lessonPlanId, planIds))
+  }
+
+  async hasReviewHistory(planId: string, executor: DbExecutor = this.database.db) {
+    const [review] = await executor
+      .select({ id: planReviews.id })
+      .from(planReviews)
+      .where(eq(planReviews.lessonPlanId, planId))
+      .limit(1)
+    return Boolean(review)
+  }
+
+  removeFromWorkspace(id: string, deletedAt: Date, executor: DbExecutor = this.database.db) {
+    return executor
+      .update(lessonPlans)
+      .set({ deletedAt, updatedAt: deletedAt })
+      .where(and(eq(lessonPlans.id, id), isNull(lessonPlans.deletedAt)))
+      .returning()
   }
 
   updatePlanStatus(
@@ -152,7 +186,12 @@ export class LessonPlanningRepository {
     return this.database.db
       .select()
       .from(lessonPlans)
-      .where(or(eq(lessonPlans.teacherId, teacherId), eq(lessonPlans.status, 'published')))
+      .where(
+        and(
+          isNull(lessonPlans.deletedAt),
+          or(eq(lessonPlans.teacherId, teacherId), eq(lessonPlans.status, 'published')),
+        ),
+      )
       .orderBy(desc(lessonPlans.updatedAt))
   }
 
@@ -160,7 +199,12 @@ export class LessonPlanningRepository {
     return this.database.db
       .select()
       .from(lessonPlans)
-      .where(or(eq(lessonPlans.status, 'submitted'), eq(lessonPlans.status, 'published')))
+      .where(
+        and(
+          isNull(lessonPlans.deletedAt),
+          or(eq(lessonPlans.status, 'submitted'), eq(lessonPlans.status, 'published')),
+        ),
+      )
       .orderBy(desc(lessonPlans.updatedAt))
   }
   latestVersions(planIds: string[]) {
@@ -178,7 +222,12 @@ export class LessonPlanningRepository {
       .orderBy(lessonPlanVersions.lessonPlanId, desc(lessonPlanVersions.version))
   }
   plan(id: string) {
-    return this.plans.findById(id)
+    return this.database.db
+      .select()
+      .from(lessonPlans)
+      .where(and(eq(lessonPlans.id, id), isNull(lessonPlans.deletedAt)))
+      .limit(1)
+      .then(([plan]) => plan ?? null)
   }
   latestVersion(planId: string, executor: DbExecutor = this.database.db) {
     return executor

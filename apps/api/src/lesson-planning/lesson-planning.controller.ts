@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common'
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common'
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import {
   EditLessonPlanRequestSchema,
@@ -73,6 +83,16 @@ export class LessonPlanningController {
         await this.curriculum.citationsAllowed(plan.id, plan.content),
       ),
     }
+  }
+
+  @Delete('lesson-plans/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove an unreviewed draft from the teacher workspace' })
+  @ApiResponse({ status: 204, description: 'Lesson plan removed from the workspace.' })
+  @ApiResponse({ status: 409, description: 'Plan is reviewed, in review, returned, or published.' })
+  @Roles('teacher')
+  async delete(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal) {
+    await this.curriculum.delete(id, principal)
   }
 
   @Post('lesson-plans/:id/validate')

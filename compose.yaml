@@ -194,7 +194,7 @@ services:
         'noeviction',
       ]
     volumes:
-      - shared-redis-data:/data
+      - redis-data:/data
     healthcheck:
       test: ['CMD-SHELL', 'redis-cli --no-auth-warning -a "$$LANGFUSE_REDIS_AUTH" ping | grep PONG']
       interval: 5s
@@ -365,7 +365,7 @@ volumes:
   nova-model-cache:
   langfuse-clickhouse-data:
   langfuse-clickhouse-logs:
-  shared-redis-data:
+  redis-data:
   langfuse-minio-data:
   nova-tempo-data:
   nova-prometheus-data:

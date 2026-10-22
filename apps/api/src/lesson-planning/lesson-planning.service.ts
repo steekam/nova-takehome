@@ -50,19 +50,46 @@ export class LessonPlanningService {
     const plans = isLead
       ? await this.repository.plansForLead()
       : await this.repository.plansForTeacher(principal.subject)
-    const versions = await this.repository.latestVersions(plans.map((plan) => plan.id))
+    const planIds = plans.map((plan) => plan.id)
+    const [versions, reviewedPlans] = await Promise.all([
+      this.repository.latestVersions(planIds),
+      this.repository.plansWithReviewHistory(planIds),
+    ])
     const versionByPlan = new Map(versions.map((version) => [version.lessonPlanId, version]))
+    const plansWithReviewHistory = new Set(reviewedPlans.map((plan) => plan.lessonPlanId))
+    const targetRevisionIds = [
+      ...new Set(
+        versions.flatMap((version) => (version.targetRevisionId ? [version.targetRevisionId] : [])),
+      ),
+    ]
+    const contexts = await this.library.targetContexts(targetRevisionIds)
+    const contextByTarget = new Map(contexts.map((context) => [context.targetRevisionId, context]))
     return plans.map((plan) => {
       const latest = versionByPlan.get(plan.id)
       if (!latest) throw new NotFoundException('Lesson plan content not found')
+      const context = latest.targetRevisionId
+        ? contextByTarget.get(latest.targetRevisionId)
+        : undefined
       return {
         id: plan.id,
         teacherId: plan.teacherId,
         status: plan.status,
+        canDelete: plan.status === 'draft' && !plansWithReviewHistory.has(plan.id),
         targetRevisionId: latest.targetRevisionId,
         versionId: latest.id,
         content: latest.content,
         version: latest.version,
+        curriculumContext: context
+          ? {
+              framework: context.framework,
+              programme: context.programme,
+              grade: context.grade ?? 'All levels',
+              subject: context.subject,
+              releaseLabel: context.releaseLabel,
+              locator: context.locator,
+              targetTitle: context.targetTitle,
+            }
+          : null,
         createdAt: plan.createdAt.toISOString(),
         updatedAt: plan.updatedAt.toISOString(),
       }
@@ -73,6 +100,33 @@ export class LessonPlanningService {
     const plan = await this.plan(id)
     assertCanReadPlan(plan.teacherId, plan.status, principal)
     return this.dto(id)
+  }
+
+  async delete(id: string, principal: ApiPrincipal) {
+    await this.database.db.transaction(async (tx) => {
+      const [plan] = await this.repository.planForDelete(id, tx)
+      if (!plan) throw new NotFoundException('Lesson plan not found')
+      this.assertTeacherOwns(plan.teacherId, principal)
+      if (plan.deletedAt) return
+      if (plan.status !== 'draft') {
+        throw new ConflictException({
+          code: 'LESSON_PLAN_DELETE_NOT_ALLOWED',
+          message:
+            plan.status === 'submitted'
+              ? 'This plan is in review. A curriculum lead must return it before you can remove it.'
+              : plan.status === 'returned'
+                ? 'Returned plans are retained with their curriculum review history.'
+                : 'Published plans are retained for curriculum review and audit.',
+        })
+      }
+      if (await this.repository.hasReviewHistory(id, tx)) {
+        throw new ConflictException({
+          code: 'LESSON_PLAN_DELETE_NOT_ALLOWED',
+          message: 'This draft has curriculum review history and is retained for audit.',
+        })
+      }
+      await this.repository.removeFromWorkspace(id, new Date(), tx)
+    })
   }
 
   async reviews(id: string) {

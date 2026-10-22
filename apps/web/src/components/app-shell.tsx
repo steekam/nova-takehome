@@ -24,7 +24,7 @@ function LlmModeControl() {
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
       <label htmlFor="llm-mode" className="text-xs font-medium text-muted-foreground">
-        LLM mode
+        AI mode
       </label>
       <select
         id="llm-mode"
@@ -37,9 +37,13 @@ function LlmModeControl() {
         <option value="live">Live · configured provider</option>
       </select>
       {settings.data && !settings.data.liveAvailable && (
-        <span className="max-w-sm text-xs text-muted-foreground">
-          Live needs {settings.data.missing.join(', ')} in .env.local, then restart the API.
-        </span>
+        <details className="max-w-sm text-xs text-muted-foreground">
+          <summary className="cursor-pointer font-medium text-primary">Live setup</summary>
+          <p className="mt-1">
+            Add {settings.data.missing.join(', ')} to .env.local, then restart the API to enable
+            live calls.
+          </p>
+        </details>
       )}
       {updateMode.error && (
         <span role="alert" className="text-xs text-destructive">
@@ -70,10 +74,15 @@ function navFor(role: UserRole): NavItem[] {
 }
 
 function isActiveItem(pathname: string, item: NavItem) {
+  if (item.to === '/lesson-plans')
+    return (
+      pathname === item.to ||
+      pathname.startsWith('/teacher/plans/') ||
+      pathname.startsWith('/curriculum-lead/reviews/')
+    )
+  if (item.to === '/teacher' || item.to === '/curriculum-lead') return pathname === item.to
   if (pathname === item.to) return true
-  if (item.to === '/teacher' || item.to === '/curriculum-lead' || item.to === '/library')
-    return pathname.startsWith(`${item.to}/`)
-  return false
+  return item.to === '/library' && pathname.startsWith(`${item.to}/`)
 }
 
 function Navigation({
@@ -191,7 +200,7 @@ export function AppShell({ role, children }: AppShellProps) {
             </Button>
           </div>
         </header>
-        <div className="sticky top-0 z-20 border-b bg-card md:hidden">
+        <div className="sticky top-0 z-20 overflow-x-auto border-b bg-card md:hidden">
           <Navigation items={items} pathname={pathname} mobile />
         </div>
         <main

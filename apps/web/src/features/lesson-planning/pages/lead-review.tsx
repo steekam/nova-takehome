@@ -1,13 +1,16 @@
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ArrowRight, CheckCircle2, XCircle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { hasValidReturnComment } from '@nova/shared'
 import { Button } from '../../../components/ui/button'
 import { Card, CardContent } from '../../../components/ui/card'
 import { PlanReviewHistory, PlanVersionHistory } from '../../../components/plan-history'
+import { SourcePassage, SourceProvenance } from '../../../components/source-evidence'
 import { RubricQaPanel } from '../../../components/rubric-qa-panel'
+import { QualityChecks } from '../../../components/quality-checks'
 import { ApiError } from '../../../lib/api-client'
+import type { LeadQueueSearch } from './lead-dashboard'
 import {
   getLessonPlan,
   lessonPlanningKeys,
@@ -20,10 +23,17 @@ import { curriculumLibraryKeys, listCurriculumSources } from '../../curriculum-l
 type Plan = LessonPlan
 type Detail = LessonPlanDetails
 
-export function LeadReviewPage({ planId }: { planId: string }) {
-  const navigate = useNavigate()
+export function LeadReviewPage({
+  planId,
+  overviewSearch,
+}: {
+  planId: string
+  overviewSearch: LeadQueueSearch
+}) {
   const queryClient = useQueryClient()
   const announcementRef = useRef<HTMLParagraphElement>(null)
+  const publishDialogRef = useRef<HTMLDialogElement>(null)
+  const cancelPublishRef = useRef<HTMLButtonElement>(null)
   const [comment, setComment] = useState('')
   const [confirmPublish, setConfirmPublish] = useState(false)
   const [announcement, setAnnouncement] = useState('')
@@ -42,6 +52,7 @@ export function LeadReviewPage({ planId }: { planId: string }) {
         ...(comment.trim() ? { comment: comment.trim() } : {}),
       }),
     onSuccess: async (data, decision) => {
+      if (decision === 'published') publishDialogRef.current?.close()
       queryClient.setQueryData<Detail>(lessonPlanningKeys.detail(planId), (current) =>
         current
           ? { ...current, plan: data.plan, reviews: [data.review, ...current.reviews] }
@@ -59,16 +70,23 @@ export function LeadReviewPage({ planId }: { planId: string }) {
           refetchType: decision === 'returned' ? 'none' : 'active',
         }),
       ])
-      if (decision === 'returned') {
-        await navigate({ to: '/curriculum-lead' })
-        return
-      }
     },
   })
 
   useEffect(() => {
     if (announcement) announcementRef.current?.focus()
   }, [announcement])
+
+  useEffect(() => {
+    const dialog = publishDialogRef.current
+    if (!dialog) return
+    if (confirmPublish && !dialog.open) {
+      dialog.showModal()
+      cancelPublishRef.current?.focus()
+    } else if (!confirmPublish && dialog.open) {
+      dialog.close()
+    }
+  }, [confirmPublish])
 
   if (detail.isLoading)
     return (
@@ -110,10 +128,11 @@ export function LeadReviewPage({ planId }: { planId: string }) {
   }))
 
   return (
-    <div className="space-y-7">
+    <div className={plan.status === 'submitted' ? 'space-y-7 pb-28' : 'space-y-7'}>
       <header className="space-y-3 border-b border-primary/15 pb-6">
         <Link
           to="/curriculum-lead"
+          search={overviewSearch}
           className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
@@ -141,9 +160,113 @@ export function LeadReviewPage({ planId }: { planId: string }) {
           ref={announcementRef}
           tabIndex={-1}
           role="status"
+          aria-live="polite"
           className="rounded-lg bg-[#e9f0f2] p-3 text-sm font-medium text-primary"
         >
           {announcement}
+        </p>
+      )}
+      {plan.status === 'submitted' ? (
+        <section
+          className="space-y-3 rounded-xl border bg-card p-4 sm:p-5"
+          aria-labelledby="decision-heading"
+        >
+          <div>
+            <h2 id="decision-heading" className="font-semibold">
+              Make a decision
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Publish to approve and lock this plan, or return it with feedback.
+            </p>
+          </div>
+          <label className="block max-w-3xl space-y-1 text-sm font-medium">
+            Feedback for the teacher
+            <textarea
+              maxLength={2000}
+              disabled={review.isPending}
+              className="min-h-24 w-full rounded-md border bg-background p-3 font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+            />
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              disabled={review.isPending}
+              onClick={() => setConfirmPublish(true)}
+            >
+              <CheckCircle2 aria-hidden="true" />
+              Publish plan
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={review.isPending || !returnCommentValid}
+              onClick={() => review.mutate('returned')}
+            >
+              Return for revision <ArrowRight aria-hidden="true" />
+            </Button>
+            {!returnCommentValid && (
+              <p className="text-xs text-muted-foreground">
+                Add at least eight characters of feedback to return this plan.
+              </p>
+            )}
+          </div>
+          {review.isPending && (
+            <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+              {review.variables === 'published' ? 'Publishing plan…' : 'Returning plan…'}
+            </p>
+          )}
+          <dialog
+            ref={publishDialogRef}
+            aria-labelledby="publish-confirmation-title"
+            aria-describedby="publish-confirmation-description"
+            onClose={() => setConfirmPublish(false)}
+            className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border bg-card p-0 text-card-foreground shadow-xl backdrop:bg-black/50"
+          >
+            <div className="space-y-4 p-5">
+              <div>
+                <h3 id="publish-confirmation-title" className="font-semibold">
+                  Publish “{content.title}”?
+                </h3>
+                <p
+                  id="publish-confirmation-description"
+                  className="mt-1 text-sm text-muted-foreground"
+                >
+                  The plan will be approved and locked for editing.
+                </p>
+              </div>
+              {review.error && <ReviewError error={review.error} />}
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  ref={cancelPublishRef}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={review.isPending}
+                  onClick={() => publishDialogRef.current?.close()}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={review.isPending}
+                  onClick={() => review.mutate('published')}
+                >
+                  {review.isPending ? 'Publishing…' : 'Confirm publish'}
+                </Button>
+              </div>
+            </div>
+          </dialog>
+        </section>
+      ) : (
+        <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+          {plan.status === 'returned'
+            ? 'This plan has been returned for revision.'
+            : plan.status === 'published'
+              ? 'This plan is published and available to both roles.'
+              : 'This plan has not been submitted for review.'}
         </p>
       )}
       <article className="rounded-xl border bg-card">
@@ -253,14 +376,18 @@ export function LeadReviewPage({ planId }: { planId: string }) {
                       className="rounded-lg border p-4"
                     >
                       <h4 className="font-medium">{detail?.title ?? 'Curriculum source'}</h4>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {detail
-                          ? `${detail.resourceType} · ${detail.subject} · ${detail.grade}`
-                          : `Reference ${source.documentId} · ${source.chunkId}`}
-                      </p>
-                      {detail && (
-                        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                          {detail.content}
+                      {detail ? (
+                        <>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {detail.subject} · {detail.grade}
+                          </p>
+                          <SourceProvenance source={detail} />
+                          <SourcePassage source={detail} />
+                        </>
+                      ) : (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Source details are unavailable. The citation remains attached to this
+                          plan.
                         </p>
                       )}
                     </article>
@@ -274,44 +401,8 @@ export function LeadReviewPage({ planId }: { planId: string }) {
             </section>
           </div>
 
-          <aside className="space-y-5 xl:sticky xl:top-6">
-            <section
-              className="rounded-xl border bg-[#f0f5f5] p-4"
-              aria-labelledby="quality-checks-heading"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 id="quality-checks-heading" className="font-semibold">
-                  Quality checks
-                </h3>
-                {qa && (
-                  <span
-                    className={`text-xs font-semibold ${qa.passed ? 'text-emerald-700' : 'text-destructive'}`}
-                  >
-                    {qa.passed ? 'Passed' : 'Review needed'}
-                  </span>
-                )}
-              </div>
-              {qa ? (
-                <ul className="mt-3 space-y-2">
-                  {qa.checks.map((check) => (
-                    <li key={check.code} className="flex gap-2 text-sm">
-                      <span className={check.passed ? 'text-emerald-700' : 'text-destructive'}>
-                        {check.passed ? (
-                          <CheckCircle2 className="size-4" aria-label="Passed" />
-                        ) : (
-                          <XCircle className="size-4" aria-label="Failed" />
-                        )}
-                      </span>
-                      <span>{check.message}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  No quality check report is attached.
-                </p>
-              )}
-            </section>
+          <aside className="flex flex-col gap-5 xl:sticky xl:top-6">
+            {qa && <QualityChecks qa={qa} />}
 
             <RubricQaPanel
               planId={plan.id}
@@ -321,99 +412,57 @@ export function LeadReviewPage({ planId }: { planId: string }) {
 
             <PlanVersionHistory versions={versions} currentVersion={plan.version} />
             <PlanReviewHistory reviews={reviews} />
-
-            {plan.status === 'submitted' ? (
-              <section className="space-y-3 border-t pt-5" aria-labelledby="decision-heading">
-                <h3 id="decision-heading" className="font-semibold">
-                  Make a decision
-                </h3>
-                <label className="block space-y-1 text-sm font-medium">
-                  Feedback for the teacher
-                  <textarea
-                    maxLength={2000}
-                    disabled={review.isPending}
-                    className="min-h-28 w-full rounded-md border bg-background p-3 font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    value={comment}
-                    onChange={(event) => setComment(event.target.value)}
-                  />
-                </label>
-                {confirmPublish && (
-                  <div className="rounded-lg bg-[#f8efcf] p-3 text-sm">
-                    <p className="font-semibold">Publish “{content.title}”?</p>
-                    <p className="mt-1">The plan will be approved and locked for editing.</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={review.isPending}
-                        onClick={() => review.mutate('published')}
-                      >
-                        {review.isPending ? 'Publishing…' : 'Confirm publish'}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={review.isPending}
-                        onClick={() => setConfirmPublish(false)}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  {!confirmPublish && (
-                    <Button
-                      type="button"
-                      disabled={review.isPending}
-                      onClick={() => setConfirmPublish(true)}
-                    >
-                      <CheckCircle2 aria-hidden="true" />
-                      Publish plan
-                    </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={review.isPending || !returnCommentValid}
-                    onClick={() => review.mutate('returned')}
-                  >
-                    Return for revision <ArrowRight aria-hidden="true" />
-                  </Button>
-                </div>
-                {!returnCommentValid && (
-                  <p className="text-xs text-muted-foreground">
-                    Add at least eight characters of feedback to return this plan.
-                  </p>
-                )}
-                {review.error && (
-                  <div role="alert" className="text-sm text-destructive">
-                    <p>Decision failed: {review.error.message}</p>
-                    {review.error instanceof ApiError && review.error.errors && (
-                      <ul className="mt-2 list-inside list-disc">
-                        {review.error.errors.map((issue) => (
-                          <li key={issue.field}>
-                            {issue.field}: {issue.constraints.join('. ')}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </section>
-            ) : (
-              <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
-                {plan.status === 'returned'
-                  ? 'This plan has been returned for revision.'
-                  : plan.status === 'published'
-                    ? 'This plan is published and available to both roles.'
-                    : 'This plan has not been submitted for review.'}
-              </p>
-            )}
           </aside>
         </div>
       </article>
+      {plan.status === 'submitted' && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg backdrop-blur md:pl-64 md:pr-0">
+          <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-2 md:px-8">
+            {review.error && !confirmPublish && <ReviewError error={review.error} />}
+            <div role="group" aria-label="Review actions" className="flex justify-end gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={review.isPending || !returnCommentValid}
+                onClick={() => review.mutate('returned')}
+              >
+                Return for revision
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={review.isPending}
+                onClick={() => setConfirmPublish(true)}
+              >
+                Publish plan
+              </Button>
+            </div>
+            {!returnCommentValid && (
+              <p className="text-right text-xs text-muted-foreground">
+                Add at least eight characters of feedback above to return this plan.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ReviewError({ error }: { error: Error }) {
+  return (
+    <div role="alert" className="text-sm text-destructive">
+      <p>Decision failed: {error.message}</p>
+      {error instanceof ApiError && error.errors && (
+        <ul className="mt-2 list-inside list-disc">
+          {error.errors.map((issue) => (
+            <li key={issue.field}>
+              {issue.field}: {issue.constraints.join('. ')}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

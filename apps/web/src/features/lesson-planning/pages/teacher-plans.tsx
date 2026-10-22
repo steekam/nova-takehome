@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { ArrowLeft, ArrowRight, Check, X } from 'lucide-react'
+import { Link, useBlocker } from '@tanstack/react-router'
+import { ArrowLeft, ArrowRight, ChevronRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ApiPrincipal } from '@nova/shared'
 import { LessonPlanContentSchema } from '@nova/shared'
 import { AppShell } from '../../../components/app-shell'
+import { SourcePassage, SourceProvenance } from '../../../components/source-evidence'
+import { QualityChecks } from '../../../components/quality-checks'
 import { RubricQaPanel } from '../../../components/rubric-qa-panel'
 import { Button } from '../../../components/ui/button'
 import { buttonVariants } from '../../../components/ui/button'
@@ -23,18 +25,21 @@ import {
   type LessonPlan,
   type LessonPlanContent,
   type LessonPlanDetails,
-  type QualityReport,
 } from '../api'
 import {
   curriculumLibraryKeys,
-  listCurriculumOutcomes,
+  getCurriculumCatalogue,
+  getCurriculumDesign,
+  getCurriculumTarget,
   listCurriculumSources,
   type CurriculumSource,
 } from '../../curriculum-library/api'
 
 type Plan = LessonPlan
 type Detail = LessonPlanDetails
-type Qa = QualityReport
+type CurriculumTarget = Awaited<
+  ReturnType<typeof getCurriculumDesign>
+>['designs'][number]['targets'][number]
 const statusLabel: Record<Plan['status'], string> = {
   draft: 'Draft',
   submitted: 'In review',
@@ -49,30 +54,184 @@ export function GeneratePage({
   user: ApiPrincipal
   targetRevisionId?: string
 }) {
+  return (
+    <GeneratePageContent
+      key={targetRevisionId ?? 'new-plan'}
+      user={user}
+      targetRevisionId={targetRevisionId}
+    />
+  )
+}
+
+function GeneratePageContent({
+  user,
+  targetRevisionId,
+}: {
+  user: ApiPrincipal
+  targetRevisionId?: string
+}) {
   const queryClient = useQueryClient()
-  const outcomes = useQuery({
-    queryKey: curriculumLibraryKeys.outcomes,
-    queryFn: listCurriculumOutcomes,
+  const catalogue = useQuery({
+    queryKey: curriculumLibraryKeys.catalogue,
+    queryFn: getCurriculumCatalogue,
+  })
+  const targetLookup = useQuery({
+    queryKey: curriculumLibraryKeys.target(targetRevisionId ?? 'none'),
+    queryFn: () => getCurriculumTarget(targetRevisionId ?? ''),
+    enabled: Boolean(targetRevisionId),
   })
   const [targetId, setTargetId] = useState(targetRevisionId ?? '')
+  const [frameworkId, setFrameworkId] = useState('')
+  const [programmeId, setProgrammeId] = useState('')
+  const [levelKey, setLevelKey] = useState('')
+  const [offeringId, setOfferingId] = useState('')
+  const [designVersionId, setDesignVersionId] = useState('')
+  const [targetSearch, setTargetSearch] = useState('')
+  const [targetLimit, setTargetLimit] = useState(50)
   const [durationMinutes, setDurationMinutes] = useState(45)
+  const readyOfferings = (catalogue.data?.offerings ?? []).filter((offering) =>
+    offering.designs.some(
+      (design) => design.status === 'published' && design.generationReadyCount > 0,
+    ),
+  )
+  const routeTarget = targetId === targetRevisionId ? targetLookup.data : undefined
+  const routeOffering = readyOfferings.find((offering) => offering.id === routeTarget?.offeringId)
+  const frameworkChoices = uniqueChoices(
+    readyOfferings,
+    (offering) => offering.frameworkId,
+    (offering) => offering.framework,
+  )
+  const selectedFrameworkId =
+    frameworkId || routeOffering?.frameworkId || onlyChoice(frameworkChoices)
+  const frameworkOfferings = readyOfferings.filter(
+    (offering) => offering.frameworkId === selectedFrameworkId,
+  )
+  const programmeChoices = uniqueChoices(
+    frameworkOfferings,
+    (offering) => offering.programmeId,
+    (offering) => offering.programme,
+  )
+  const selectedProgrammeId =
+    programmeId || routeOffering?.programmeId || onlyChoice(programmeChoices)
+  const programmeOfferings = frameworkOfferings.filter(
+    (offering) => offering.programmeId === selectedProgrammeId,
+  )
+  const levelChoices = uniqueChoices(
+    programmeOfferings,
+    (offering) => offering.levelId ?? 'all-levels',
+    (offering) => offering.level,
+  )
+  const selectedLevelKey =
+    levelKey ||
+    (routeOffering ? (routeOffering.levelId ?? 'all-levels') : '') ||
+    onlyChoice(levelChoices)
+  const levelOfferings = programmeOfferings.filter(
+    (offering) => (offering.levelId ?? 'all-levels') === selectedLevelKey,
+  )
+  const subjectChoices = uniqueChoices(
+    levelOfferings,
+    (offering) => offering.id,
+    (offering) => offering.subject,
+  )
+  const selectedOfferingId = offeringId || routeOffering?.id || onlyChoice(subjectChoices)
+  const selectedOffering = readyOfferings.find((offering) => offering.id === selectedOfferingId)
+  const editionChoices = (selectedOffering?.designs ?? [])
+    .filter((design) => design.status === 'published' && design.generationReadyCount > 0)
+    .map((design) => ({
+      id: design.id,
+      label: `${design.editionLabel} · Revision ${design.revisionNumber}`,
+      revisionNumber: design.revisionNumber,
+      generationReadyCount: design.generationReadyCount,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+  const selectedDesignVersionId =
+    designVersionId ||
+    (routeOffering?.id === selectedOfferingId ? (routeTarget?.designVersionId ?? '') : '') ||
+    onlyChoice(editionChoices)
+  const design = useQuery({
+    queryKey: curriculumLibraryKeys.design(selectedDesignVersionId || 'none'),
+    queryFn: () => getCurriculumDesign(selectedDesignVersionId),
+    enabled: Boolean(selectedDesignVersionId),
+  })
+  const selectedDesign = design.data?.designs.find((item) => item.id === selectedDesignVersionId)
+  const readyTargets =
+    selectedDesign?.targets
+      .filter((target) => target.generationReady)
+      .sort((a, b) => a.sortOrder - b.sortOrder) ?? []
+  const selectedTarget =
+    readyTargets.find((target) => target.id === targetId) ??
+    (routeTarget?.generationReady ? routeTarget : undefined)
+  const pathSteps = [
+    { label: 'a curriculum', selected: Boolean(selectedFrameworkId) },
+    { label: 'a programme', selected: Boolean(selectedProgrammeId) },
+    { label: 'a grade or stage', selected: Boolean(selectedLevelKey) },
+    { label: 'a subject', selected: Boolean(selectedOfferingId) },
+    { label: 'an edition', selected: Boolean(selectedDesignVersionId) },
+    { label: 'a learning outcome', selected: Boolean(selectedTarget) },
+  ]
+  const nextPathStep = pathSteps.findIndex((step) => !step.selected)
+  const progressMessage =
+    nextPathStep === -1
+      ? 'Curriculum path and outcome selected. Ready to generate.'
+      : `Step ${nextPathStep + 1} of ${pathSteps.length} · Choose ${pathSteps[nextPathStep].label}.`
+  const searchTerm = targetSearch.trim().toLocaleLowerCase()
+  const matchingTargets = readyTargets.filter((target) =>
+    [
+      target.locator,
+      target.title,
+      target.statement,
+      ...target.hierarchy.flatMap((node) => [node.code ?? '', node.label]),
+    ]
+      .join(' ')
+      .toLocaleLowerCase()
+      .includes(searchTerm),
+  )
+  const targetsToShow = matchingTargets.slice(0, targetLimit)
+  const visibleTargetIds = new Set(targetsToShow.map((target) => target.id))
+  const selectedTargetIsInSearch = matchingTargets.some(
+    (target) => target.id === selectedTarget?.id,
+  )
+  if (selectedTargetIsInSearch && selectedTarget) visibleTargetIds.add(selectedTarget.id)
+  const targetTree = buildTargetTree(matchingTargets)
+  const linkedSources = selectedTarget
+    ? [...selectedTarget.sources]
+        .sort((a, b) => {
+          const aIsDefinition = a.role === 'defines_target' ? 0 : 1
+          const bIsDefinition = b.role === 'defines_target' ? 0 : 1
+          return aIsDefinition - bIsDefinition
+        })
+        .slice(0, 3)
+    : []
   const generate = useMutation({
     mutationFn: () => generateLessonPlan({ targetRevisionId: targetId, durationMinutes }),
     onSuccess: async () => queryClient.invalidateQueries({ queryKey: lessonPlanningKeys.all }),
   })
-  const selectedOutcome = outcomes.data?.find((outcome) => outcome.id === targetId)
-  const supportedPaths = outcomes.data
-    ? [
-        ...new Set(
-          outcomes.data.map(
-            (outcome) => `${outcome.grade} ${outcome.subject} (${outcome.editionLabel})`,
-          ),
-        ),
-      ]
-    : []
+  function clearTargetSelection() {
+    setTargetId('')
+    setTargetSearch('')
+    setTargetLimit(50)
+    generate.reset()
+  }
+
+  function clearEditionSelection() {
+    setDesignVersionId('')
+    clearTargetSelection()
+  }
+
+  function selectTarget(target: CurriculumTarget) {
+    setFrameworkId(selectedFrameworkId)
+    setProgrammeId(selectedProgrammeId)
+    setLevelKey(selectedLevelKey)
+    setOfferingId(selectedOfferingId)
+    setDesignVersionId(selectedDesignVersionId)
+    setTargetId(target.id)
+    generate.reset()
+  }
+  const selectClassName =
+    'h-11 w-full rounded-md border bg-background px-3 font-normal disabled:cursor-not-allowed disabled:opacity-60'
   return (
     <AppShell role={user.roles[0]}>
-      <div className="mx-auto max-w-4xl space-y-7">
+      <div className="mx-auto max-w-6xl space-y-7">
         <header className="border-b border-primary/15 pb-6">
           <Link
             to="/teacher"
@@ -82,55 +241,309 @@ export function GeneratePage({
           </Link>
           <h1 className="text-3xl font-semibold tracking-tight">Create a lesson plan</h1>
           <p className="mt-2 text-muted-foreground">
-            Choose a curriculum outcome and lesson length. You can edit the generated draft before
-            submitting it.
+            Follow the curriculum path to choose an outcome. Its linked sources ground the draft.
           </p>
         </header>
-        {outcomes.error && (
+        {catalogue.error && (
           <ErrorMessage
-            message={`Curriculum outcomes could not be loaded: ${outcomes.error.message}`}
+            message={`The curriculum catalogue could not be loaded: ${catalogue.error.message}`}
           />
         )}
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(250px,0.8fr)]">
+        {targetRevisionId && targetLookup.error && (
+          <ErrorMessage
+            message={`The selected curriculum target could not be loaded: ${targetLookup.error.message}`}
+          />
+        )}
+        {targetRevisionId && targetLookup.data && !targetLookup.data.generationReady && (
+          <ErrorMessage message="This curriculum outcome is not ready for generation. Choose a ready outcome from the curriculum path." />
+        )}
+        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
           <Card>
             <CardHeader>
-              <CardTitle>Plan starting point</CardTitle>
+              <CardTitle>Choose a curriculum outcome</CardTitle>
+              <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+                {design.isLoading && selectedDesignVersionId
+                  ? 'Loading outcomes for the selected edition…'
+                  : progressMessage}
+              </p>
             </CardHeader>
             <CardContent className="space-y-5">
-              {outcomes.isLoading ? (
-                <div role="status" className="h-11 animate-pulse rounded-md bg-muted" />
-              ) : outcomes.isError ? null : outcomes.data?.length ? (
+              {catalogue.isLoading ? (
+                <div
+                  role="status"
+                  aria-label="Loading curriculum catalogue"
+                  className="h-48 animate-pulse rounded-md bg-muted"
+                />
+              ) : catalogue.isError ? null : readyOfferings.length ? (
                 <>
-                  <label className="block space-y-2 text-sm font-medium">
-                    Curriculum outcome
-                    <select
-                      required
-                      className="h-11 w-full rounded-md border bg-background px-3 font-normal"
-                      value={targetId}
-                      onChange={(event) => setTargetId(event.target.value)}
-                    >
-                      <option value="">Choose an outcome</option>
-                      {outcomes.data.map((outcome) => (
-                        <option key={outcome.id} value={outcome.id}>
-                          {outcome.framework} · {outcome.programme} · {outcome.grade}{' '}
-                          {outcome.subject} — {outcome.title}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <section aria-label="Curriculum path" className="space-y-4">
+                    <fieldset disabled={generate.isPending} className="space-y-4">
+                      <legend className="sr-only">Curriculum path</legend>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="block space-y-2 text-sm font-medium">
+                          Curriculum
+                          <select
+                            className={selectClassName}
+                            value={selectedFrameworkId}
+                            onChange={(event) => {
+                              setFrameworkId(event.target.value)
+                              setProgrammeId('')
+                              setLevelKey('')
+                              setOfferingId('')
+                              clearEditionSelection()
+                            }}
+                          >
+                            <option value="">Choose a curriculum</option>
+                            {frameworkChoices.map((choice) => (
+                              <option key={choice.id} value={choice.id}>
+                                {choice.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="block space-y-2 text-sm font-medium">
+                          Programme
+                          <select
+                            className={selectClassName}
+                            value={selectedProgrammeId}
+                            disabled={!selectedFrameworkId}
+                            onChange={(event) => {
+                              setProgrammeId(event.target.value)
+                              setFrameworkId(selectedFrameworkId)
+                              setLevelKey('')
+                              setOfferingId('')
+                              clearEditionSelection()
+                            }}
+                          >
+                            <option value="">Choose a programme</option>
+                            {programmeChoices.map((choice) => (
+                              <option key={choice.id} value={choice.id}>
+                                {choice.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="block space-y-2 text-sm font-medium">
+                          Grade or stage
+                          <select
+                            className={selectClassName}
+                            value={selectedLevelKey}
+                            disabled={!selectedProgrammeId}
+                            onChange={(event) => {
+                              setLevelKey(event.target.value)
+                              setFrameworkId(selectedFrameworkId)
+                              setProgrammeId(selectedProgrammeId)
+                              setOfferingId('')
+                              clearEditionSelection()
+                            }}
+                          >
+                            <option value="">Choose a grade or stage</option>
+                            {levelChoices.map((choice) => (
+                              <option key={choice.id} value={choice.id}>
+                                {choice.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="block space-y-2 text-sm font-medium">
+                          Subject
+                          <select
+                            className={selectClassName}
+                            value={selectedOfferingId}
+                            disabled={!selectedLevelKey}
+                            onChange={(event) => {
+                              setOfferingId(event.target.value)
+                              setFrameworkId(selectedFrameworkId)
+                              setProgrammeId(selectedProgrammeId)
+                              setLevelKey(selectedLevelKey)
+                              clearEditionSelection()
+                            }}
+                          >
+                            <option value="">Choose a subject</option>
+                            {subjectChoices.map((choice) => (
+                              <option key={choice.id} value={choice.id}>
+                                {choice.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      <label className="block space-y-2 text-sm font-medium">
+                        Curriculum edition
+                        <select
+                          className={selectClassName}
+                          value={selectedDesignVersionId}
+                          disabled={!selectedOffering}
+                          onChange={(event) => {
+                            setDesignVersionId(event.target.value)
+                            setFrameworkId(selectedFrameworkId)
+                            setProgrammeId(selectedProgrammeId)
+                            setLevelKey(selectedLevelKey)
+                            setOfferingId(selectedOfferingId)
+                            clearTargetSelection()
+                          }}
+                        >
+                          <option value="">Choose an edition</option>
+                          {editionChoices.map((edition) => (
+                            <option key={edition.id} value={edition.id}>
+                              {edition.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </fieldset>
+                    <p className="text-xs text-muted-foreground">
+                      Changing a level clears choices below it.
+                    </p>
+                  </section>
+                  {design.error && (
+                    <ErrorMessage
+                      message={`This curriculum edition could not be loaded: ${design.error.message}`}
+                    />
+                  )}
+                  {design.isLoading && (
+                    <div
+                      role="status"
+                      aria-label="Loading edition outcomes"
+                      className="h-16 animate-pulse rounded-md bg-muted"
+                    />
+                  )}
+                  {selectedDesign && readyTargets.length > 8 && (
+                    <label className="block space-y-2 text-sm font-medium">
+                      Find an outcome
+                      <input
+                        type="search"
+                        value={targetSearch}
+                        disabled={generate.isPending}
+                        onChange={(event) => {
+                          setTargetSearch(event.target.value)
+                          setTargetLimit(50)
+                        }}
+                        placeholder="Search strand, sub-strand, code, or wording"
+                        className="h-11 w-full rounded-md border bg-background px-3 font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                    </label>
+                  )}
+                  {selectedTarget &&
+                    searchTerm &&
+                    !matchingTargets.some((target) => target.id === selectedTarget.id) && (
+                      <p className="text-xs text-muted-foreground">
+                        Your current outcome stays selected. Choose a result to replace it.
+                      </p>
+                    )}
+                  <fieldset
+                    className="space-y-3"
+                    disabled={!selectedDesign || design.isLoading || generate.isPending}
+                  >
+                    <legend className="text-sm font-medium">Choose one learning outcome</legend>
+                    {!selectedDesign ? (
+                      <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                        Choose a curriculum path and edition to browse its strands and outcomes.
+                      </p>
+                    ) : targetsToShow.length === 0 ? (
+                      <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                        {searchTerm
+                          ? 'No outcomes match that search.'
+                          : 'No generation-ready outcomes are available in this edition.'}
+                      </p>
+                    ) : (
+                      <div className="max-h-[27rem] space-y-2 overflow-y-auto rounded-md border p-3">
+                        {readyTargets.length === 1 && targetsToShow.length === 1 ? (
+                          <section
+                            aria-label="Outcome hierarchy"
+                            className="space-y-2 rounded-md bg-muted/25 p-3"
+                          >
+                            <ol className="ml-2 space-y-1 border-l pl-3">
+                              {targetsToShow[0].hierarchy.map((node) => (
+                                <li key={node.id} className="text-sm">
+                                  <span className="mr-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    {hierarchyKindLabel(node.kind)}
+                                  </span>
+                                  {node.code && (
+                                    <span className="mr-2 text-xs text-muted-foreground">
+                                      {node.code}
+                                    </span>
+                                  )}
+                                  <span className="font-medium">{node.label}</span>
+                                </li>
+                              ))}
+                            </ol>
+                            <CurriculumTargetChoice
+                              target={targetsToShow[0]}
+                              selected={selectedTarget?.id === targetsToShow[0].id}
+                              onSelect={() => selectTarget(targetsToShow[0])}
+                            />
+                          </section>
+                        ) : (
+                          <>
+                            {targetTree.targets.some((target) =>
+                              visibleTargetIds.has(target.id),
+                            ) && (
+                              <section aria-label="Outcomes without a strand" className="space-y-2">
+                                <h3 className="border-b px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                  Outcomes
+                                </h3>
+                                {targetTree.targets
+                                  .filter((target) => visibleTargetIds.has(target.id))
+                                  .map((target) => (
+                                    <CurriculumTargetChoice
+                                      key={target.id}
+                                      target={target}
+                                      selected={selectedTarget?.id === target.id}
+                                      onSelect={() => selectTarget(target)}
+                                    />
+                                  ))}
+                              </section>
+                            )}
+                            {targetTree.branches.map((branch) => (
+                              <CurriculumHierarchyBranch
+                                key={branch.id}
+                                branch={branch}
+                                depth={0}
+                                selectedTargetId={selectedTarget?.id}
+                                visibleTargetIds={visibleTargetIds}
+                                expandSinglePath={matchingTargets.length <= 8}
+                                onSelect={selectTarget}
+                              />
+                            ))}
+                            {targetsToShow.length < matchingTargets.length && (
+                              <Button
+                                className="w-full"
+                                variant="outline"
+                                onClick={() => setTargetLimit((current) => current + 50)}
+                              >
+                                Show next 50 outcomes
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </fieldset>
+                  {selectedDesign && (
+                    <p className="text-xs text-muted-foreground" aria-live="polite">
+                      {matchingTargets.length > targetsToShow.length
+                        ? `${searchTerm ? 'Showing' : 'Showing first'} ${targetsToShow.length} of ${matchingTargets.length} ${searchTerm ? 'matches' : 'outcomes'}. Search to narrow the list or show more.`
+                        : `${matchingTargets.length} generation-ready ${matchingTargets.length === 1 ? 'outcome' : 'outcomes'} in this edition.`}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">
-                    {supportedPaths.length
-                      ? `Plan generation is enabled for ${supportedPaths.join(', ')}. Other catalogue paths are browse-only in this demo.`
-                      : 'No curriculum targets are currently ready for generation. Other catalogue paths are browse-only in this demo.'}
+                    Only published editions with source-backed outcomes are available here. Browse
+                    the full catalogue in the{' '}
+                    <Link className="font-medium text-primary underline" to="/library">
+                      Curriculum Library
+                    </Link>
+                    .
                   </p>
                 </>
               ) : (
                 <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                  No curriculum outcomes are ready yet. Browse the{' '}
+                  No published curriculum editions with source-backed outcomes are ready yet. Browse
+                  the{' '}
                   <Link className="font-medium text-primary underline" to="/library">
                     Curriculum Library
                   </Link>{' '}
-                  for targets that need sources.
+                  to explore the full catalogue.
                 </p>
               )}
               <label className="block space-y-2 text-sm font-medium">
@@ -138,7 +551,11 @@ export function GeneratePage({
                 <select
                   className="h-11 w-full rounded-md border bg-background px-3 font-normal"
                   value={durationMinutes}
-                  onChange={(event) => setDurationMinutes(Number(event.target.value))}
+                  disabled={generate.isPending}
+                  onChange={(event) => {
+                    setDurationMinutes(Number(event.target.value))
+                    generate.reset()
+                  }}
                 >
                   <option value={30}>30 minutes</option>
                   <option value={45}>45 minutes</option>
@@ -162,38 +579,346 @@ export function GeneratePage({
                   >
                     Edit draft <ArrowRight aria-hidden="true" />
                   </Link>
+                  <Button className="mt-4" variant="outline" onClick={() => generate.reset()}>
+                    Generate another draft
+                  </Button>
                 </div>
               ) : (
-                <Button
-                  disabled={!targetId || generate.isPending || outcomes.isLoading}
-                  onClick={() => generate.mutate()}
-                >
-                  {generate.isPending ? 'Generating draft…' : 'Generate draft'}
-                </Button>
+                <div className="space-y-3">
+                  {!selectedTarget && readyOfferings.length > 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      Select an outcome above to enable draft generation.
+                    </p>
+                  )}
+                  <Button
+                    disabled={!selectedTarget || generate.isPending || catalogue.isLoading}
+                    onClick={() => generate.mutate()}
+                  >
+                    {generate.isPending ? 'Generating draft…' : 'Generate draft'}
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>
-          <aside className="space-y-3 border-t pt-5 text-sm leading-6 text-muted-foreground lg:border-l lg:border-t-0 lg:pl-6 lg:pt-1">
-            <h2 className="font-semibold text-foreground">Selected outcome</h2>
-            {selectedOutcome ? (
+          <aside className="space-y-5 border-t pt-5 text-sm leading-6 text-muted-foreground lg:border-l lg:border-t-0 lg:pl-7 lg:pt-1">
+            <div>
+              <h2 className="font-semibold text-foreground">Curriculum evidence</h2>
+              <p className="mt-1">
+                Official curriculum excerpts define the outcome. Up to six relevant linked passages
+                may also inform the draft; synthetic demo material can shape suggestions and is
+                labeled.
+              </p>
+            </div>
+            {selectedTarget ? (
               <>
-                <p className="font-medium text-foreground">{selectedOutcome.title}</p>
-                <p>
-                  {selectedOutcome.framework} · {selectedOutcome.programme} ·{' '}
-                  {selectedOutcome.subject} · {selectedOutcome.grade} ·{' '}
-                  {selectedOutcome.editionLabel} · {selectedOutcome.locator}
-                </p>
-                <p>{selectedOutcome.content}</p>
+                <div className="space-y-2 border-b pb-4">
+                  <p className="font-medium text-foreground">
+                    {selectedTarget.framework} / {selectedTarget.programme} / {selectedTarget.level}{' '}
+                    {selectedTarget.subject}
+                  </p>
+                  <p>
+                    {selectedTarget.editionLabel}
+                    {selectedDesign ? ` · Revision ${selectedDesign.revisionNumber}` : ''} ·{' '}
+                    {selectedTarget.locator}
+                  </p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Curriculum wording
+                  </p>
+                  <p className="text-foreground">{selectedTarget.statement}</p>
+                  {selectedTarget.hierarchy.length ? (
+                    <p className="text-xs">
+                      {selectedTarget.hierarchy.map((node) => node.label).join(' / ')}
+                    </p>
+                  ) : null}
+                  <Link
+                    className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2"
+                    to="/library/targets/$targetRevisionId"
+                    params={{ targetRevisionId: selectedTarget.id }}
+                  >
+                    View in Curriculum Library <ArrowRight aria-hidden="true" className="size-3" />
+                  </Link>
+                </div>
+                {linkedSources.length ? (
+                  <div>
+                    <p className="mb-2 font-medium text-foreground">
+                      {selectedTarget.sourceCount}{' '}
+                      {selectedTarget.sourceCount === 1
+                        ? 'source revision linked'
+                        : 'source revisions linked'}
+                      <span className="font-normal text-muted-foreground">
+                        {' '}
+                        · previewing {linkedSources.length} linked{' '}
+                        {linkedSources.length === 1 ? 'passage' : 'passages'}
+                      </span>
+                    </p>
+                    <ul className="divide-y rounded-md border bg-card text-foreground">
+                      {linkedSources.map((source) => (
+                        <li key={source.chunkId} className="px-3 py-2">
+                          <p className="font-medium">{source.title}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                            <span
+                              className={`rounded-full border px-2 py-0.5 font-medium ${
+                                source.synthetic
+                                  ? 'border-amber-700/30 bg-amber-50 text-amber-950'
+                                  : source.authority === 'official'
+                                    ? 'border-emerald-700/25 bg-emerald-50 text-emerald-950'
+                                    : 'border-border bg-muted text-foreground'
+                              }`}
+                            >
+                              {source.synthetic
+                                ? 'Synthetic demo material'
+                                : `${sourceAuthorityLabel(source.authority)} source`}
+                            </span>
+                            <span className="rounded-full border px-2 py-0.5 text-foreground">
+                              {sourceRoleLabel(source.role)}
+                            </span>
+                            <span>{source.locator ?? 'Source passage'}</span>
+                          </div>
+                          <p className="mt-2 text-sm leading-5 text-muted-foreground">
+                            {source.content.length > 210
+                              ? `${source.content.slice(0, 210).trimEnd()}…`
+                              : source.content}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="rounded-md border border-dashed p-3">
+                    No published sources are linked to this outcome.
+                  </p>
+                )}
               </>
             ) : (
-              <p>The outcome’s learning goal will guide the generated plan.</p>
+              <p>
+                Select an outcome to review its curriculum wording and source evidence before
+                generation.
+              </p>
             )}
-            <p>The generated plan stays a draft until you submit it for curriculum review.</p>
+            {selectedTarget && (
+              <p className="border-t pt-4">The generated plan lists the exact citations used.</p>
+            )}
           </aside>
         </div>
       </div>
     </AppShell>
   )
+}
+
+function uniqueChoices<T>(
+  items: readonly T[],
+  idFor: (item: T) => string,
+  labelFor: (item: T) => string,
+) {
+  return [...new Map(items.map((item) => [idFor(item), labelFor(item)])).entries()]
+    .map(([id, label]) => ({ id, label }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+}
+
+type TargetHierarchyBranch = {
+  id: string
+  kind: CurriculumTarget['hierarchy'][number]['kind']
+  code: string | null
+  label: string
+  sortOrder: number
+  targetCount: number
+  children: Map<string, TargetHierarchyBranch>
+  targets: CurriculumTarget[]
+}
+
+function buildTargetTree(targets: readonly CurriculumTarget[]) {
+  const branches = new Map<string, TargetHierarchyBranch>()
+  const rootTargets: CurriculumTarget[] = []
+
+  for (const target of targets) {
+    if (target.hierarchy.length === 0) {
+      rootTargets.push(target)
+      continue
+    }
+
+    let siblings = branches
+    let parent: TargetHierarchyBranch | undefined
+    for (const node of target.hierarchy) {
+      let branch = siblings.get(node.id)
+      if (!branch) {
+        branch = {
+          id: node.id,
+          kind: node.kind,
+          code: node.code,
+          label: node.label,
+          sortOrder: node.sortOrder,
+          targetCount: 0,
+          children: new Map(),
+          targets: [],
+        }
+        siblings.set(node.id, branch)
+      }
+      branch.targetCount += 1
+      parent = branch
+      siblings = branch.children
+    }
+    parent?.targets.push(target)
+  }
+
+  return {
+    branches: [...branches.values()].sort((a, b) => a.sortOrder - b.sortOrder),
+    targets: rootTargets,
+  }
+}
+
+function CurriculumHierarchyBranch({
+  branch,
+  depth,
+  selectedTargetId,
+  visibleTargetIds,
+  expandSinglePath,
+  onSelect,
+}: {
+  branch: TargetHierarchyBranch
+  depth: number
+  selectedTargetId?: string
+  visibleTargetIds: ReadonlySet<string>
+  expandSinglePath: boolean
+  onSelect: (target: CurriculumTarget) => void
+}) {
+  const children = [...branch.children.values()]
+    .filter((child) => branchHasVisibleTarget(child, visibleTargetIds))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+  const targets = branch.targets.filter((target) => visibleTargetIds.has(target.id))
+  const containsSelectedTarget =
+    targets.some((target) => target.id === selectedTargetId) ||
+    children.some((child) => branchContainsTarget(child, selectedTargetId))
+  if (!targets.length && !children.length) return null
+  return (
+    <details
+      className="group rounded-md"
+      open={containsSelectedTarget || depth === 0 || (expandSinglePath && branch.targetCount === 1)}
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md px-2 py-2 hover:bg-muted/60 [&::-webkit-details-marker]:hidden">
+        <span className="flex min-w-0 items-center gap-2">
+          <ChevronRight
+            aria-hidden="true"
+            className="size-4 shrink-0 transition-transform group-open:rotate-90"
+          />
+          <span className="min-w-0">
+            <span className="mr-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {hierarchyKindLabel(branch.kind)}
+            </span>
+            {branch.code && (
+              <span className="mr-2 text-xs text-muted-foreground">{branch.code}</span>
+            )}
+            <span className="font-medium">{branch.label}</span>
+          </span>
+        </span>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {branch.targetCount} {branch.targetCount === 1 ? 'outcome' : 'outcomes'}
+        </span>
+      </summary>
+      <div className="ml-3 space-y-1 border-l pl-2">
+        {children.map((child) => (
+          <CurriculumHierarchyBranch
+            key={child.id}
+            branch={child}
+            depth={depth + 1}
+            selectedTargetId={selectedTargetId}
+            visibleTargetIds={visibleTargetIds}
+            expandSinglePath={expandSinglePath}
+            onSelect={onSelect}
+          />
+        ))}
+        {targets.map((target) => (
+          <CurriculumTargetChoice
+            key={target.id}
+            target={target}
+            selected={target.id === selectedTargetId}
+            onSelect={() => onSelect(target)}
+          />
+        ))}
+      </div>
+    </details>
+  )
+}
+
+function CurriculumTargetChoice({
+  target,
+  selected,
+  onSelect,
+}: {
+  target: CurriculumTarget
+  selected: boolean
+  onSelect: () => void
+}) {
+  return (
+    <label
+      className={`flex cursor-pointer gap-3 rounded-md border p-3 transition-colors hover:bg-muted/50 ${
+        selected ? 'border-primary bg-primary/5' : 'border-transparent bg-muted/20'
+      }`}
+    >
+      <input
+        type="radio"
+        name="targetRevisionId"
+        value={target.id}
+        checked={selected}
+        onChange={onSelect}
+        className="mt-1 size-4 accent-primary"
+      />
+      <span className="min-w-0">
+        <span className="block font-medium text-foreground">
+          <span className="mr-2 text-xs text-muted-foreground">{target.locator}</span>
+          {target.title}
+        </span>
+        <span className="mt-1 block text-sm leading-5 text-muted-foreground">
+          {target.statement.length > 180
+            ? `${target.statement.slice(0, 180).trimEnd()}…`
+            : target.statement}
+        </span>
+      </span>
+    </label>
+  )
+}
+
+function branchContainsTarget(branch: TargetHierarchyBranch, targetId?: string): boolean {
+  return (
+    branch.targets.some((target) => target.id === targetId) ||
+    [...branch.children.values()].some((child) => branchContainsTarget(child, targetId))
+  )
+}
+
+function branchHasVisibleTarget(
+  branch: TargetHierarchyBranch,
+  targetIds: ReadonlySet<string>,
+): boolean {
+  return (
+    branch.targets.some((target) => targetIds.has(target.id)) ||
+    [...branch.children.values()].some((child) => branchHasVisibleTarget(child, targetIds))
+  )
+}
+
+function hierarchyKindLabel(kind: CurriculumTarget['hierarchy'][number]['kind']) {
+  return kind === 'sub_strand' ? 'Sub-strand' : kind[0].toUpperCase() + kind.slice(1)
+}
+
+function onlyChoice(choices: readonly { id: string }[]) {
+  return choices.length === 1 ? choices[0].id : ''
+}
+
+function sourceAuthorityLabel(authority: CurriculumSource['authority']) {
+  return {
+    official: 'Official',
+    school: 'School',
+    internal: 'Internal',
+    synthetic: 'Synthetic',
+  }[authority]
+}
+
+function sourceRoleLabel(role: CurriculumSource['role']) {
+  return {
+    defines_target: 'Curriculum definition',
+    teaching_support: 'Teaching support',
+    assessment_support: 'Assessment support',
+    guidance: 'Guidance',
+    exemplar: 'Exemplar',
+  }[role]
 }
 
 export function PlanDetailPage({ user, planId }: { user: ApiPrincipal; planId: string }) {
@@ -311,19 +1036,31 @@ function PlanEditor({
   sourcesError?: string
 }) {
   const queryClient = useQueryClient()
-  const feedbackRef = useRef<HTMLParagraphElement>(null)
   const errorsRef = useRef<HTMLDivElement>(null)
   const plan = initial.plan
+  const latestReturn = [...initial.reviews]
+    .filter((review) => review.decision === 'returned')
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
   const [content, setContent] = useState(plan.content)
+  const [savedContent, setSavedContent] = useState(plan.content)
   const [versions, setVersions] = useState(initial.versions)
   const [qa, setQa] = useState(initial.qa)
   const [qaStale, setQaStale] = useState(false)
   const [submittedPlan, setSubmittedPlan] = useState<Plan | null>(null)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
+  const hasUnsavedChanges = JSON.stringify(content) !== JSON.stringify(savedContent)
+  useBlocker({
+    shouldBlockFn: () =>
+      hasUnsavedChanges &&
+      !window.confirm('Leave this page? Your unsaved lesson plan changes will be lost.'),
+    enableBeforeUnload: hasUnsavedChanges,
+    disabled: !hasUnsavedChanges,
+  })
   const save = useMutation({
     mutationFn: (value: LessonPlanContent) => updateLessonPlan(plan.id, value),
     onSuccess: async (result) => {
       setContent(result.plan.content)
+      setSavedContent(result.plan.content)
       setQa(result.qa)
       setQaStale(false)
       setVersions((current) => withLatestVersion(current, result.plan))
@@ -340,6 +1077,7 @@ function PlanEditor({
         return await submitLessonPlan(plan.id)
       } catch (error) {
         setContent(saved.plan.content)
+        setSavedContent(saved.plan.content)
         setQa(saved.qa)
         setQaStale(false)
         setVersions((current) => withLatestVersion(current, saved.plan))
@@ -369,9 +1107,6 @@ function PlanEditor({
   useEffect(() => {
     if (validationErrors.length) errorsRef.current?.focus()
   }, [validationErrors])
-  useEffect(() => {
-    if (save.isSuccess || submit.isSuccess) feedbackRef.current?.focus()
-  }, [save.isSuccess, submit.isSuccess])
   function update<K extends keyof LessonPlanContent>(key: K, value: LessonPlanContent[K]) {
     setContent((existing) => ({ ...existing, [key]: value }))
     setQaStale(true)
@@ -401,7 +1136,7 @@ function PlanEditor({
       />
     )
   return (
-    <div className="space-y-7">
+    <div className="space-y-7 pb-28">
       <header className="flex flex-col justify-between gap-4 border-b border-primary/15 pb-6 sm:flex-row sm:items-end">
         <div>
           <Link
@@ -416,24 +1151,41 @@ function PlanEditor({
             Changes stay in draft until you submit for review.
           </p>
         </div>
-        <span className="rounded-full bg-muted px-3 py-1.5 text-sm font-medium">
-          {statusLabel[plan.status]}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-muted px-3 py-1.5 text-sm font-medium">
+            {statusLabel[plan.status]}
+          </span>
+          <span
+            className={`rounded-full px-3 py-1.5 text-sm font-medium ${hasUnsavedChanges ? 'bg-amber-100 text-amber-950' : 'bg-emerald-100 text-emerald-950'}`}
+          >
+            {hasUnsavedChanges ? 'Unsaved changes' : 'All changes saved'}
+          </span>
+        </div>
       </header>
-      {(save.isSuccess || submit.isSuccess) && (
-        <p
-          ref={feedbackRef}
-          tabIndex={-1}
-          role="status"
-          className="rounded-lg bg-primary/5 p-3 text-sm font-medium text-primary"
+      {(plan.status === 'returned' || (latestReturn && plan.status === 'draft')) && (
+        <section
+          className="rounded-xl border border-amber-700/20 bg-amber-50 p-4 text-amber-950"
+          aria-labelledby="lead-feedback-heading"
         >
-          {submit.isSuccess ? 'Submitted for curriculum review.' : 'Changes saved.'}
-        </p>
-      )}
-      {(save.error || submit.error) && (
-        <ErrorMessage
-          message={save.error?.message ?? submit.error?.message ?? 'The plan could not be saved.'}
-        />
+          <h2 id="lead-feedback-heading" className="font-semibold">
+            Feedback from your curriculum lead
+          </h2>
+          {latestReturn ? (
+            <>
+              <p className="mt-1 text-xs text-amber-900/80">
+                Returned · Version {latestReturn.lessonPlanVersionNumber} ·{' '}
+                {new Date(latestReturn.createdAt).toLocaleDateString()}
+              </p>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
+                {latestReturn.comment ?? 'No written feedback was recorded for this return.'}
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-sm leading-6">
+              No written feedback was recorded. Ask your curriculum lead if you need clarification.
+            </p>
+          )}
+        </section>
       )}
       {validationErrors.length > 0 && (
         <div
@@ -556,14 +1308,23 @@ function PlanEditor({
               plan.
             </p>
           ) : (
-            qa && <QualityReport qa={qa} />
+            qa && <QualityChecks qa={qa} />
           )}
-          <div className="rounded-xl border bg-card p-4">
-            <h2 className="font-semibold">Ready to send?</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Save your draft as you work. Submit when the plan is ready for curriculum review.
+          {initial.reviews.length > 0 && <PlanReviewHistory reviews={initial.reviews} />}
+        </aside>
+      </div>
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg backdrop-blur md:pl-64 md:pr-0">
+        <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-2 md:px-8">
+          {(save.error || submit.error) && (
+            <div role="alert" className="text-sm text-destructive">
+              {save.error?.message ?? submit.error?.message ?? 'The plan could not be saved.'}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p role="status" aria-live="polite" className="text-sm font-medium">
+              {hasUnsavedChanges ? 'Unsaved changes' : 'All changes saved'}
             </p>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div role="group" aria-label="Save and submit lesson plan" className="flex gap-2">
               <Button
                 variant="outline"
                 disabled={save.isPending || submit.isPending}
@@ -585,7 +1346,7 @@ function PlanEditor({
               </Button>
             </div>
           </div>
-        </aside>
+        </div>
       </div>
     </div>
   )
@@ -717,7 +1478,7 @@ function PlanContent({
             sourcesLoading={sourcesLoading}
             sourcesError={sourcesError}
           />
-          {detail.qa && <QualityReport qa={detail.qa} />}
+          {detail.qa && <QualityChecks qa={detail.qa} />}
           <RubricQaPanel planId={plan.id} versionId={plan.versionId} validation={detail.rubricQa} />
           <PlanVersionHistory versions={detail.versions} currentVersion={plan.version} />
           <PlanReviewHistory reviews={detail.reviews} />
@@ -796,13 +1557,20 @@ function PlanContext({
               >
                 <h4 className="font-medium">{match?.title ?? 'Curriculum source'}</h4>
                 {match && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {match.resourceType} · {match.subject} · {match.grade}
+                  <>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {match.subject} · {match.grade}
+                    </p>
+                    <SourceProvenance source={match} />
+                  </>
+                )}
+                {match ? (
+                  <SourcePassage source={match} />
+                ) : (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Source details are unavailable. The citation remains attached to this plan.
                   </p>
                 )}
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                  {match?.content ?? `Source reference ${source.documentId} · ${source.chunkId}`}
-                </p>
               </article>
             ))}
           </div>
@@ -980,29 +1748,6 @@ function ActivitiesEditor({
         Add activity
       </Button>
     </fieldset>
-  )
-}
-function QualityReport({ qa }: { qa: Qa }) {
-  return (
-    <section className="rounded-xl border bg-card p-4" aria-label="Quality checks">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="font-semibold">Quality checks</h2>
-        <span className="text-xs font-medium">{qa.passed ? 'Passed' : 'Needs attention'}</span>
-      </div>
-      <ul className="mt-3 space-y-2">
-        {qa.checks.map((check) => (
-          <li key={check.code} className="flex gap-2 text-sm leading-6">
-            <span
-              aria-hidden="true"
-              className={check.passed ? 'text-emerald-700' : 'text-destructive'}
-            >
-              {check.passed ? <Check className="mt-1 size-4" /> : <X className="mt-1 size-4" />}
-            </span>
-            <span>{check.message}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
   )
 }
 function ErrorMessage({ message }: { message: string }) {

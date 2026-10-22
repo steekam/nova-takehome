@@ -21,6 +21,18 @@ export class CurriculumLibraryController {
     return this.library.catalogue(principal)
   }
 
+  @Get('curriculum/library/designs/:designVersionId')
+  @ApiResponse({
+    status: 200,
+    schema: { $ref: '#/components/schemas/CurriculumLibraryDesign' },
+  })
+  async design(
+    @Param('designVersionId') designVersionId: string,
+    @CurrentUser() principal: ApiPrincipal,
+  ) {
+    return this.library.design(designVersionId, principal)
+  }
+
   @Get('curriculum/library/targets/:targetRevisionId')
   @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/CurriculumLibraryTarget' } })
   async target(

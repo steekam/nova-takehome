@@ -56,6 +56,42 @@ export const CurriculumSourceDtoSchema = z
   .strict()
 export type CurriculumSourceDto = z.infer<typeof CurriculumSourceDtoSchema>
 
+export const CurriculumNodeKindSchema = z.enum([
+  'strand',
+  'sub_strand',
+  'topic',
+  'subtopic',
+  'unit',
+  'section',
+])
+export type CurriculumNodeKind = z.infer<typeof CurriculumNodeKindSchema>
+
+export const CurriculumLevelKindSchema = z.enum(['grade', 'stage', 'year', 'qualification'])
+export type CurriculumLevelKind = z.infer<typeof CurriculumLevelKindSchema>
+
+export const CurriculumHierarchyNodeDtoSchema = z
+  .object({
+    id: z.string().uuid(),
+    kind: CurriculumNodeKindSchema,
+    code: z.string().nullable(),
+    label: z.string(),
+    sortOrder: z.number().int(),
+  })
+  .strict()
+export type CurriculumHierarchyNodeDto = z.infer<typeof CurriculumHierarchyNodeDtoSchema>
+
+export const CurriculumDesignNodeDtoSchema = z
+  .object({
+    id: z.string().uuid(),
+    parentNodeId: z.string().uuid().nullable(),
+    kind: CurriculumNodeKindSchema,
+    code: z.string().nullable(),
+    label: z.string(),
+    sortOrder: z.number().int(),
+  })
+  .strict()
+export type CurriculumDesignNodeDto = z.infer<typeof CurriculumDesignNodeDtoSchema>
+
 export const CurriculumLibraryTargetDtoSchema = z
   .object({
     id: z.string().uuid(),
@@ -71,7 +107,8 @@ export const CurriculumLibraryTargetDtoSchema = z
     title: z.string(),
     statement: z.string(),
     locator: z.string(),
-    path: z.array(z.string()),
+    sortOrder: z.number().int(),
+    hierarchy: z.array(CurriculumHierarchyNodeDtoSchema),
     sourceCount: z.number().int().nonnegative(),
     generationReady: z.boolean(),
     sources: z.array(CurriculumSourceDtoSchema),
@@ -82,9 +119,18 @@ export type CurriculumLibraryTargetDto = z.infer<typeof CurriculumLibraryTargetD
 export const CurriculumLibraryOfferingDtoSchema = z
   .object({
     id: z.string().uuid(),
+    frameworkId: z.string().uuid(),
+    frameworkCode: z.string(),
     framework: z.string(),
+    programmeId: z.string().uuid(),
+    programmeCode: z.string(),
     programme: z.string(),
+    levelId: z.string().uuid().nullable(),
+    levelKind: CurriculumLevelKindSchema.nullable(),
+    levelCode: z.string().nullable(),
     level: z.string(),
+    subjectId: z.string().uuid(),
+    subjectCode: z.string(),
     subject: z.string(),
     externalCode: z.string().nullable(),
     designs: z.array(
@@ -93,8 +139,10 @@ export const CurriculumLibraryOfferingDtoSchema = z
           id: z.string().uuid(),
           editionLabel: z.string(),
           revisionNumber: z.number().int().positive(),
+          publishedAt: z.string().datetime().nullable(),
           origin: z.enum(['official_import', 'demo_fixture']),
           status: z.enum(['draft', 'published', 'retired']),
+          nodes: z.array(CurriculumDesignNodeDtoSchema),
           targets: z.array(CurriculumLibraryTargetDtoSchema),
         })
         .strict(),
@@ -103,9 +151,50 @@ export const CurriculumLibraryOfferingDtoSchema = z
   .strict()
 export type CurriculumLibraryOfferingDto = z.infer<typeof CurriculumLibraryOfferingDtoSchema>
 
-export const CurriculumLibraryResponseSchema = z
-  .object({ offerings: z.array(CurriculumLibraryOfferingDtoSchema) })
+export const CurriculumLibraryDesignSummaryDtoSchema = z
+  .object({
+    id: z.string().uuid(),
+    editionLabel: z.string(),
+    revisionNumber: z.number().int().positive(),
+    publishedAt: z.string().datetime().nullable(),
+    origin: z.enum(['official_import', 'demo_fixture']),
+    status: z.enum(['draft', 'published', 'retired']),
+    targetCount: z.number().int().nonnegative(),
+    generationReadyCount: z.number().int().nonnegative(),
+  })
   .strict()
+export type CurriculumLibraryDesignSummaryDto = z.infer<
+  typeof CurriculumLibraryDesignSummaryDtoSchema
+>
+
+export const CurriculumLibraryBrowseOfferingDtoSchema = z
+  .object({
+    id: z.string().uuid(),
+    frameworkId: z.string().uuid(),
+    frameworkCode: z.string(),
+    framework: z.string(),
+    programmeId: z.string().uuid(),
+    programmeCode: z.string(),
+    programme: z.string(),
+    levelId: z.string().uuid().nullable(),
+    levelKind: CurriculumLevelKindSchema.nullable(),
+    levelCode: z.string().nullable(),
+    level: z.string(),
+    subjectId: z.string().uuid(),
+    subjectCode: z.string(),
+    subject: z.string(),
+    externalCode: z.string().nullable(),
+    designs: z.array(CurriculumLibraryDesignSummaryDtoSchema),
+  })
+  .strict()
+export type CurriculumLibraryBrowseOfferingDto = z.infer<
+  typeof CurriculumLibraryBrowseOfferingDtoSchema
+>
+
+export const CurriculumLibraryResponseSchema = z
+  .object({ offerings: z.array(CurriculumLibraryBrowseOfferingDtoSchema) })
+  .strict()
+export const CurriculumLibraryDesignResponseSchema = CurriculumLibraryOfferingDtoSchema
 export const CurriculumLibraryTargetResponseSchema = CurriculumLibraryTargetDtoSchema
 export const CurriculumSourcesResponseSchema = z
   .object({ items: z.array(CurriculumSourceDtoSchema) })

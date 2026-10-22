@@ -27,6 +27,7 @@ export const lessonPlans = pgTable('lesson_plans', {
   status: planStatus('status').default('draft').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 })
 
 export const lessonPlanVersions = pgTable(
