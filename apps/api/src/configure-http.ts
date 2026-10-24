@@ -8,6 +8,9 @@ import { RequestIdService } from './common/request-id.service'
 import { ApiExceptionFilter } from './common/api-exception.filter'
 import { RequestLoggingInterceptor } from './common/request-logging.interceptor'
 import { flattenValidationErrors } from './common/validation-errors'
+import { isCrossOriginWrite, normalizeOrigin } from './common/security/upstream/cross-origin.util'
+import { emitTelemetryLog } from './telemetry-logger'
+import { SeverityNumber } from '@opentelemetry/api-logs'
 import { createApiDocument } from './openapi'
 
 export async function configureHttp(app: NestFastifyApplication): Promise<void> {
@@ -26,10 +29,13 @@ export async function configureHttp(app: NestFastifyApplication): Promise<void> 
   })
   await app.register(cookie)
   await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024, files: 5 } })
-  app.enableCors({
-    origin: (process.env.CORS_ORIGIN ?? 'http://localhost:5173')
+  const trustedOrigins = new Set(
+    (process.env.CORS_ORIGIN ?? 'http://localhost:5173')
       .split(',')
-      .map((origin) => origin.trim()),
+      .map((origin) => normalizeOrigin(origin.trim(), 'CORS_ORIGIN')),
+  )
+  app.enableCors({
+    origin: [...trustedOrigins],
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type',
@@ -49,6 +55,20 @@ export async function configureHttp(app: NestFastifyApplication): Promise<void> 
     request.headers['x-request-id'] = requestId
     reply.header('x-request-id', requestId)
     requestIds.run(requestId, done)
+  })
+  fastify.addHook('onRequest', async (request, reply) => {
+    if (isCrossOriginWrite(request, trustedOrigins)) {
+      emitTelemetryLog('Browser write origin rejected', SeverityNumber.WARN, {
+        request_id: requestIds.getOrCreate(request.headers['x-request-id']),
+        method: request.method,
+      })
+      await reply.code(403).send({
+        statusCode: 403,
+        code: 'ORIGIN_NOT_ALLOWED',
+        message: 'Browser origin is not allowed',
+        requestId: request.headers['x-request-id'],
+      })
+    }
   })
 
   app.useGlobalFilters(app.get(ApiExceptionFilter))

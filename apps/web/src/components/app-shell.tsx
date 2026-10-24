@@ -3,39 +3,79 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { BookOpenCheck, LayoutDashboard, LibraryBig } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { UserRole } from '@nova/shared'
+import { LlmMockScenarioSchema, type Permission } from '@nova/shared'
 import { Button } from './ui/button'
 import { apiClient } from '../lib/api-client'
-import { getRuntimeLlmMode, runtimeLlmKey, setRuntimeLlmMode } from '../features/runtime-llm/api'
+import {
+  getRuntimeLlmMode,
+  runtimeLlmKey,
+  setRuntimeLlmMode,
+  type LlmMode,
+  type LlmMockScenario,
+} from '../features/runtime-llm/api'
+import { logoutAndClear } from '../lib/auth-session'
 type NavItem = {
   to: '/teacher' | '/curriculum-lead' | '/lesson-plans' | '/library'
   label: string
   icon: LucideIcon
 }
 
-function LlmModeControl() {
+function LlmModeControl({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient()
   const settings = useQuery({ queryKey: runtimeLlmKey, queryFn: getRuntimeLlmMode })
   const updateMode = useMutation({
-    mutationFn: setRuntimeLlmMode,
+    mutationFn: ({ mode, mockScenario }: { mode: LlmMode; mockScenario?: LlmMockScenario }) =>
+      setRuntimeLlmMode(mode, mockScenario),
     onSuccess: (status) => queryClient.setQueryData(runtimeLlmKey, status),
   })
 
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <label htmlFor="llm-mode" className="text-xs font-medium text-muted-foreground">
-        AI mode
-      </label>
-      <select
-        id="llm-mode"
-        className="h-8 rounded-md border bg-background px-2 text-xs font-medium"
-        disabled={!settings.data || updateMode.isPending}
-        onChange={(event) => updateMode.mutate(event.target.value === 'live' ? 'live' : 'mock')}
-        value={settings.data?.mode ?? 'mock'}
-      >
-        <option value="mock">Mock · no key</option>
-        <option value="live">Live · configured provider</option>
-      </select>
+      {settings.data && (
+        <span className="text-xs text-muted-foreground">AI mode: {settings.data.mode}</span>
+      )}
+      {canManage && (
+        <>
+          <label htmlFor="llm-mode" className="text-xs font-medium text-muted-foreground">
+            AI mode
+          </label>
+          <select
+            id="llm-mode"
+            className="h-8 rounded-md border bg-background px-2 text-xs font-medium"
+            disabled={!settings.data || updateMode.isPending}
+            onChange={(event) =>
+              updateMode.mutate({ mode: event.target.value === 'live' ? 'live' : 'mock' })
+            }
+            value={settings.data?.mode ?? 'mock'}
+          >
+            <option value="mock">Mock · no key</option>
+            <option value="live">Live · configured provider</option>
+          </select>
+          {settings.data?.mode === 'mock' && (
+            <>
+              <label htmlFor="llm-mock-scenario" className="sr-only">
+                Mock response scenario
+              </label>
+              <select
+                id="llm-mock-scenario"
+                aria-label="Mock response scenario"
+                className="h-8 rounded-md border bg-background px-2 text-xs font-medium"
+                disabled={updateMode.isPending}
+                value={settings.data.mockScenario}
+                onChange={(event) => {
+                  const scenario = LlmMockScenarioSchema.safeParse(event.target.value)
+                  if (scenario.success)
+                    updateMode.mutate({ mode: 'mock', mockScenario: scenario.data })
+                }}
+              >
+                <option value="happy_path">Mock response · success</option>
+                <option value="invalid_output">Mock response · invalid output</option>
+                <option value="connection_failure">Mock response · unavailable</option>
+              </select>
+            </>
+          )}
+        </>
+      )}
       {settings.data && !settings.data.liveAvailable && (
         <details className="max-w-sm text-xs text-muted-foreground">
           <summary className="cursor-pointer font-medium text-primary">Live setup</summary>
@@ -55,22 +95,26 @@ function LlmModeControl() {
 }
 
 interface AppShellProps {
-  role: UserRole
+  permissions: Permission[]
   children: ReactNode
 }
 
-function navFor(role: UserRole): NavItem[] {
-  return role === 'teacher'
+function navFor(permissions: Permission[]): NavItem[] {
+  return isCurriculumLead(permissions)
     ? [
-        { to: '/teacher', label: 'Overview', icon: LayoutDashboard },
-        { to: '/library', label: 'Curriculum Library', icon: LibraryBig },
-        { to: '/lesson-plans', label: 'Lesson Plans', icon: BookOpenCheck },
-      ]
-    : [
         { to: '/curriculum-lead', label: 'Overview', icon: LayoutDashboard },
         { to: '/library', label: 'Curriculum Library', icon: LibraryBig },
         { to: '/lesson-plans', label: 'Lesson Plans', icon: BookOpenCheck },
       ]
+    : [
+        { to: '/teacher', label: 'Overview', icon: LayoutDashboard },
+        { to: '/library', label: 'Curriculum Library', icon: LibraryBig },
+        { to: '/lesson-plans', label: 'Lesson Plans', icon: BookOpenCheck },
+      ]
+}
+
+function isCurriculumLead(permissions: Permission[]) {
+  return permissions.includes('lesson_plan:review')
 }
 
 function isActiveItem(pathname: string, item: NavItem) {
@@ -122,18 +166,21 @@ function Navigation({
   )
 }
 
-export function AppShell({ role, children }: AppShellProps) {
+export function AppShell({ permissions, children }: AppShellProps) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
-  const isTeacher = role === 'teacher'
-  const roleLabel = isTeacher ? 'Teacher' : 'Curriculum lead'
-  const items = navFor(role)
+  const isLead = isCurriculumLead(permissions)
+  const roleLabel = isLead ? 'Curriculum lead' : 'Teacher'
+  const items = navFor(permissions)
 
   const signOut = useMutation({
-    mutationFn: () => apiClient.POST('/api/auth/logout'),
+    mutationFn: () =>
+      logoutAndClear(
+        () => apiClient.POST('/api/auth/logout'),
+        () => queryClient.clear(),
+      ),
     onSuccess: async () => {
-      queryClient.clear()
       await navigate({ to: '/login' })
     },
   })
@@ -148,7 +195,7 @@ export function AppShell({ role, children }: AppShellProps) {
       </a>
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-[#173f52] bg-[#092b3b] text-white md:flex md:flex-col">
         <Link
-          to={isTeacher ? '/teacher' : '/curriculum-lead'}
+          to={isLead ? '/curriculum-lead' : '/teacher'}
           className="flex h-20 items-center gap-3 px-5 font-semibold tracking-tight text-white"
         >
           <img
@@ -188,7 +235,7 @@ export function AppShell({ role, children }: AppShellProps) {
                 Sign out failed: {signOut.error.message}
               </p>
             )}
-            <LlmModeControl />
+            <LlmModeControl canManage={permissions.includes('runtime_llm:manage')} />
             <Button
               className="md:hidden"
               size="sm"

@@ -24,6 +24,8 @@ import type { DbExecutor } from '../database/executor'
 import { EmbeddingAdapter } from '../embeddings/embedding.service'
 import { EmbeddingError } from '../embeddings/embedding.adapter'
 import { CurriculumLibraryRepository } from './curriculum-library.repository'
+import { authorize } from '../common/auth/policy'
+import { CurriculumSourcePolicy } from '../common/auth/policies'
 
 type SourceRow = Awaited<ReturnType<CurriculumLibraryRepository['catalogue']>>['sources'][number]
 
@@ -37,13 +39,15 @@ export class CurriculumLibraryService {
 
   async catalogue(principal: ApiPrincipal) {
     const offerings = await this.repository.catalogueSummary(
-      principal.roles.includes('curriculum_lead'),
+      new CurriculumSourcePolicy().viewDraft(principal),
     )
     return CurriculumLibraryResponseSchema.parse({ offerings })
   }
 
   async allSources(principal: ApiPrincipal) {
-    const catalogue = await this.catalogueForVisibility(principal.roles.includes('curriculum_lead'))
+    const catalogue = await this.catalogueForVisibility(
+      new CurriculumSourcePolicy().viewDraft(principal),
+    )
     const unique = new Map<string, CurriculumSourceDto>()
     for (const target of catalogue.offerings.flatMap((offering) =>
       offering.designs.flatMap((design) => design.targets),
@@ -173,7 +177,7 @@ export class CurriculumLibraryService {
   }
 
   async target(targetRevisionId: string, principal: ApiPrincipal) {
-    const includeDraft = principal.roles.includes('curriculum_lead')
+    const includeDraft = new CurriculumSourcePolicy().viewDraft(principal)
     const [targetDesign] = await this.repository.targetDesign(targetRevisionId)
     if (!targetDesign) throw new NotFoundException('Curriculum target not found')
     const [design] = await this.repository.design(targetDesign.designVersionId)
@@ -193,7 +197,7 @@ export class CurriculumLibraryService {
   }
 
   async design(designVersionId: string, principal: ApiPrincipal) {
-    const includeDraft = principal.roles.includes('curriculum_lead')
+    const includeDraft = new CurriculumSourcePolicy().viewDraft(principal)
     const [design] = await this.repository.design(designVersionId)
     if (!design || (!includeDraft && design.status !== 'published'))
       throw new NotFoundException('Curriculum edition not found')
@@ -307,6 +311,7 @@ export class CurriculumLibraryService {
   ) {
     const [target] = await this.repository.targetDesign(targetRevisionId)
     if (!target) throw new NotFoundException('Curriculum target not found')
+    await authorize(principal, new CurriculumSourcePolicy(), 'add')
     const [design] = await this.repository.design(target.designVersionId)
     if (!design || design.status !== 'published')
       throw new BadRequestException({
@@ -388,6 +393,7 @@ export class CurriculumLibraryService {
     return this.database.db.transaction(async (tx) => {
       const [link] = await this.repository.sourceLinkForUpdate(linkId, tx)
       if (!link) throw new NotFoundException('Source link not found')
+      await authorize(principal, new CurriculumSourcePolicy(), 'publish')
       if (link.status !== 'draft')
         throw new ConflictException({
           code: 'SOURCE_LINK_TRANSITION_INVALID',

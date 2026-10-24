@@ -1,13 +1,34 @@
 import { Injectable } from '@nestjs/common'
+import type { LlmMockScenario } from '@nova/shared'
 import type { LessonPlanCompletionRequest, LessonPlanProvider } from './llm-provider'
+import { LessonPlanProviderFailure } from './llm-provider'
 import { recordProviderAttempt } from './generation-telemetry'
 
 @Injectable()
 export class MockLessonPlanProvider implements LessonPlanProvider {
-  async complete(request: LessonPlanCompletionRequest, _modelOverride?: string) {
+  async complete(
+    request: LessonPlanCompletionRequest,
+    _modelOverride?: string,
+    scenario: LlmMockScenario = 'happy_path',
+  ) {
     const startedAt = Date.now()
-    if (request.system.includes('six requested dimensions')) {
-      const input = JSON.parse(request.user) as {
+    if (scenario === 'connection_failure') {
+      const durationMs = Date.now() - startedAt
+      recordProviderAttempt({
+        provider: 'mock',
+        outcome: 'failure',
+        durationMs,
+        errorCode: 'LLM_PROVIDER_UNAVAILABLE',
+      })
+      throw new LessonPlanProviderFailure('mock', 'deterministic-mock', 1, {
+        code: 'LLM_PROVIDER_UNAVAILABLE',
+        message:
+          'The mock provider is simulating an unavailable connection. No draft was saved; select another mock scenario or try again.',
+      })
+    }
+    const inputText = requestPayload(request.user)
+    if (request.system.includes('each rubric dimension exactly once')) {
+      const input = JSON.parse(inputText) as {
         lessonPlan: { sources: Array<{ chunkId: string }> }
       }
       const keys = [
@@ -44,7 +65,7 @@ export class MockLessonPlanProvider implements LessonPlanProvider {
         providerAttempts: 1,
       }
     }
-    const input = JSON.parse(request.user) as {
+    const input = JSON.parse(inputText) as {
       outcome: { id: string; title: string; subject: string; grade: string; content: string }
       sources: Array<{ documentId: string; chunkId: string; role: string }>
       durationMinutes: number
@@ -72,7 +93,7 @@ export class MockLessonPlanProvider implements LessonPlanProvider {
               durationMinutes: durationMinutes - first,
             },
           ]
-    const content = JSON.stringify({
+    const generated = {
       title: `Lesson: ${outcome.title}`,
       subject: outcome.subject,
       grade: outcome.grade,
@@ -87,15 +108,24 @@ export class MockLessonPlanProvider implements LessonPlanProvider {
         documentId: source.documentId,
         chunkId: source.chunkId,
       })),
+    }
+    const output = JSON.stringify({
+      ...generated,
+      ...(scenario === 'invalid_output' ? { durationMinutes: durationMinutes + 1 } : {}),
     })
     const durationMs = Date.now() - startedAt
     recordProviderAttempt({ provider: 'mock', outcome: 'success', durationMs })
     return {
-      content,
+      content: output,
       provider: 'mock',
       model: 'deterministic-mock',
       durationMs,
       providerAttempts: 1,
     }
   }
+}
+
+function requestPayload(user: string): string {
+  const correctionStart = user.indexOf('\n\nValidation issues:')
+  return correctionStart === -1 ? user : user.slice(0, correctionStart)
 }

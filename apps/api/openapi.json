@@ -20,7 +20,8 @@
         "summary": "Check API liveness",
         "tags": [
           "health"
-        ]
+        ],
+        "security": []
       }
     },
     "/api/health/ready": {
@@ -45,7 +46,8 @@
         "summary": "Check API and database readiness",
         "tags": [
           "health"
-        ]
+        ],
+        "security": []
       }
     },
     "/api/auth/login": {
@@ -77,7 +79,8 @@
         "summary": "Sign in with an email and password",
         "tags": [
           "auth"
-        ]
+        ],
+        "security": []
       }
     },
     "/api/auth/logout": {
@@ -90,6 +93,43 @@
           }
         },
         "summary": "Sign out and clear the browser session",
+        "tags": [
+          "auth"
+        ],
+        "security": []
+      }
+    },
+    "/api/auth/logout-all": {
+      "post": {
+        "operationId": "AuthController_logoutAll",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Sign out all sessions for the current user",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/rotate": {
+      "post": {
+        "operationId": "AuthController_rotate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          }
+        },
         "tags": [
           "auth"
         ]
@@ -113,7 +153,7 @@
         },
         "security": [
           {
-            "bearer": []
+            "cookie": []
           }
         ],
         "summary": "Get the authenticated user and permissions",
@@ -683,10 +723,10 @@
   "servers": [],
   "components": {
     "securitySchemes": {
-      "bearer": {
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "type": "http"
+      "cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "nova_access"
       }
     },
     "schemas": {
@@ -727,7 +767,8 @@
           },
           "password": {
             "type": "string",
-            "minLength": 8
+            "minLength": 8,
+            "maxLength": 4096
           }
         },
         "required": [
@@ -2415,6 +2456,47 @@
             ],
             "additionalProperties": false
           },
+          "viewer": {
+            "type": "object",
+            "properties": {
+              "availableActions": {
+                "type": "object",
+                "properties": {
+                  "edit": {
+                    "type": "boolean"
+                  },
+                  "submit": {
+                    "type": "boolean"
+                  },
+                  "delete": {
+                    "type": "boolean"
+                  },
+                  "returnForRevision": {
+                    "type": "boolean"
+                  },
+                  "publish": {
+                    "type": "boolean"
+                  },
+                  "validate": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "edit",
+                  "submit",
+                  "delete",
+                  "returnForRevision",
+                  "publish",
+                  "validate"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "availableActions"
+            ],
+            "additionalProperties": false
+          },
           "reviews": {
             "type": "array",
             "items": {
@@ -2804,6 +2886,7 @@
         },
         "required": [
           "plan",
+          "viewer",
           "reviews",
           "versions",
           "qa",
@@ -3019,8 +3102,46 @@
                   ],
                   "additionalProperties": false
                 },
-                "canDelete": {
-                  "type": "boolean"
+                "viewer": {
+                  "type": "object",
+                  "properties": {
+                    "availableActions": {
+                      "type": "object",
+                      "properties": {
+                        "edit": {
+                          "type": "boolean"
+                        },
+                        "submit": {
+                          "type": "boolean"
+                        },
+                        "delete": {
+                          "type": "boolean"
+                        },
+                        "returnForRevision": {
+                          "type": "boolean"
+                        },
+                        "publish": {
+                          "type": "boolean"
+                        },
+                        "validate": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "edit",
+                        "submit",
+                        "delete",
+                        "returnForRevision",
+                        "publish",
+                        "validate"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "availableActions"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -3034,7 +3155,7 @@
                 "createdAt",
                 "updatedAt",
                 "curriculumContext",
-                "canDelete"
+                "viewer"
               ],
               "additionalProperties": false
             }
@@ -3228,6 +3349,47 @@
             ],
             "additionalProperties": false
           },
+          "viewer": {
+            "type": "object",
+            "properties": {
+              "availableActions": {
+                "type": "object",
+                "properties": {
+                  "edit": {
+                    "type": "boolean"
+                  },
+                  "submit": {
+                    "type": "boolean"
+                  },
+                  "delete": {
+                    "type": "boolean"
+                  },
+                  "returnForRevision": {
+                    "type": "boolean"
+                  },
+                  "publish": {
+                    "type": "boolean"
+                  },
+                  "validate": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "edit",
+                  "submit",
+                  "delete",
+                  "returnForRevision",
+                  "publish",
+                  "validate"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "availableActions"
+            ],
+            "additionalProperties": false
+          },
           "qa": {
             "type": "object",
             "properties": {
@@ -3407,6 +3569,7 @@
         },
         "required": [
           "plan",
+          "viewer",
           "qa"
         ],
         "additionalProperties": false
@@ -3594,6 +3757,47 @@
             ],
             "additionalProperties": false
           },
+          "viewer": {
+            "type": "object",
+            "properties": {
+              "availableActions": {
+                "type": "object",
+                "properties": {
+                  "edit": {
+                    "type": "boolean"
+                  },
+                  "submit": {
+                    "type": "boolean"
+                  },
+                  "delete": {
+                    "type": "boolean"
+                  },
+                  "returnForRevision": {
+                    "type": "boolean"
+                  },
+                  "publish": {
+                    "type": "boolean"
+                  },
+                  "validate": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "edit",
+                  "submit",
+                  "delete",
+                  "returnForRevision",
+                  "publish",
+                  "validate"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "availableActions"
+            ],
+            "additionalProperties": false
+          },
           "review": {
             "type": "object",
             "properties": {
@@ -3655,6 +3859,7 @@
         },
         "required": [
           "plan",
+          "viewer",
           "review"
         ],
         "additionalProperties": false
@@ -3996,6 +4201,14 @@
               "mock",
               "live"
             ]
+          },
+          "mockScenario": {
+            "type": "string",
+            "enum": [
+              "happy_path",
+              "invalid_output",
+              "connection_failure"
+            ]
           }
         },
         "required": [
@@ -4013,6 +4226,14 @@
               "live"
             ]
           },
+          "mockScenario": {
+            "type": "string",
+            "enum": [
+              "happy_path",
+              "invalid_output",
+              "connection_failure"
+            ]
+          },
           "liveAvailable": {
             "type": "boolean"
           },
@@ -4025,6 +4246,7 @@
         },
         "required": [
           "mode",
+          "mockScenario",
           "liveAvailable",
           "missing"
         ],
@@ -4153,5 +4375,10 @@
         "additionalProperties": false
       }
     }
-  }
+  },
+  "security": [
+    {
+      "cookie": []
+    }
+  ]
 }

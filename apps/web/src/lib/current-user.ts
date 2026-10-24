@@ -1,19 +1,14 @@
 import { queryOptions } from '@tanstack/react-query'
-import type { ApiPrincipal } from '@nova/shared'
-import { ApiError, apiClient } from './api-client'
+import { ApiPrincipalSchema, type ApiPrincipal } from '@nova/shared'
+import { apiClient } from './api-client'
+import { loadCurrentUser } from './auth-session'
 
 export const currentUserQuery = queryOptions({
   queryKey: ['auth', 'me'],
   retry: false,
-  queryFn: async (): Promise<ApiPrincipal | null> => {
-    try {
+  queryFn: (): Promise<ApiPrincipal | null> =>
+    loadCurrentUser(async () => {
       const { data } = await apiClient.GET('/api/auth/me')
-      return data ?? null
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        return null
-      }
-      throw error
-    }
-  },
+      return data ? ApiPrincipalSchema.parse(data) : null
+    }),
 })

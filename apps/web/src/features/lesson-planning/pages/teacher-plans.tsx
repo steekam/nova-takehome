@@ -230,7 +230,7 @@ function GeneratePageContent({
   const selectClassName =
     'h-11 w-full rounded-md border bg-background px-3 font-normal disabled:cursor-not-allowed disabled:opacity-60'
   return (
-    <AppShell role={user.roles[0]}>
+    <AppShell permissions={user.permissions}>
       <div className="mx-auto max-w-6xl space-y-7">
         <header className="border-b border-primary/15 pb-6">
           <Link
@@ -939,10 +939,8 @@ export function PlanDetailPage({ user, planId }: { user: ApiPrincipal; planId: s
       />
     )
   if (!detail.data) return null
-  if (detail.data.plan.teacherId !== user.subject)
-    return <ShellError user={user} message="This lesson plan is not available in your workspace." />
   return (
-    <AppShell role={user.roles[0]}>
+    <AppShell permissions={user.permissions}>
       <PlanContent
         detail={detail.data}
         sources={sources.data ?? []}
@@ -971,11 +969,9 @@ export function EditPlanPage({ user, planId }: { user: ApiPrincipal; planId: str
       />
     )
   if (!detail.data) return null
-  if (detail.data.plan.teacherId !== user.subject)
-    return <ShellError user={user} message="This lesson plan is not available in your workspace." />
-  if (detail.data.plan.status !== 'draft' && detail.data.plan.status !== 'returned')
+  if (!detail.data.viewer.availableActions.edit)
     return (
-      <AppShell role={user.roles[0]}>
+      <AppShell permissions={user.permissions}>
         <PlanContent
           detail={detail.data}
           sources={sources.data ?? []}
@@ -985,7 +981,7 @@ export function EditPlanPage({ user, planId }: { user: ApiPrincipal; planId: str
       </AppShell>
     )
   return (
-    <AppShell role={user.roles[0]}>
+    <AppShell permissions={user.permissions}>
       <PlanEditor
         key={detail.data.plan.id}
         initial={detail.data}
@@ -999,7 +995,7 @@ export function EditPlanPage({ user, planId }: { user: ApiPrincipal; planId: str
 
 function ShellLoading({ user, label }: { user: ApiPrincipal; label: string }) {
   return (
-    <AppShell role={user.roles[0]}>
+    <AppShell permissions={user.permissions}>
       <div
         role="status"
         aria-label={label}
@@ -1010,7 +1006,7 @@ function ShellLoading({ user, label }: { user: ApiPrincipal; label: string }) {
 }
 function ShellError({ user, message }: { user: ApiPrincipal; message: string }) {
   return (
-    <AppShell role={user.roles[0]}>
+    <AppShell permissions={user.permissions}>
       <div className="space-y-4">
         <Link
           to="/teacher"
@@ -1038,6 +1034,7 @@ function PlanEditor({
   const queryClient = useQueryClient()
   const errorsRef = useRef<HTMLDivElement>(null)
   const plan = initial.plan
+  const [viewer, setViewer] = useState(initial.viewer)
   const latestReturn = [...initial.reviews]
     .filter((review) => review.decision === 'returned')
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
@@ -1046,7 +1043,7 @@ function PlanEditor({
   const [versions, setVersions] = useState(initial.versions)
   const [qa, setQa] = useState(initial.qa)
   const [qaStale, setQaStale] = useState(false)
-  const [submittedPlan, setSubmittedPlan] = useState<Plan | null>(null)
+  const [submittedView, setSubmittedView] = useState<Pick<Detail, 'plan' | 'viewer'> | null>(null)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const hasUnsavedChanges = JSON.stringify(content) !== JSON.stringify(savedContent)
   useBlocker({
@@ -1059,6 +1056,7 @@ function PlanEditor({
   const save = useMutation({
     mutationFn: (value: LessonPlanContent) => updateLessonPlan(plan.id, value),
     onSuccess: async (result) => {
+      setViewer(result.viewer)
       setContent(result.plan.content)
       setSavedContent(result.plan.content)
       setQa(result.qa)
@@ -1077,6 +1075,7 @@ function PlanEditor({
         return await submitLessonPlan(plan.id)
       } catch (error) {
         setContent(saved.plan.content)
+        setViewer(saved.viewer)
         setSavedContent(saved.plan.content)
         setQa(saved.qa)
         setQaStale(false)
@@ -1096,7 +1095,7 @@ function PlanEditor({
       }
     },
     onSuccess: async (result) => {
-      setSubmittedPlan(result.plan)
+      setSubmittedView({ plan: result.plan, viewer: result.viewer })
       setVersions((current) => withLatestVersion(current, result.plan))
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: lessonPlanningKeys.detail(plan.id) }),
@@ -1125,11 +1124,11 @@ function PlanEditor({
     setValidationErrors([])
     return result.data
   }
-  const sourceContent: Detail = { ...initial, versions, plan: { ...plan, content } }
-  if (submittedPlan)
+  const sourceContent: Detail = { ...initial, viewer, versions, plan: { ...plan, content } }
+  if (submittedView)
     return (
       <PlanContent
-        detail={{ ...initial, plan: submittedPlan, versions, qa: submit.data?.qa ?? qa }}
+        detail={{ ...initial, ...submittedView, versions, qa: submit.data?.qa ?? qa }}
         sources={sources}
         sourcesLoading={sourcesLoading}
         sourcesError={sourcesError}
@@ -1292,7 +1291,7 @@ function PlanEditor({
             sourcesLoading={sourcesLoading}
             sourcesError={sourcesError}
           />
-          {!qaStale && (
+          {!qaStale && viewer.availableActions.validate && (
             <RubricQaPanel
               planId={plan.id}
               versionId={plan.versionId}
@@ -1336,7 +1335,7 @@ function PlanEditor({
                 {save.isPending ? 'Saving…' : 'Save draft'}
               </Button>
               <Button
-                disabled={submit.isPending || save.isPending}
+                disabled={!viewer.availableActions.submit || submit.isPending || save.isPending}
                 onClick={() => {
                   const valid = validate()
                   if (valid) submit.mutate(valid)
@@ -1376,7 +1375,7 @@ function PlanContent({
   sourcesError?: string
 }) {
   const { plan } = detail
-  const editable = plan.status === 'draft' || plan.status === 'returned'
+  const editable = detail.viewer.availableActions.edit
   return (
     <div className="space-y-7">
       <header className="flex flex-col justify-between gap-4 border-b border-primary/15 pb-6 sm:flex-row sm:items-end">
@@ -1479,7 +1478,13 @@ function PlanContent({
             sourcesError={sourcesError}
           />
           {detail.qa && <QualityChecks qa={detail.qa} />}
-          <RubricQaPanel planId={plan.id} versionId={plan.versionId} validation={detail.rubricQa} />
+          {detail.viewer.availableActions.validate && (
+            <RubricQaPanel
+              planId={plan.id}
+              versionId={plan.versionId}
+              validation={detail.rubricQa}
+            />
+          )}
           <PlanVersionHistory versions={detail.versions} currentVersion={plan.version} />
           <PlanReviewHistory reviews={detail.reviews} />
           {plan.status === 'submitted' && (

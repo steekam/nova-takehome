@@ -15,7 +15,7 @@
     "dev:apps": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && pnpm --parallel --filter @nova/web --filter @nova/api dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && pnpm -r typecheck",
-    "test": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && pnpm --filter @nova/api test",
+    "test": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && pnpm --filter @nova/api test:unit && pnpm test:web && pnpm test:integration",
     "db:generate": "pnpm --filter @nova/api db:generate",
     "db:migrate": "pnpm --filter @nova/api db:migrate",
     "db:seed": "pnpm --filter @nova/api db:seed",
@@ -30,7 +30,9 @@
     "demo:check:full": "node scripts/demo.mjs check:full",
     "litellm:api-key": "varlock run -- node ops/litellm/provision-api-key.mjs",
     "evals": "pnpm --filter @nova/shared build && pnpm --filter @nova/evals build && varlock run -- node apps/evals/dist/cli.js",
-    "openapi:generate": "pnpm --filter @nova/api openapi:export && pnpm --filter @nova/web openapi:types"
+    "openapi:generate": "pnpm --filter @nova/api openapi:export && pnpm --filter @nova/web openapi:types",
+    "test:web": "pnpm --filter @nova/web test",
+    "test:integration": "node scripts/test-integration.mjs"
   },
   "devDependencies": {
     "oxfmt": "0.73.0",

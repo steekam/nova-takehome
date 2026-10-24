@@ -33,7 +33,7 @@ export class DatabaseService implements OnApplicationShutdown {
   async readiness(): Promise<DatabaseReadiness> {
     try {
       const result = await this.pool.query<{ schema_ready: boolean }>(
-        "select to_regclass('public.lesson_plan_retrieval_candidates') is not null as schema_ready",
+        "select to_regclass('public.lesson_plan_retrieval_candidates') is not null and to_regclass('public.auth_sessions') is not null and to_regclass('public.throttle_counters') is not null as schema_ready",
       )
       return result.rows[0]?.schema_ready ? { status: 'ready' } : { status: 'migrations-required' }
     } catch {

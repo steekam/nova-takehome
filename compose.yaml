@@ -49,8 +49,7 @@ services:
       NODE_ENV: development
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/nova_hub
       PORT: '3001'
-      AUTH_SECRET: ${AUTH_SECRET:-nova-local-auth-secret-change-before-deploy-2026}
-      CORS_ORIGIN: http://localhost:5173
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
       LLM_PROVIDER: mock
       LLM_BASE_URL: ${COMPOSE_LLM_BASE_URL:-http://litellm:4000/v1}
       LLM_API_KEY: ${LLM_API_KEY:-}

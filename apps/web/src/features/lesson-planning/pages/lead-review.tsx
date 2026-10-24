@@ -55,7 +55,12 @@ export function LeadReviewPage({
       if (decision === 'published') publishDialogRef.current?.close()
       queryClient.setQueryData<Detail>(lessonPlanningKeys.detail(planId), (current) =>
         current
-          ? { ...current, plan: data.plan, reviews: [data.review, ...current.reviews] }
+          ? {
+              ...current,
+              plan: data.plan,
+              viewer: data.viewer,
+              reviews: [data.review, ...current.reviews],
+            }
           : undefined,
       )
       setComment('')
@@ -113,6 +118,8 @@ export function LeadReviewPage({
 
   const { plan, qa, reviews, versions } = detail.data
   const content = plan.content
+  const { availableActions } = detail.data.viewer
+  const canReview = availableActions.returnForRevision || availableActions.publish
   const statusLabel: Record<Plan['status'], string> = {
     draft: 'Draft',
     submitted: 'Submitted',
@@ -128,7 +135,7 @@ export function LeadReviewPage({
   }))
 
   return (
-    <div className={plan.status === 'submitted' ? 'space-y-7 pb-28' : 'space-y-7'}>
+    <div className={canReview ? 'space-y-7 pb-28' : 'space-y-7'}>
       <header className="space-y-3 border-b border-primary/15 pb-6">
         <Link
           to="/curriculum-lead"
@@ -166,7 +173,7 @@ export function LeadReviewPage({
           {announcement}
         </p>
       )}
-      {plan.status === 'submitted' ? (
+      {canReview ? (
         <section
           className="space-y-3 rounded-xl border bg-card p-4 sm:p-5"
           aria-labelledby="decision-heading"
@@ -190,22 +197,26 @@ export function LeadReviewPage({
             />
           </label>
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              disabled={review.isPending}
-              onClick={() => setConfirmPublish(true)}
-            >
-              <CheckCircle2 aria-hidden="true" />
-              Publish plan
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={review.isPending || !returnCommentValid}
-              onClick={() => review.mutate('returned')}
-            >
-              Return for revision <ArrowRight aria-hidden="true" />
-            </Button>
+            {availableActions.publish && (
+              <Button
+                type="button"
+                disabled={review.isPending}
+                onClick={() => setConfirmPublish(true)}
+              >
+                <CheckCircle2 aria-hidden="true" />
+                Publish plan
+              </Button>
+            )}
+            {availableActions.returnForRevision && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={review.isPending || !returnCommentValid}
+                onClick={() => review.mutate('returned')}
+              >
+                Return for revision <ArrowRight aria-hidden="true" />
+              </Button>
+            )}
             {!returnCommentValid && (
               <p className="text-xs text-muted-foreground">
                 Add at least eight characters of feedback to return this plan.
@@ -404,18 +415,20 @@ export function LeadReviewPage({
           <aside className="flex flex-col gap-5 xl:sticky xl:top-6">
             {qa && <QualityChecks qa={qa} />}
 
-            <RubricQaPanel
-              planId={plan.id}
-              versionId={plan.versionId}
-              validation={detail.data.rubricQa}
-            />
+            {availableActions.validate && (
+              <RubricQaPanel
+                planId={plan.id}
+                versionId={plan.versionId}
+                validation={detail.data.rubricQa}
+              />
+            )}
 
             <PlanVersionHistory versions={versions} currentVersion={plan.version} />
             <PlanReviewHistory reviews={reviews} />
           </aside>
         </div>
       </article>
-      {plan.status === 'submitted' && (
+      {canReview && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg backdrop-blur md:pl-64 md:pr-0">
           <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-2 md:px-8">
             {review.error && !confirmPublish && <ReviewError error={review.error} />}

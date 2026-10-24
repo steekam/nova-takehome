@@ -31,10 +31,23 @@ export function createApiDocument(app: INestApplication) {
     .setTitle('Nova Curriculum Hub API')
     .setDescription('API for grounded lesson planning and curriculum review.')
     .setVersion('1.0')
-    .addBearerAuth()
+    .addCookieAuth(process.env.NODE_ENV === 'production' ? '__Host-nova_access' : 'nova_access')
+    .addSecurityRequirements('cookie')
     .build()
 
   const document = SwaggerModule.createDocument(app, config)
+  for (const route of Object.values(document.paths)) {
+    for (const method of ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'] as const) {
+      const operation = route?.[method]
+      if (!operation) continue
+      if (
+        operation.operationId?.startsWith('HealthController_') ||
+        operation.operationId === 'AuthController_login' ||
+        operation.operationId === 'AuthController_logout'
+      )
+        operation.security = []
+    }
+  }
   document.components ??= {}
   document.components.schemas = {
     ...document.components.schemas,

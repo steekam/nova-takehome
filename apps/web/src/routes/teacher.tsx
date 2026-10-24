@@ -5,7 +5,7 @@ import {
   GeneratePage,
   PlanDetailPage,
 } from '../features/lesson-planning/pages/teacher-plans'
-import { requireRole } from '../lib/route-auth'
+import { requirePermission } from '../lib/route-auth'
 import { route as rootRoute } from './root'
 
 function TeacherHome() {
@@ -17,12 +17,13 @@ function TeacherHome() {
 const teacherRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/teacher',
-  beforeLoad: ({ location }) => requireRole('teacher', location.href),
+  beforeLoad: ({ location }) => requirePermission('lesson_plan:edit', location.href),
   component: TeacherHome,
 })
 const teacherPlanNewRoute = createRoute({
   getParentRoute: () => teacherRoute,
   path: 'plans/new',
+  beforeLoad: ({ location }) => requirePermission('lesson_plan:create', location.href),
   validateSearch: (search: Record<string, unknown>): { targetRevisionId?: string } => {
     if (typeof search.targetRevisionId !== 'string') return {}
     return { targetRevisionId: search.targetRevisionId }
@@ -58,6 +59,7 @@ function TeacherPlanEditRoute() {
 const teacherPlanEditRoute = createRoute({
   getParentRoute: () => teacherRoute,
   path: 'plans/$planId/edit',
+  beforeLoad: ({ location }) => requirePermission('lesson_plan:edit', location.href),
   component: TeacherPlanEditRoute,
 })
 export const route = teacherRoute.addChildren([

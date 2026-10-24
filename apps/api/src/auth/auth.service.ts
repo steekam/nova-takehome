@@ -1,109 +1,151 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
-import { Injectable } from '@nestjs/common'
-import { eq } from 'drizzle-orm'
-import type { ApiPrincipal, UserRole } from '@nova/shared'
+import { randomBytes } from 'node:crypto'
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common'
+import { and, eq } from 'drizzle-orm'
+import { permissionsForRoles, type ApiPrincipal, type UserRole } from '@nova/shared'
 import { DatabaseService } from '../database/database.service'
 import { users } from '../database/schema'
-import { verifyPassword } from './password'
+import { hashPassword, needsPasswordRehash, verifyPassword } from './password'
+import {
+  isSessionToken,
+  newSessionFamilyId,
+  newSessionToken,
+  sessionId,
+  SESSION_STORE,
+  type SessionRecord,
+  type SessionStore,
+} from './session-store'
 
-const rolePermissions: Record<UserRole, string[]> = {
-  teacher: ['lesson-plans:create', 'lesson-plans:read-own', 'lesson-plans:update-own'],
-  curriculum_lead: ['lesson-plans:read-all', 'lesson-plans:review'],
-}
-
-const tokenLifetimeSeconds = 60 * 60 * 12
-
-interface TokenClaims {
-  sub: string
-  exp: number
-}
+const ABSOLUTE_TTL = 12 * 60 * 60 * 1000
+const IDLE_TTL = 60 * 60 * 1000
+const TOUCH_INTERVAL = 60 * 1000
+export const AUTH_CLOCK = Symbol('AUTH_CLOCK')
 
 @Injectable()
 export class AuthService {
-  private readonly secret: string
+  private readonly logger = new Logger(AuthService.name)
+  private dummyHash?: Promise<string>
 
-  constructor(private readonly database: DatabaseService) {
-    const environment = process.env.NODE_ENV
-    const configuredSecret = process.env.AUTH_SECRET
-    const secret =
-      configuredSecret ||
-      (environment === 'development' || environment === 'test'
-        ? 'nova-local-auth-secret-change-before-deploy-2026'
-        : undefined)
-    if (!secret || secret.length < 32)
-      throw new Error('AUTH_SECRET must contain at least 32 characters')
-    this.secret = secret
-  }
+  constructor(
+    private readonly database: DatabaseService,
+    @Inject(SESSION_STORE) private readonly sessionStore: SessionStore,
+    @Optional() @Inject(AUTH_CLOCK) private readonly clock?: () => number,
+  ) {}
 
   async login(
     email: string,
     password: string,
-  ): Promise<{ accessToken: string; user: ApiPrincipal } | undefined> {
+    replacing?: string,
+  ): Promise<{ sessionToken: string; user: ApiPrincipal; maxAgeSeconds: number } | undefined> {
     const [user] = await this.database.db
       .select()
       .from(users)
       .where(eq(users.email, email.toLowerCase()))
       .limit(1)
-    if (!user || !(await verifyPassword(password, user.passwordHash))) return undefined
-
-    const principal = this.toPrincipal(user.id, user.role)
-    return { accessToken: this.sign(user.id), user: principal }
-  }
-
-  async authenticate(token: string): Promise<ApiPrincipal | undefined> {
-    const subject = this.verify(token)
-    if (!subject) return undefined
-
-    const [user] = await this.database.db
-      .select({ id: users.id, role: users.role })
-      .from(users)
-      .where(eq(users.id, subject))
-      .limit(1)
-    return user ? this.toPrincipal(user.id, user.role) : undefined
-  }
-
-  private toPrincipal(subject: string, role: UserRole): ApiPrincipal {
-    return { subject, roles: [role], permissions: rolePermissions[role] }
-  }
-
-  private sign(subject: string): string {
-    const payload = Buffer.from(
-      JSON.stringify({ sub: subject, exp: Math.floor(Date.now() / 1000) + tokenLifetimeSeconds }),
-    ).toString('base64url')
-    return `${payload}.${this.signature(payload)}`
-  }
-
-  private verify(token: string): string | undefined {
-    const [payload, signature, extra] = token.split('.')
-    if (!payload || !signature || extra !== undefined) return undefined
-
-    const actual = Buffer.from(signature, 'base64url')
-    const expected = Buffer.from(this.signature(payload), 'base64url')
-    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return undefined
-
-    let claims: unknown
-    try {
-      claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'))
-    } catch {
+    const valid = user
+      ? await verifyPassword(password, user.passwordHash)
+      : await this.verifyUnknownAccount(password)
+    if (!user || !valid || !user.isActive) {
+      this.logger.warn('auth.login.failed')
       return undefined
     }
 
-    if (!isTokenClaims(claims) || claims.exp <= Math.floor(Date.now() / 1000)) return undefined
-    return claims.sub
+    if (needsPasswordRehash(user.passwordHash)) {
+      const upgraded = await hashPassword(password)
+      await this.database.db
+        .update(users)
+        .set({ passwordHash: upgraded })
+        .where(and(eq(users.id, user.id), eq(users.passwordHash, user.passwordHash)))
+    }
+    if (replacing && isSessionToken(replacing))
+      await this.sessionStore.revokeByToken(sessionId(replacing))
+    const token = newSessionToken()
+    const now = this.now()
+    await this.sessionStore.create({
+      id: sessionId(token),
+      familyId: newSessionFamilyId(),
+      isCurrent: true,
+      userId: user.id,
+      createdAt: new Date(now),
+      expiresAt: new Date(now + ABSOLUTE_TTL),
+      lastActiveAt: new Date(now),
+    })
+    this.logger.log(`auth.login.succeeded userId=${user.id}`)
+    return {
+      sessionToken: token,
+      user: this.toPrincipal(user.id, user.role),
+      maxAgeSeconds: ABSOLUTE_TTL / 1000,
+    }
   }
 
-  private signature(payload: string): string {
-    return createHmac('sha256', this.secret).update(payload).digest('base64url')
+  async authenticate(token: string): Promise<ApiPrincipal | undefined> {
+    if (!isSessionToken(token)) return undefined
+    const record = await this.sessionStore.find(sessionId(token))
+    if (!record) return undefined
+    const now = this.now()
+    if (now >= record.expiresAt.getTime() || now >= record.lastActiveAt.getTime() + IDLE_TTL) {
+      await this.sessionStore.revokeByToken(record.id)
+      return undefined
+    }
+    if (now - record.lastActiveAt.getTime() >= TOUCH_INTERVAL) {
+      if (!(await this.sessionStore.touch(record.id, new Date(now), IDLE_TTL))) return undefined
+    }
+    const [user] = await this.database.db
+      .select({ id: users.id, role: users.role, isActive: users.isActive })
+      .from(users)
+      .where(eq(users.id, record.userId))
+      .limit(1)
+    return user?.isActive ? this.toPrincipal(user.id, user.role) : undefined
   }
-}
 
-function isTokenClaims(value: unknown): value is TokenClaims {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'sub' in value &&
-    typeof value.sub === 'string' &&
-    'exp' in value &&
-    typeof value.exp === 'number'
-  )
+  async logout(token?: string): Promise<void> {
+    if (token && isSessionToken(token)) await this.sessionStore.revokeByToken(sessionId(token))
+  }
+
+  async logoutAll(userId: string): Promise<void> {
+    await this.sessionStore.deleteForUser(userId)
+  }
+
+  async rotateSession(
+    token: string,
+  ): Promise<{ sessionToken: string; user: ApiPrincipal; maxAgeSeconds: number } | undefined> {
+    const user = await this.authenticate(token)
+    if (!user) return undefined
+    const oldId = sessionId(token)
+    const previous = await this.sessionStore.find(oldId)
+    if (!previous) return undefined
+    const rotatedToken = newSessionToken()
+    const now = this.now()
+    const replacement: SessionRecord = {
+      ...previous,
+      id: sessionId(rotatedToken),
+      isCurrent: true,
+      lastActiveAt: new Date(now),
+    }
+    if (!(await this.sessionStore.replace(oldId, replacement, IDLE_TTL))) return undefined
+    return {
+      sessionToken: rotatedToken,
+      user,
+      maxAgeSeconds: Math.max(0, Math.floor((previous.expiresAt.getTime() - now) / 1000)),
+    }
+  }
+
+  private toPrincipal(subject: string, role: UserRole): ApiPrincipal {
+    return { subject, roles: [role], permissions: permissionsForRoles([role]) }
+  }
+
+  private async verifyUnknownAccount(password: string): Promise<boolean> {
+    if (!this.dummyHash) {
+      this.dummyHash = hashPassword(randomBytes(32).toString('hex')).catch((error: unknown) => {
+        this.dummyHash = undefined
+        throw error
+      })
+      await this.dummyHash
+      return false
+    }
+    return verifyPassword(password, await this.dummyHash)
+  }
+
+  private now(): number {
+    return this.clock?.() ?? Date.now()
+  }
 }

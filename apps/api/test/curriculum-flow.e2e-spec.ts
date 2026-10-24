@@ -14,6 +14,7 @@ import {
   lessonPlanVersions,
   lessonPlans,
   planReviews,
+  throttleCounters,
   users,
 } from '../src/database/schema'
 import { hashPassword } from '../src/auth/password'
@@ -29,6 +30,7 @@ const llmEnvironmentKeys = [
   'LLM_MODEL',
   'LLM_GENERATOR_MODEL',
   'LLM_REVIEWER_MODEL',
+  'LANGFUSE_USE_MANAGED_PROMPTS',
 ] as const
 const originalLlmEnvironment = new Map(llmEnvironmentKeys.map((key) => [key, process.env[key]]))
 
@@ -45,8 +47,8 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     process.env.DATABASE_URL = databaseUrl
     process.env.DATABASE_POOL_MAX = '1'
     process.env.NODE_ENV = 'test'
-    process.env.AUTH_SECRET = 'nova-isolated-e2e-auth-secret-2026'
     process.env.LLM_PROVIDER = 'mock'
+    process.env.LANGFUSE_USE_MANAGED_PROMPTS = 'false'
     process.env.EMBEDDING_PROVIDER = 'mock'
     process.env.OTEL_ENABLED = 'false'
 
@@ -59,6 +61,7 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     await app.init()
     await app.getHttpAdapter().getInstance().ready()
     database = app.get(DatabaseService)
+    await database.db.delete(throttleCounters)
     await database.db.insert(users).values({
       id: otherTeacherId,
       email: otherTeacherEmail,
@@ -125,6 +128,11 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     expect(llmMode.body.missing).toEqual(
       expect.arrayContaining(['LLM_BASE_URL', 'LLM_GENERATOR_MODEL', 'LLM_API_KEY']),
     )
+    const mockMode = await request<{ mode: string }>(teacherCookie, 'PUT', '/api/runtime/llm', {
+      mode: 'mock',
+    })
+    expect(mockMode.statusCode).toBe(200)
+    expect(mockMode.body).toMatchObject({ mode: 'mock', mockScenario: 'happy_path' })
     const unavailableLive = await request<{ code: string }>(
       teacherCookie,
       'PUT',
@@ -133,21 +141,36 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     )
     expect(unavailableLive.statusCode).toBe(400)
     expect(unavailableLive.body.code).toBe('LLM_CREDENTIALS_MISSING')
+    const anonymousWrite = await supertest(app.getHttpServer())
+      .put('/api/runtime/llm')
+      .send({ mode: 'mock' })
+    expect(anonymousWrite.statusCode).toBe(401)
 
-    const catalogue = await request<{ offerings: Offering[] }>(
+    const catalogue = await request<{ offerings: BrowseOffering[] }>(
       teacherCookie,
       'GET',
       '/api/curriculum/library',
     )
-    const targets = catalogue.body.offerings.flatMap((offering) =>
-      offering.designs.flatMap((design) => design.targets),
-    )
+    const designs = catalogue.body.offerings.flatMap((offering) => offering.designs)
+    const readyDesign = designs.find((design) => design.generationReadyCount > 0)
+    const browseOnlyDesign = designs.find((design) => design.generationReadyCount === 0)
+    const [readyDetails, browseOnlyDetails] = await Promise.all([
+      request<Offering>(teacherCookie, 'GET', `/api/curriculum/library/designs/${readyDesign!.id}`),
+      request<Offering>(
+        teacherCookie,
+        'GET',
+        `/api/curriculum/library/designs/${browseOnlyDesign!.id}`,
+      ),
+    ])
+    const targets = readyDetails.body.designs.flatMap((design) => design.targets)
     const target = targets.find(
       (candidate) =>
         candidate.statement ===
         'Describe the characteristics of particles in the three states of matter.',
     )
-    const browseOnlyTarget = targets.find((candidate) => !candidate.generationReady)
+    const browseOnlyTarget = browseOnlyDetails.body.designs
+      .flatMap((design) => design.targets)
+      .find((candidate) => !candidate.generationReady)
     expect(target).toBeDefined()
     expect(browseOnlyTarget).toBeDefined()
 
@@ -199,6 +222,7 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
 
     const generated = await request<{
       plan: Plan
+      viewer: Viewer
       qa: { passed: boolean }
       rubricQa: {
         status: string
@@ -213,11 +237,76 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     createdPlanIds.push(generated.body.plan.id)
     expect(generated.body.qa.passed).toBe(true)
     expect(generated.body.plan.status).toBe('draft')
+    expect(generated.body.viewer.availableActions).toMatchObject({
+      edit: true,
+      submit: true,
+      delete: true,
+      returnForRevision: false,
+      publish: false,
+      validate: true,
+    })
     expect(generated.body.rubricQa).toMatchObject({
       status: 'completed',
       lessonPlanVersionId: generated.body.plan.versionId,
     })
     expect(generated.body.rubricQa.dimensions.map((dimension) => dimension.key)).toHaveLength(6)
+
+    const planIdsBeforeMockFailures = (
+      await request<{ items: Array<{ id: string }> }>(teacherCookie, 'GET', '/api/lesson-plans')
+    ).body.items
+      .map((item) => item.id)
+      .sort()
+    await request(teacherCookie, 'PUT', '/api/runtime/llm', {
+      mode: 'mock',
+      mockScenario: 'invalid_output',
+    })
+    const invalidMockOutput = await request<{ code: string; message: string }>(
+      teacherCookie,
+      'POST',
+      '/api/lesson-plans/generate',
+      { targetRevisionId: target!.id, durationMinutes: 40 },
+    )
+    expect(invalidMockOutput.statusCode).toBe(503)
+    expect(invalidMockOutput.body).toMatchObject({
+      code: 'LLM_INVALID_RESPONSE',
+      message: expect.stringContaining('No draft was saved'),
+    })
+    expect(
+      (
+        await request<{ items: Array<{ id: string }> }>(teacherCookie, 'GET', '/api/lesson-plans')
+      ).body.items
+        .map((item) => item.id)
+        .sort(),
+    ).toEqual(planIdsBeforeMockFailures)
+
+    await request(teacherCookie, 'PUT', '/api/runtime/llm', {
+      mode: 'mock',
+      mockScenario: 'connection_failure',
+    })
+    const failedMockConnection = await request<{ code: string; message: string }>(
+      teacherCookie,
+      'POST',
+      '/api/lesson-plans/generate',
+      { targetRevisionId: target!.id, durationMinutes: 40 },
+    )
+    expect(failedMockConnection.statusCode).toBe(503)
+    expect(failedMockConnection.body).toMatchObject({
+      code: 'LLM_PROVIDER_UNAVAILABLE',
+      message: expect.stringContaining('No draft was saved'),
+    })
+    expect(
+      (
+        await request<{ items: Array<{ id: string }> }>(teacherCookie, 'GET', '/api/lesson-plans')
+      ).body.items
+        .map((item) => item.id)
+        .sort(),
+    ).toEqual(planIdsBeforeMockFailures)
+
+    await request(teacherCookie, 'PUT', '/api/runtime/llm', {
+      mode: 'mock',
+      mockScenario: 'happy_path',
+    })
+
     const retrievalCandidates = await database.db
       .select({ resourceChunkId: lessonPlanRetrievalCandidates.resourceChunkId })
       .from(lessonPlanRetrievalCandidates)
@@ -332,9 +421,20 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     )
     expect(submitted.statusCode).toBe(201)
     expect(submitted.body.plan.status).toBe('submitted')
-    expect((await request(leadCookie, 'GET', `/api/lesson-plans/${original.id}`)).statusCode).toBe(
-      200,
+    const leadSubmission = await request<{ plan: Plan; viewer: Viewer }>(
+      leadCookie,
+      'GET',
+      `/api/lesson-plans/${original.id}`,
     )
+    expect(leadSubmission.statusCode).toBe(200)
+    expect(leadSubmission.body.viewer.availableActions).toMatchObject({
+      edit: false,
+      submit: false,
+      delete: false,
+      returnForRevision: true,
+      publish: true,
+      validate: true,
+    })
     for (const decision of ['returned', 'published']) {
       const deniedReview = await request(
         teacherCookie,
@@ -356,7 +456,7 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     expect(afterDeniedReviews.body.plan.status).toBe('submitted')
     expect(afterDeniedReviews.body.reviews).toEqual([])
 
-    const returned = await request<{ plan: Plan; review: Review }>(
+    const returned = await request<{ plan: Plan; viewer: Viewer; review: Review }>(
       leadCookie,
       'POST',
       `/api/lesson-plans/${original.id}/reviews`,
@@ -367,13 +467,21 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     )
     expect(returned.statusCode).toBe(201)
     expect(returned.body.plan.status).toBe('returned')
+    expect(returned.body.viewer.availableActions).toMatchObject({
+      edit: false,
+      submit: false,
+      delete: false,
+      returnForRevision: false,
+      publish: false,
+      validate: false,
+    })
     expect(returned.body.review.lessonPlanVersionNumber).toBe(3)
     expect((await request(leadCookie, 'GET', `/api/lesson-plans/${original.id}`)).statusCode).toBe(
       403,
     )
 
     const revisedContent = { ...expandedCitations, title: 'Revised: particle states' }
-    const revised = await request<{ plan: Plan }>(
+    const revised = await request<{ plan: Plan; viewer: Viewer }>(
       teacherCookie,
       'PATCH',
       `/api/lesson-plans/${original.id}`,
@@ -382,11 +490,19 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     expect(revised.statusCode).toBe(200)
     expect(revised.body.plan.status).toBe('draft')
     expect(revised.body.plan.version).toBe(4)
+    expect(revised.body.viewer.availableActions).toMatchObject({
+      edit: true,
+      submit: true,
+      delete: false,
+      returnForRevision: false,
+      publish: false,
+      validate: true,
+    })
     expect(
       (await request(teacherCookie, 'POST', `/api/lesson-plans/${original.id}/submit`)).statusCode,
     ).toBe(201)
 
-    const published = await request<{ plan: Plan; review: Review }>(
+    const published = await request<{ plan: Plan; viewer: Viewer; review: Review }>(
       leadCookie,
       'POST',
       `/api/lesson-plans/${original.id}/reviews`,
@@ -396,13 +512,22 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     expect(published.body.plan.status).toBe('published')
     expect(published.body.review.lessonPlanVersionNumber).toBe(4)
 
-    const details = await request<{ plan: Plan; reviews: Review[]; versions: Version[] }>(
-      teacherCookie,
-      'GET',
-      `/api/lesson-plans/${original.id}`,
-    )
+    const details = await request<{
+      plan: Plan
+      viewer: Viewer
+      reviews: Review[]
+      versions: Version[]
+    }>(teacherCookie, 'GET', `/api/lesson-plans/${original.id}`)
     expect(details.statusCode).toBe(200)
     expect(details.body.plan.status).toBe('published')
+    expect(details.body.viewer.availableActions).toMatchObject({
+      edit: false,
+      submit: false,
+      delete: false,
+      returnForRevision: false,
+      publish: false,
+      validate: true,
+    })
     expect(details.body.versions.map((version) => version.version).sort()).toEqual([1, 2, 3, 4])
     expect(
       details.body.reviews.map((review) => [review.decision, review.lessonPlanVersionNumber]),
@@ -425,8 +550,10 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
       .send({ email, password: 'NovaLocal123!' })
     expect(response.statusCode).toBe(200)
     const setCookie = response.headers['set-cookie']
-    const firstCookie = Array.isArray(setCookie) ? setCookie[0] : setCookie
-    const cookie = firstCookie?.split(';', 1)[0]
+    const cookieHeader = (Array.isArray(setCookie) ? setCookie : [setCookie]).find(
+      (header) => header.startsWith('nova_access=') && /HttpOnly/i.test(header),
+    )
+    const cookie = cookieHeader?.split(';', 1)[0]
     expect(cookie).toMatch(/^nova_access=/)
     return cookie!
   }
@@ -459,6 +586,24 @@ type Plan = {
   status: string
   version: number
   content: { title: string; sources: Array<{ documentId: string; chunkId: string }> }
+}
+
+type Viewer = {
+  availableActions: {
+    edit: boolean
+    submit: boolean
+    delete: boolean
+    returnForRevision: boolean
+    publish: boolean
+    validate: boolean
+  }
+}
+
+type BrowseOffering = {
+  designs: Array<{
+    id: string
+    generationReadyCount: number
+  }>
 }
 
 type Offering = {

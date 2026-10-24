@@ -1,6 +1,6 @@
 import { createRoute } from '@tanstack/react-router'
 import { LeadReviewPage } from '../features/lesson-planning/pages/lead-review'
-import { requireRole } from '../lib/route-auth'
+import { requirePermission } from '../lib/route-auth'
 import { route as curriculumLeadRoute } from './curriculum-lead'
 
 function SelectedPlan() {
@@ -13,6 +13,6 @@ function SelectedPlan() {
 export const planRoute = createRoute({
   getParentRoute: () => curriculumLeadRoute,
   path: 'reviews/$planId',
-  beforeLoad: ({ location }) => requireRole('curriculum_lead', location.href),
+  beforeLoad: ({ location }) => requirePermission('lesson_plan:review', location.href),
   component: SelectedPlan,
 })

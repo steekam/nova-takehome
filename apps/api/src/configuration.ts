@@ -1,7 +1,9 @@
 import { z } from 'zod'
+import { normalizeOrigin } from './common/security/upstream/cross-origin.util'
 
 const EnvironmentSchema = z
   .object({
+    CORS_ORIGIN: z.string().min(1).default('http://localhost:5173'),
     DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
     LLM_PROVIDER: z.enum(['mock', 'openai-compatible']).default('mock'),
     LLM_BASE_URL: z.string().url().optional(),
@@ -22,6 +24,19 @@ const EnvironmentSchema = z
     TRANSFORMERS_CACHE_DIR: z.string().default('.cache/transformers'),
   })
   .superRefine((env, context) => {
+    for (const origin of env.CORS_ORIGIN.split(',')) {
+      try {
+        const normalized = normalizeOrigin(origin.trim(), 'CORS_ORIGIN')
+        if (!['http:', 'https:'].includes(new URL(normalized).protocol))
+          throw new Error('Only HTTP and HTTPS origins are supported')
+      } catch {
+        context.addIssue({
+          code: 'custom',
+          path: ['CORS_ORIGIN'],
+          message: 'Use comma-separated HTTP(S) origins without paths or wildcards',
+        })
+      }
+    }
     if (env.EMBEDDING_DIMENSIONS !== 384)
       context.addIssue({
         code: 'custom',
@@ -31,6 +46,8 @@ const EnvironmentSchema = z
   })
 
 export function validateEnvironment(environment: Record<string, unknown>) {
+  if (environment.NODE_ENV === 'production' && !environment.CORS_ORIGIN)
+    throw new Error('CORS_ORIGIN must explicitly list trusted browser origins in production')
   const input = {
     ...environment,
     EMBEDDING_PROVIDER:

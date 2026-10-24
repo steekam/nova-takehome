@@ -1,4 +1,4 @@
-import { createRoute, redirect } from '@tanstack/react-router'
+import { createRoute } from '@tanstack/react-router'
 import {
   LibraryPage,
   LibraryTargetPage,
@@ -39,12 +39,7 @@ const libraryRoute = createRoute({
     edition: typeof search.edition === 'string' ? search.edition : undefined,
     content: typeof search.content === 'string' ? search.content : undefined,
   }),
-  beforeLoad: async ({ location }) => {
-    const user = await requireUser(location.href)
-    if (!user.roles.some((role) => role === 'teacher' || role === 'curriculum_lead'))
-      throw redirect({ to: '/login', search: { redirect: location.href } })
-    return user
-  },
+  beforeLoad: ({ location }) => requireUser(location.href),
   component: LibraryLayout,
 })
 const libraryTargetRoute = createRoute({

@@ -87,12 +87,16 @@ Keys stay on the server.
 4. **Teacher:** edit the returned plan, rerun rubric QA, and resubmit.
 5. **Curriculum Lead:** publish it. Both roles can now find it in the lesson bank.
 
-The server enforces roles, ownership, and state transitions. Each edit creates
-an immutable version; review decisions and rubric results reference the exact
-version reviewed. Teachers can remove unreviewed drafts from their workspace.
+The API enforces capability grants, ownership, and state transitions. Each edit
+creates an immutable version; review decisions and rubric results reference the
+exact version reviewed. Teachers can remove unreviewed drafts from their
+workspace.
 Soft deletion keeps saved versions; plans with review history, in review, or
 published remain available for audit. See the
 [workflow state charts](docs/workflow-state-charts.md) for all transitions.
+
+See [security and authentication](docs/security.md) for session behavior, access
+rules, deployment requirements, and the auth library provenance.
 
 ## How it works
 
@@ -166,11 +170,14 @@ pnpm lint
 pnpm format:check
 ```
 
-`pnpm test` runs API unit and end-to-end suites, including server role checks,
-lesson schema validation, grounding, and repair. The full HTTP workflow test
-requires `TEST_DATABASE_URL` pointing to a migrated, seeded, disposable
-PostgreSQL database; it is skipped when that variable is absent. Unit and role
-checks run without a database. See [evals](apps/evals/README.md) for live runs,
+`pnpm test` runs API unit tests, web auth tests, and database-backed API HTTP
+tests. Set `TEST_DATABASE_URL` to a disposable local PostgreSQL database whose
+name ends in `_test`; the command fails if the variable is missing or invalid.
+It migrates and seeds the database before running the HTTP tests. Seeding
+upserts local demo accounts, so do not point the command at data you need to
+keep. The auth lifecycle suite creates its own test users; the lesson workflow
+suite also needs the seeded curriculum catalogue. To run web tests without a
+database, use `pnpm test:web`. See [evals](apps/evals/README.md) for live runs,
 controlled failure cases, and report export.
 
 The demo supports generation for **one CBC target**: Grade 8 Integrated Science,

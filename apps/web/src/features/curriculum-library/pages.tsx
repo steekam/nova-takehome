@@ -47,7 +47,7 @@ export function LibraryPage({
 }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   return (
-    <AppShell role={user.roles[0]}>
+    <AppShell permissions={user.permissions}>
       {pathname === '/library' ? (
         <LibraryIndexPage search={search} onSearchChange={onSearchChange} />
       ) : (
@@ -1033,7 +1033,7 @@ export function LibraryTargetPage({
                 </p>
               </div>
             </div>
-            {target.generationReady && user.roles.includes('teacher') && (
+            {target.generationReady && user.permissions.includes('lesson_plan:create') && (
               <Link
                 className={`${buttonVariants({ size: 'sm' })} mt-4 w-full`}
                 to="/teacher/plans/new"

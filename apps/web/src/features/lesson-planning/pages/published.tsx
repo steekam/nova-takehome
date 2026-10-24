@@ -13,7 +13,7 @@ import { toLessonPlanTableItems } from '../table-items'
 
 export function PublishedPlans({ user }: { user: ApiPrincipal }) {
   const plans = useQuery({
-    queryKey: [...lessonPlanningKeys.all, user.roles[0]],
+    queryKey: [...lessonPlanningKeys.all, user.subject],
     queryFn: listLessonPlans,
   })
   const published = (plans.data ?? [])
@@ -21,7 +21,7 @@ export function PublishedPlans({ user }: { user: ApiPrincipal }) {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 
   return (
-    <AppShell role={user.roles[0]}>
+    <AppShell permissions={user.permissions}>
       <div className="space-y-7">
         <header className="flex flex-wrap items-end justify-between gap-4 border-b border-primary/15 pb-5">
           <div>
@@ -30,7 +30,7 @@ export function PublishedPlans({ user }: { user: ApiPrincipal }) {
               Published plans for teachers and curriculum leads.
             </p>
           </div>
-          {user.roles.includes('teacher') && (
+          {user.permissions.includes('lesson_plan:create') && (
             <Link className={buttonVariants()} to="/teacher/plans/new">
               <Plus aria-hidden="true" /> Create plan
             </Link>
@@ -59,7 +59,7 @@ export function PublishedPlans({ user }: { user: ApiPrincipal }) {
             actionLabel="View"
             emptyMessage="No published plans yet."
             emptyAction={
-              user.roles.includes('teacher') ? (
+              user.permissions.includes('lesson_plan:create') ? (
                 <Link className={buttonVariants({ size: 'sm' })} to="/teacher/plans/new">
                   <Plus aria-hidden="true" /> Create plan
                 </Link>
@@ -101,7 +101,7 @@ export function PublishedPlanPage({ user, planId }: { user: ApiPrincipal; planId
   })
   if (detail.isLoading)
     return (
-      <AppShell role={user.roles[0]}>
+      <AppShell permissions={user.permissions}>
         <div
           role="status"
           aria-label="Loading published lesson plan"
@@ -111,7 +111,7 @@ export function PublishedPlanPage({ user, planId }: { user: ApiPrincipal; planId
     )
   if (detail.error)
     return (
-      <AppShell role={user.roles[0]}>
+      <AppShell permissions={user.permissions}>
         <div className="space-y-4">
           <Link
             to="/lesson-plans"
@@ -132,7 +132,7 @@ export function PublishedPlanPage({ user, planId }: { user: ApiPrincipal; planId
   if (!detail.data) return null
   if (detail.data.plan.status !== 'published')
     return (
-      <AppShell role={user.roles[0]}>
+      <AppShell permissions={user.permissions}>
         <div className="space-y-4">
           <Link
             to="/lesson-plans"
@@ -158,7 +158,7 @@ export function PublishedPlanPage({ user, planId }: { user: ApiPrincipal; planId
   }))
 
   return (
-    <AppShell role={user.roles[0]}>
+    <AppShell permissions={user.permissions}>
       <div className="space-y-7">
         <header className="space-y-3 border-b border-primary/15 pb-6">
           <Link

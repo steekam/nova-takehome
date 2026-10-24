@@ -18,13 +18,13 @@ export function TeacherDashboard({ user }: { user: ApiPrincipal }) {
   const ownPlans =
     plans.data?.filter((plan) => plan.teacherId === user.subject && plan.status !== 'published') ??
     []
-  const drafts = ownPlans.filter((plan) => plan.status === 'draft' || plan.status === 'returned')
+  const drafts = ownPlans.filter((plan) => plan.viewer.availableActions.edit)
   const inReview = ownPlans.filter((plan) => plan.status === 'submitted')
   const orderedDrafts = [...drafts].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   const orderedInReview = [...inReview].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 
   return (
-    <AppShell role={user.roles[0]}>
+    <AppShell permissions={user.permissions}>
       <div className="space-y-8">
         <header className="flex flex-col justify-between gap-5 border-b border-primary/15 pb-7 sm:flex-row sm:items-end">
           <div className="space-y-2">
@@ -34,10 +34,12 @@ export function TeacherDashboard({ user }: { user: ApiPrincipal }) {
               plans with review history stay available for audit.
             </p>
           </div>
-          <Link className={buttonVariants()} to="/teacher/plans/new">
-            Create lesson plan
-            <ArrowRight aria-hidden="true" />
-          </Link>
+          {user.permissions.includes('lesson_plan:create') && (
+            <Link className={buttonVariants()} to="/teacher/plans/new">
+              Create lesson plan
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          )}
         </header>
         {plans.error && (
           <p
@@ -72,10 +74,12 @@ export function TeacherDashboard({ user }: { user: ApiPrincipal }) {
               actionLabel="Open"
               emptyMessage="No drafts or returned plans."
               emptyAction={
-                <Link className={buttonVariants({ size: 'sm' })} to="/teacher/plans/new">
-                  Create a lesson plan
-                  <ArrowRight aria-hidden="true" />
-                </Link>
+                user.permissions.includes('lesson_plan:create') ? (
+                  <Link className={buttonVariants({ size: 'sm' })} to="/teacher/plans/new">
+                    Create a lesson plan
+                    <ArrowRight aria-hidden="true" />
+                  </Link>
+                ) : undefined
               }
               renderAction={(plan) => (
                 <div className="flex flex-wrap justify-end gap-2">
@@ -87,7 +91,7 @@ export function TeacherDashboard({ user }: { user: ApiPrincipal }) {
                     {plan.status === 'returned' ? 'Revise plan' : 'Continue draft'}
                     <ArrowRight aria-hidden="true" />
                   </Link>
-                  {plan.canDelete && (
+                  {plan.availableActions.delete && (
                     <Button
                       type="button"
                       size="sm"

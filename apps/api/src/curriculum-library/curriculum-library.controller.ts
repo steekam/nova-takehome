@@ -6,7 +6,8 @@ import {
   type CurriculumLibrarySourceInput,
 } from '@nova/shared'
 import { CurrentUser } from '../common/auth/current-user.decorator'
-import { Roles } from '../common/auth/roles.decorator'
+import { Can } from '../common/auth/policy'
+import { CurriculumSourcePolicy, RoutePolicy } from '../common/auth/policies'
 import { CurriculumLibraryService } from './curriculum-library.service'
 import { StandardSchemaPipe } from '../common/validation/standard-schema.pipe'
 
@@ -16,12 +17,14 @@ export class CurriculumLibraryController {
   constructor(private readonly library: CurriculumLibraryService) {}
 
   @Get('curriculum/library')
+  @Can(RoutePolicy, 'authenticated')
   @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/CurriculumLibrary' } })
   async catalogue(@CurrentUser() principal: ApiPrincipal) {
     return this.library.catalogue(principal)
   }
 
   @Get('curriculum/library/designs/:designVersionId')
+  @Can(RoutePolicy, 'authenticated')
   @ApiResponse({
     status: 200,
     schema: { $ref: '#/components/schemas/CurriculumLibraryDesign' },
@@ -34,6 +37,7 @@ export class CurriculumLibraryController {
   }
 
   @Get('curriculum/library/targets/:targetRevisionId')
+  @Can(RoutePolicy, 'authenticated')
   @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/CurriculumLibraryTarget' } })
   async target(
     @Param('targetRevisionId') targetRevisionId: string,
@@ -46,7 +50,7 @@ export class CurriculumLibraryController {
   @ApiBody({ schema: { $ref: '#/components/schemas/CurriculumSourceInput' } })
   @ApiResponse({ status: 201, schema: { $ref: '#/components/schemas/CurriculumSourceLinkResult' } })
   @ApiResponse({ status: 400, schema: { $ref: '#/components/schemas/ValidationErrorResponse' } })
-  @Roles('curriculum_lead')
+  @Can(CurriculumSourcePolicy, 'add')
   async addSource(
     @Param('targetRevisionId') targetRevisionId: string,
     @CurrentUser() principal: ApiPrincipal,
@@ -62,18 +66,20 @@ export class CurriculumLibraryController {
 
   @Post('curriculum/library/source-links/:linkId/publish')
   @ApiResponse({ status: 201, schema: { $ref: '#/components/schemas/CurriculumSourceLinkResult' } })
-  @Roles('curriculum_lead')
+  @Can(CurriculumSourcePolicy, 'publish')
   async publishSource(@Param('linkId') linkId: string, @CurrentUser() principal: ApiPrincipal) {
     return this.library.publishSource(linkId, principal)
   }
 
   @Get('outcomes')
+  @Can(RoutePolicy, 'authenticated')
   @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/CurriculumOutcomesResponse' } })
   async outcomes() {
     return { items: await this.library.outcomes() }
   }
 
   @Get('sources')
+  @Can(RoutePolicy, 'authenticated')
   @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/CurriculumSourcesResponse' } })
   async sources(@CurrentUser() principal: ApiPrincipal) {
     return { items: await this.library.allSources(principal) }

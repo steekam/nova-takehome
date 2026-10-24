@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import type { LlmMode, RuntimeLlmModeStatus } from '@nova/shared'
+import type { LlmMockScenario, LlmMode, RuntimeLlmModeStatus } from '@nova/shared'
 import type {
   LessonPlanCompletionRequest,
   LessonPlanCompletionResult,
@@ -12,6 +12,7 @@ import { MockLessonPlanProvider } from './mock-lesson-plan-provider'
 @Injectable()
 export class RuntimeLessonPlanProvider implements LessonPlanProvider {
   private mode: LlmMode
+  private mockScenario: LlmMockScenario = 'happy_path'
 
   constructor(
     private readonly config: ConfigService,
@@ -27,10 +28,15 @@ export class RuntimeLessonPlanProvider implements LessonPlanProvider {
 
   status(): RuntimeLlmModeStatus {
     const missing = this.missingLiveSettings()
-    return { mode: this.mode, liveAvailable: missing.length === 0, missing }
+    return {
+      mode: this.mode,
+      mockScenario: this.mockScenario,
+      liveAvailable: missing.length === 0,
+      missing,
+    }
   }
 
-  setMode(mode: LlmMode): RuntimeLlmModeStatus {
+  setMode(mode: LlmMode, mockScenario?: LlmMockScenario): RuntimeLlmModeStatus {
     const missing = mode === 'live' ? this.missingLiveSettings() : []
     if (missing.length > 0) {
       throw new BadRequestException({
@@ -39,6 +45,7 @@ export class RuntimeLessonPlanProvider implements LessonPlanProvider {
       })
     }
     this.mode = mode
+    if (mockScenario) this.mockScenario = mockScenario
     return this.status()
   }
 
@@ -48,7 +55,7 @@ export class RuntimeLessonPlanProvider implements LessonPlanProvider {
   ): Promise<LessonPlanCompletionResult> {
     return this.mode === 'live'
       ? this.live.complete(request, modelOverride)
-      : this.mock.complete(request, modelOverride)
+      : this.mock.complete(request, modelOverride, this.mockScenario)
   }
 
   private missingLiveSettings(): string[] {

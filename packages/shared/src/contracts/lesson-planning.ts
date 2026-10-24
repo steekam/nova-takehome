@@ -149,6 +149,25 @@ export function hasValidReturnComment(comment: string): boolean {
   return comment.replace(/\s/g, '').length >= 8
 }
 
+export const LessonPlanAvailableActionsSchema = z
+  .object({
+    edit: z.boolean(),
+    submit: z.boolean(),
+    delete: z.boolean(),
+    returnForRevision: z.boolean(),
+    publish: z.boolean(),
+    validate: z.boolean(),
+  })
+  .strict()
+export type LessonPlanAvailableActions = z.infer<typeof LessonPlanAvailableActionsSchema>
+
+export const LessonPlanViewerSchema = z
+  .object({
+    availableActions: LessonPlanAvailableActionsSchema,
+  })
+  .strict()
+export type LessonPlanViewer = z.infer<typeof LessonPlanViewerSchema>
+
 export const LessonPlanDtoSchema = z
   .object({
     id: z.string().uuid(),
@@ -179,7 +198,7 @@ export type LessonPlanCurriculumContext = z.infer<typeof LessonPlanCurriculumCon
 
 export const LessonPlanListItemSchema = LessonPlanDtoSchema.extend({
   curriculumContext: LessonPlanCurriculumContextSchema.nullable(),
-  canDelete: z.boolean(),
+  viewer: LessonPlanViewerSchema,
 }).strict()
 export type LessonPlanListItem = z.infer<typeof LessonPlanListItemSchema>
 
@@ -206,6 +225,7 @@ export const LessonPlanListResponseSchema = z
 export const LessonPlanResponseSchema = z
   .object({
     plan: LessonPlanDtoSchema,
+    viewer: LessonPlanViewerSchema,
     qa: LessonPlanQaSchema,
     rubricQa: LessonPlanRubricQaSchema.optional(),
   })
@@ -214,6 +234,7 @@ export const LessonPlanResponseSchema = z
 export const LessonPlanDetailsResponseSchema = z
   .object({
     plan: LessonPlanDtoSchema,
+    viewer: LessonPlanViewerSchema,
     reviews: z.array(LessonPlanReviewDtoSchema),
     versions: z.array(LessonPlanVersionDtoSchema),
     qa: LessonPlanQaSchema,
@@ -224,6 +245,7 @@ export const LessonPlanDetailsResponseSchema = z
 export const LessonPlanReviewResponseSchema = z
   .object({
     plan: LessonPlanDtoSchema,
+    viewer: LessonPlanViewerSchema,
     review: LessonPlanReviewDtoSchema,
   })
   .strict()

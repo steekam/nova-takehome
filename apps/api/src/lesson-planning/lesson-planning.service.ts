@@ -32,6 +32,8 @@ import {
 } from './llm-workflows/generation-telemetry'
 import { LessonPlanRubric } from './llm-workflows/lesson-plan-rubric'
 import { RequestIdService } from '../common/request-id.service'
+import { authorize } from '../common/auth/policy'
+import { LessonPlanPolicy, lessonPlanAvailableActions } from '../common/auth/policies'
 
 @Injectable()
 export class LessonPlanningService {
@@ -46,7 +48,8 @@ export class LessonPlanningService {
   ) {}
 
   async list(principal: ApiPrincipal) {
-    const isLead = principal.roles.includes('curriculum_lead')
+    await authorize(principal, new LessonPlanPolicy(), 'view')
+    const isLead = new LessonPlanPolicy().review(principal)
     const plans = isLead
       ? await this.repository.plansForLead()
       : await this.repository.plansForTeacher(principal.subject)
@@ -74,7 +77,13 @@ export class LessonPlanningService {
         id: plan.id,
         teacherId: plan.teacherId,
         status: plan.status,
-        canDelete: plan.status === 'draft' && !plansWithReviewHistory.has(plan.id),
+        viewer: {
+          availableActions: lessonPlanAvailableActions(
+            principal,
+            plan,
+            plansWithReviewHistory.has(plan.id),
+          ),
+        },
         targetRevisionId: latest.targetRevisionId,
         versionId: latest.id,
         content: latest.content,
@@ -98,17 +107,19 @@ export class LessonPlanningService {
 
   async get(id: string, principal: ApiPrincipal) {
     const plan = await this.plan(id)
-    assertCanReadPlan(plan.teacherId, plan.status, principal)
-    return this.dto(id)
+    await authorize(principal, new LessonPlanPolicy(), 'viewPlan', plan)
+    return this.view(id, principal)
   }
 
   async delete(id: string, principal: ApiPrincipal) {
     await this.database.db.transaction(async (tx) => {
       const [plan] = await this.repository.planForDelete(id, tx)
       if (!plan) throw new NotFoundException('Lesson plan not found')
-      this.assertTeacherOwns(plan.teacherId, principal)
+      await authorize(principal, new LessonPlanPolicy(), 'deletePlan', plan)
       if (plan.deletedAt) return
-      if (plan.status !== 'draft') {
+      const hasReviewHistory = await this.repository.hasReviewHistory(id, tx)
+      const availableActions = lessonPlanAvailableActions(principal, plan, hasReviewHistory)
+      if (!availableActions.delete && plan.status !== 'draft') {
         throw new ConflictException({
           code: 'LESSON_PLAN_DELETE_NOT_ALLOWED',
           message:
@@ -119,7 +130,7 @@ export class LessonPlanningService {
                 : 'Published plans are retained for curriculum review and audit.',
         })
       }
-      if (await this.repository.hasReviewHistory(id, tx)) {
+      if (!availableActions.delete) {
         throw new ConflictException({
           code: 'LESSON_PLAN_DELETE_NOT_ALLOWED',
           message: 'This draft has curriculum review history and is retained for audit.',
@@ -129,23 +140,28 @@ export class LessonPlanningService {
     })
   }
 
-  async reviews(id: string) {
-    await this.plan(id)
+  async reviews(id: string, principal: ApiPrincipal) {
+    const plan = await this.plan(id)
+    await authorize(principal, new LessonPlanPolicy(), 'viewPlan', plan)
     return this.repository.reviews(id)
   }
 
-  async versions(id: string) {
+  async versions(id: string, principal: ApiPrincipal) {
+    const plan = await this.plan(id)
+    await authorize(principal, new LessonPlanPolicy(), 'viewPlan', plan)
     return this.repository.versions(id)
   }
 
-  async latestRubricQa(id: string) {
+  async latestRubricQa(id: string, principal: ApiPrincipal) {
+    const plan = await this.plan(id)
+    await authorize(principal, new LessonPlanPolicy(), 'viewPlan', plan)
     const [latest] = await this.repository.latestValidation(id)
     return latest ? { ...latest, createdAt: latest.createdAt.toISOString() } : null
   }
 
   async validateVersion(id: string, versionId: string, principal: ApiPrincipal) {
     const plan = await this.plan(id)
-    assertCanReadPlan(plan.teacherId, plan.status, principal)
+    await authorize(principal, new LessonPlanPolicy(), 'viewPlan', plan)
     const [version] = await this.repository.versionById(id, versionId)
     if (!version) throw new NotFoundException('Lesson plan version not found')
     const sourceDetails = version.targetRevisionId
@@ -165,6 +181,7 @@ export class LessonPlanningService {
   }
 
   async generate(principal: ApiPrincipal, targetRevisionId: string, durationMinutes: number) {
+    await authorize(principal, new LessonPlanPolicy(), 'create')
     return startLangfuseSpan(
       'curriculum.lesson_plan.workflow.generate',
       async (span) => {
@@ -234,11 +251,12 @@ export class LessonPlanningService {
                 return { planId: created.id, versionId: version.id, version: version.version }
               }),
           )
-          const result = await this.dto(persisted.planId)
+          const result = await this.view(persisted.planId, principal)
+          const { plan } = result
           const cited = new Set(content.sources.map((source) => source.chunkId))
           const rubricQa = await this.rubric.validate(
-            result.id,
-            result.versionId,
+            plan.id,
+            plan.versionId,
             content,
             sources
               .filter((source) => cited.has(source.chunkId))
@@ -249,20 +267,13 @@ export class LessonPlanningService {
                 content: source.content,
               })),
           )
-          span.setAttribute('lesson_plan.id', result.id)
-          span.setAttribute('lesson_plan.version_id', result.versionId)
-          span.setAttribute('lesson_plan.version', result.version)
-          span.setAttribute('lesson_plan.status', result.status)
+          span.setAttribute('lesson_plan.id', plan.id)
+          span.setAttribute('lesson_plan.version_id', plan.versionId)
+          span.setAttribute('lesson_plan.version', plan.version)
+          span.setAttribute('lesson_plan.status', plan.status)
           span.setAttribute('lesson_plan.workflow.outcome', 'success')
           setLangfuseOutput(span, {
-            plan: {
-              id: result.id,
-              versionId: result.versionId,
-              version: result.version,
-              status: result.status,
-              targetRevisionId: result.targetRevisionId,
-              content: result.content,
-            },
+            plan,
             deterministicQa: { passed: true },
             rubricQa,
           })
@@ -288,7 +299,7 @@ export class LessonPlanningService {
     await this.database.db.transaction(async (tx) => {
       const [plan] = await this.repository.planForUpdate(id, tx)
       if (!plan) throw new NotFoundException('Lesson plan not found')
-      this.assertTeacherOwns(plan.teacherId, principal)
+      await authorize(principal, new LessonPlanPolicy(), 'editPlan', plan)
       const nextStatus = transitionPlanStatus(plan.status, 'edit')
       const valid = LessonPlanContentSchema.safeParse(content)
       if (!valid.success) {
@@ -320,21 +331,21 @@ export class LessonPlanningService {
       )
       await this.repository.updatePlanStatus(id, nextStatus, new Date(), tx)
     })
-    return this.dto(id)
+    return this.view(id, principal)
   }
 
   async submit(id: string, principal: ApiPrincipal) {
     await this.database.db.transaction(async (tx) => {
       const [plan] = await this.repository.planForUpdate(id, tx)
       if (!plan) throw new NotFoundException('Lesson plan not found')
-      this.assertTeacherOwns(plan.teacherId, principal)
+      await authorize(principal, new LessonPlanPolicy(), 'submitPlan', plan)
       const nextStatus = transitionPlanStatus(plan.status, 'submit')
       const [latest] = await this.repository.latestVersion(id, tx)
       if (!latest) throw new NotFoundException('Lesson plan content not found')
       await this.assertPlanQa(id, latest.targetRevisionId, latest.content, tx)
       await this.repository.updatePlanStatus(id, nextStatus, new Date(), tx)
     })
-    return this.dto(id)
+    return this.view(id, principal)
   }
 
   async review(
@@ -343,10 +354,10 @@ export class LessonPlanningService {
     decision: 'returned' | 'published',
     comment?: string,
   ) {
-    assertCurriculumLead(principal)
     const [review] = await this.database.db.transaction(async (tx) => {
       const [plan] = await this.repository.planForUpdate(id, tx)
       if (!plan) throw new NotFoundException('Lesson plan not found')
+      await authorize(principal, new LessonPlanPolicy(), 'review')
       const nextStatus = transitionPlanStatus(plan.status, decision)
       const normalizedComment = validateReviewComment(decision, comment)
       const [latest] = await this.repository.latestVersion(id, tx)
@@ -366,23 +377,32 @@ export class LessonPlanningService {
       )
       return [{ ...created, lessonPlanVersionNumber: latest.version }]
     })
-    return { review, plan: await this.dto(id) }
+    return { review, ...(await this.view(id, principal)) }
   }
 
-  private async dto(id: string) {
+  private async view(id: string, principal: ApiPrincipal) {
     const plan = await this.plan(id)
     const [latest] = await this.repository.latestVersion(id)
     if (!latest) throw new NotFoundException('Lesson plan content not found')
+    const hasReviewHistory =
+      plan.status === 'draft' && new LessonPlanPolicy().deletePlan(principal, plan)
+        ? await this.repository.hasReviewHistory(id)
+        : false
     return {
-      id: plan.id,
-      teacherId: plan.teacherId,
-      status: plan.status,
-      targetRevisionId: latest.targetRevisionId,
-      versionId: latest.id,
-      content: latest.content,
-      version: latest.version,
-      createdAt: plan.createdAt.toISOString(),
-      updatedAt: plan.updatedAt.toISOString(),
+      plan: {
+        id: plan.id,
+        teacherId: plan.teacherId,
+        status: plan.status,
+        targetRevisionId: latest.targetRevisionId,
+        versionId: latest.id,
+        content: latest.content,
+        version: latest.version,
+        createdAt: plan.createdAt.toISOString(),
+        updatedAt: plan.updatedAt.toISOString(),
+      },
+      viewer: {
+        availableActions: lessonPlanAvailableActions(principal, plan, hasReviewHistory),
+      },
     }
   }
   private async plan(id: string) {
@@ -390,10 +410,6 @@ export class LessonPlanningService {
     if (!plan) throw new NotFoundException('Lesson plan not found')
     return plan
   }
-  private assertTeacherOwns(owner: string, principal: ApiPrincipal) {
-    assertTeacherOwns(owner, principal)
-  }
-
   private async embedQuery(content: string) {
     try {
       return await this.embeddings.embedQuery(content)
@@ -485,22 +501,21 @@ async function runGenerationStage<T>(
 }
 
 export function assertTeacherOwns(owner: string, principal: ApiPrincipal) {
-  if (!principal.roles.includes('teacher') || owner !== principal.subject)
+  if (!new LessonPlanPolicy().editPlan(principal, { teacherId: owner, status: 'draft' }))
     throw new ForbiddenException()
 }
 
 export function assertCurriculumLead(principal: ApiPrincipal) {
-  if (!principal.roles.includes('curriculum_lead')) throw new ForbiddenException()
+  if (!new LessonPlanPolicy().review(principal)) throw new ForbiddenException()
 }
 
-export function assertCanReadPlan(owner: string, status: string, principal: ApiPrincipal) {
-  if (
-    owner === principal.subject ||
-    status === 'published' ||
-    (principal.roles.includes('curriculum_lead') && status === 'submitted')
-  )
-    return
-  throw new ForbiddenException()
+export function assertCanReadPlan(
+  owner: string,
+  status: LessonPlanStatus,
+  principal: ApiPrincipal,
+) {
+  if (!new LessonPlanPolicy().viewPlan(principal, { teacherId: owner, status }))
+    throw new ForbiddenException()
 }
 
 export function transitionPlanStatus(

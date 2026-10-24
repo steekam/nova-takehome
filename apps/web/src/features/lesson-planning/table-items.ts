@@ -10,7 +10,7 @@ export function toLessonPlanTableItems(plans: LessonPlanSummary[]): LessonPlanTa
     targetRevisionId: plan.targetRevisionId,
     curriculumContext: plan.curriculumContext,
     status: plan.status,
-    canDelete: plan.canDelete,
+    availableActions: plan.viewer.availableActions,
     updatedAt: plan.updatedAt,
   }))
 }

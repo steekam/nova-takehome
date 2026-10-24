@@ -19,9 +19,8 @@ export class AuthGuard implements CanActivate {
     if (isPublic) return true
 
     const request = context.switchToHttp().getRequest<FastifyRequest>()
-    const authorization = request.headers.authorization
-    const bearer = authorization?.match(/^Bearer\s+(.+)$/i)
-    const token = request.cookies?.nova_access ?? bearer?.[1]
+    const cookieName = process.env.NODE_ENV === 'production' ? '__Host-nova_access' : 'nova_access'
+    const token = request.cookies?.[cookieName]
     const principal = token ? await this.auth.authenticate(token) : undefined
     if (!principal) throw new UnauthorizedException()
 

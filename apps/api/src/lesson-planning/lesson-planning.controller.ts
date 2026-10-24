@@ -19,7 +19,8 @@ import {
   type ApiPrincipal,
 } from '@nova/shared'
 import { CurrentUser } from '../common/auth/current-user.decorator'
-import { Roles } from '../common/auth/roles.decorator'
+import { Can } from '../common/auth/policy'
+import { LessonPlanPolicy } from '../common/auth/policies'
 import { StandardSchemaPipe } from '../common/validation/standard-schema.pipe'
 import { LessonPlanningService } from './lesson-planning.service'
 
@@ -29,6 +30,7 @@ export class LessonPlanningController {
   constructor(private readonly curriculum: LessonPlanningService) {}
 
   @Get('lesson-plans')
+  @Can(LessonPlanPolicy, 'view')
   @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/LessonPlanListResponse' } })
   async list(@CurrentUser() principal: ApiPrincipal) {
     return { items: await this.curriculum.list(principal) }
@@ -39,7 +41,7 @@ export class LessonPlanningController {
   @ApiBody({ schema: { $ref: '#/components/schemas/GenerateLessonPlanRequest' } })
   @ApiResponse({ status: 201, schema: { $ref: '#/components/schemas/LessonPlanResponse' } })
   @ApiResponse({ status: 400, schema: { $ref: '#/components/schemas/ValidationErrorResponse' } })
-  @Roles('teacher')
+  @Can(LessonPlanPolicy, 'create')
   async generate(
     @CurrentUser() principal: ApiPrincipal,
     @Body(new StandardSchemaPipe(GenerateLessonPlanRequestSchema)) input: {
@@ -52,9 +54,10 @@ export class LessonPlanningController {
       input.targetRevisionId,
       input.durationMinutes,
     )
-    const { rubricQa, ...plan } = result
+    const { plan, viewer, rubricQa } = result
     return {
       plan,
+      viewer,
       rubricQa,
       qa: buildLessonPlanQa(
         plan.content,
@@ -65,18 +68,20 @@ export class LessonPlanningController {
   }
 
   @Get('lesson-plans/:id')
+  @Can(LessonPlanPolicy, 'view')
   @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/LessonPlanDetailsResponse' } })
   async get(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal) {
-    const plan = await this.curriculum.get(id, principal)
+    const { plan, viewer } = await this.curriculum.get(id, principal)
     const [reviews, versions] = await Promise.all([
-      this.curriculum.reviews(id),
-      this.curriculum.versions(id),
+      this.curriculum.reviews(id, principal),
+      this.curriculum.versions(id, principal),
     ])
     return {
       plan,
+      viewer,
       reviews,
       versions,
-      rubricQa: await this.curriculum.latestRubricQa(id),
+      rubricQa: await this.curriculum.latestRubricQa(id, principal),
       qa: buildLessonPlanQa(
         plan.content,
         await this.curriculum.citationsExist(plan.content, plan.targetRevisionId),
@@ -90,12 +95,13 @@ export class LessonPlanningController {
   @ApiOperation({ summary: 'Remove an unreviewed draft from the teacher workspace' })
   @ApiResponse({ status: 204, description: 'Lesson plan removed from the workspace.' })
   @ApiResponse({ status: 409, description: 'Plan is reviewed, in review, returned, or published.' })
-  @Roles('teacher')
+  @Can(LessonPlanPolicy, 'delete')
   async delete(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal) {
     await this.curriculum.delete(id, principal)
   }
 
   @Post('lesson-plans/:id/validate')
+  @Can(LessonPlanPolicy, 'view')
   @ApiOperation({ summary: 'Run advisory rubric QA against an immutable lesson plan version' })
   @ApiBody({ schema: { $ref: '#/components/schemas/ValidateLessonPlanRequest' } })
   @ApiResponse({ status: 201, schema: { $ref: '#/components/schemas/LessonPlanRubricQaResponse' } })
@@ -111,15 +117,16 @@ export class LessonPlanningController {
   @ApiBody({ schema: { $ref: '#/components/schemas/EditLessonPlanRequest' } })
   @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/LessonPlanResponse' } })
   @ApiResponse({ status: 400, schema: { $ref: '#/components/schemas/ValidationErrorResponse' } })
-  @Roles('teacher')
+  @Can(LessonPlanPolicy, 'edit')
   async edit(
     @Param('id') id: string,
     @CurrentUser() principal: ApiPrincipal,
     @Body(new StandardSchemaPipe(EditLessonPlanRequestSchema)) input: { content: unknown },
   ) {
-    const plan = await this.curriculum.edit(id, principal, input.content)
+    const { plan, viewer } = await this.curriculum.edit(id, principal, input.content)
     return {
       plan,
+      viewer,
       qa: buildLessonPlanQa(
         plan.content,
         await this.curriculum.citationsExist(plan.content, plan.targetRevisionId),
@@ -130,11 +137,12 @@ export class LessonPlanningController {
 
   @Post('lesson-plans/:id/submit')
   @ApiResponse({ status: 201, schema: { $ref: '#/components/schemas/LessonPlanResponse' } })
-  @Roles('teacher')
+  @Can(LessonPlanPolicy, 'submit')
   async submit(@Param('id') id: string, @CurrentUser() principal: ApiPrincipal) {
-    const plan = await this.curriculum.submit(id, principal)
+    const { plan, viewer } = await this.curriculum.submit(id, principal)
     return {
       plan,
+      viewer,
       qa: buildLessonPlanQa(
         plan.content,
         await this.curriculum.citationsExist(plan.content, plan.targetRevisionId),
@@ -147,7 +155,7 @@ export class LessonPlanningController {
   @ApiBody({ schema: { $ref: '#/components/schemas/ReviewLessonPlanRequest' } })
   @ApiResponse({ status: 201, schema: { $ref: '#/components/schemas/LessonPlanReviewResponse' } })
   @ApiResponse({ status: 400, schema: { $ref: '#/components/schemas/ValidationErrorResponse' } })
-  @Roles('curriculum_lead')
+  @Can(LessonPlanPolicy, 'review')
   async review(
     @Param('id') id: string,
     @CurrentUser() principal: ApiPrincipal,
@@ -156,13 +164,13 @@ export class LessonPlanningController {
       comment?: string
     },
   ) {
-    const { plan, review } = await this.curriculum.review(
+    const { plan, viewer, review } = await this.curriculum.review(
       id,
       principal,
       input.decision,
       input.comment,
     )
-    return { plan, review: { ...review, createdAt: review.createdAt.toISOString() } }
+    return { plan, viewer, review: { ...review, createdAt: review.createdAt.toISOString() } }
   }
 }
 

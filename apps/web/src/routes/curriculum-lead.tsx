@@ -4,7 +4,7 @@ import {
   LeadDashboard,
   type LeadQueueSearch,
 } from '../features/lesson-planning/pages/lead-dashboard'
-import { requireRole } from '../lib/route-auth'
+import { requirePermission } from '../lib/route-auth'
 import { route as rootRoute } from './root'
 
 function CurriculumLeadLayout() {
@@ -13,7 +13,7 @@ function CurriculumLeadLayout() {
   const navigate = route.useNavigate()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   return (
-    <AppShell role={user.roles[0]}>
+    <AppShell permissions={user.permissions}>
       {pathname === '/curriculum-lead' ? (
         <LeadDashboard
           search={search}
@@ -37,6 +37,6 @@ export const route = createRoute({
     order: search.order === 'newest' ? 'newest' : search.order === 'oldest' ? 'oldest' : undefined,
     q: typeof search.q === 'string' ? search.q : undefined,
   }),
-  beforeLoad: ({ location }) => requireRole('curriculum_lead', location.href),
+  beforeLoad: ({ location }) => requirePermission('lesson_plan:review', location.href),
   component: CurriculumLeadLayout,
 })

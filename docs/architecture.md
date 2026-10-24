@@ -3,6 +3,9 @@
 This page maps the running application for reviewers and contributors. The root
 [README](../README.md) covers local setup and the demo flow.
 
+See [authentication and security](security.md) for opaque cookie sessions,
+capability checks, deployment requirements, and third-party source provenance.
+
 See the [system diagram board](https://www.tldraw.com/f/bmp8NfBjhONWbeWKxZ7M9)
 for zoomable entity, workflow, and service diagrams.
 
@@ -97,18 +100,23 @@ versioned editing, rubric validation, and human review.
 
 ## Access policy
 
-Protected product routes require authentication. Server-side role checks
-protect role-specific writes.
+Protected API routes require authentication and capability checks. The API
+checks ownership and workflow state before it reads or changes a lesson plan.
+The web app also uses role guards to route users to their workspace; those
+guards do not replace API authorization.
 
 | Action | Teacher | Curriculum Lead |
 | --- | --- | --- |
 | List plans | Own plans and published plans | Submitted and published plans |
-| Read a plan | Own plans and published plans | Own, submitted, and published plans |
+| Read a plan | Own plans and published plans | Submitted and published plans |
 | Generate, edit, submit | Generate plans; edit own drafts or returned plans; submit own drafts | — |
+| Delete a plan | Own unreviewed drafts | — |
 | Run rubric QA | Any plan the user may read | Any plan the user may read |
 | Return or publish | — | Submitted plans |
 | Browse curriculum library | Published catalogue and sources | Published catalogue plus draft designs and source revisions/links |
 | Add and publish curriculum sources | — | Yes |
+| Read runtime LLM mode | Yes | Yes |
+| Change runtime LLM mode | Yes | Yes |
 
 Source intake accepts text and metadata through the API. It creates a resource
 or a draft revision of an existing resource, chunks, and target link; a

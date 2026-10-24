@@ -1,7 +1,11 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import type { LessonPlanCurriculumContext, LessonPlanStatus } from '@nova/shared'
+import type {
+  LessonPlanAvailableActions,
+  LessonPlanCurriculumContext,
+  LessonPlanStatus,
+} from '@nova/shared'
 
 export type LessonPlanTableItem = {
   id: string
@@ -11,7 +15,7 @@ export type LessonPlanTableItem = {
   targetRevisionId: string | null
   curriculumContext: LessonPlanCurriculumContext | null
   status: LessonPlanStatus
-  canDelete: boolean
+  availableActions: LessonPlanAvailableActions
   updatedAt: string
 }
 

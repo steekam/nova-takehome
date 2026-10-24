@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   hasValidReturnComment,
+  permissionsForRoles,
   type ApiPrincipal,
   type CurriculumOutcomeDto,
   type CurriculumSourceDto,
@@ -33,15 +34,24 @@ import {
 } from '../src/lesson-planning/llm-workflows/lesson-plan-generator'
 import { OpenAiCompatibleLessonPlanProvider } from '../src/lesson-planning/llm-workflows/llm-provider'
 import { LangfusePrompts } from '../src/lesson-planning/llm-workflows/langfuse-prompts'
+import { MockLessonPlanProvider } from '../src/lesson-planning/llm-workflows/mock-lesson-plan-provider'
+import { RuntimeLessonPlanProvider } from '../src/lesson-planning/llm-workflows/runtime-lesson-plan-provider'
 import { RequestIdService } from '../src/common/request-id.service'
 import * as generationTelemetry from '../src/lesson-planning/llm-workflows/generation-telemetry'
-import { buildLessonPlanQa } from '../src/lesson-planning/lesson-planning.controller'
 import { StandardSchemaPipe } from '../src/common/validation/standard-schema.pipe'
 import { validateEnvironment } from '../src/configuration'
 import { z } from 'zod'
 
-const teacher: ApiPrincipal = { subject: 'teacher-1', roles: ['teacher'], permissions: [] }
-const lead: ApiPrincipal = { subject: 'lead-1', roles: ['curriculum_lead'], permissions: [] }
+const teacher: ApiPrincipal = {
+  subject: 'teacher-1',
+  roles: ['teacher'],
+  permissions: permissionsForRoles(['teacher']),
+}
+const lead: ApiPrincipal = {
+  subject: 'lead-1',
+  roles: ['curriculum_lead'],
+  permissions: permissionsForRoles(['curriculum_lead']),
+}
 const outcome: CurriculumOutcomeDto = {
   id: '00000000-0000-4000-8000-000000000001',
   designVersionId: '00000000-0000-4000-8000-000000000004',
@@ -190,14 +200,6 @@ describe('curriculum workflow invariants', () => {
     expect(() => assertCanReadPlan('teacher-2', 'returned', teacher)).toThrow(ForbiddenException)
   })
 
-  it('labels citation checks as provenance and states their semantic limit', () => {
-    const qa = buildLessonPlanQa(plan, true, true)
-    expect(qa.checks.find(({ code }) => code === 'official-target-citation')?.passed).toBe(true)
-    expect(qa.checks.find(({ code }) => code === 'citation-source-membership')?.message).toContain(
-      'does not assess whether each claim is supported by the cited text',
-    )
-  })
-
   it('validates lesson structure, time totals, and source grounding', () => {
     expect(() =>
       validateGeneratedPlan(LessonPlanContentSchema.parse(plan), outcome, [source], 40),
@@ -311,6 +313,42 @@ describe('curriculum workflow invariants', () => {
     } finally {
       fetchMock.mockRestore()
     }
+  })
+
+  it('exercises mock success, invalid output, and provider unavailability', async () => {
+    const config = {
+      get: (key: string, fallback?: string) => (key === 'LLM_PROVIDER' ? 'mock' : fallback),
+    } as ConfigService
+    const runtime = new RuntimeLessonPlanProvider(
+      config,
+      new OpenAiCompatibleLessonPlanProvider(config, new RequestIdService()),
+      new MockLessonPlanProvider(),
+    )
+    const generator = new LessonPlanGenerator(runtime, new LangfusePrompts(config))
+
+    expect(runtime.status()).toMatchObject({ mode: 'mock', mockScenario: 'happy_path' })
+    await expect(generator.generate(outcome, [source], 40)).resolves.toMatchObject({
+      durationMinutes: 40,
+      sources: [{ documentId: source.documentId, chunkId: source.chunkId }],
+    })
+
+    runtime.setMode('mock', 'invalid_output')
+    await expect(generator.generate(outcome, [source], 40)).rejects.toMatchObject({
+      status: 503,
+      response: {
+        code: 'LLM_INVALID_RESPONSE',
+        message: expect.stringContaining('No draft was saved'),
+      },
+    })
+
+    runtime.setMode('mock', 'connection_failure')
+    await expect(generator.generate(outcome, [source], 40)).rejects.toMatchObject({
+      status: 503,
+      response: {
+        code: 'LLM_PROVIDER_UNAVAILABLE',
+        message: expect.stringContaining('No draft was saved'),
+      },
+    })
   })
 
   it('repairs invalid provider output once and accepts a corrected plan', async () => {

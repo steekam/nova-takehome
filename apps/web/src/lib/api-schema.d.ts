@@ -72,6 +72,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign out all sessions for the current user */
+        post: operations["AuthController_logoutAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_rotate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/me": {
         parameters: {
             query?: never;
@@ -711,6 +744,16 @@ export interface components {
                 /** Format: date-time */
                 updatedAt: string;
             };
+            viewer: {
+                availableActions: {
+                    edit: boolean;
+                    submit: boolean;
+                    delete: boolean;
+                    returnForRevision: boolean;
+                    publish: boolean;
+                    validate: boolean;
+                };
+            };
             reviews: {
                 /** Format: uuid */
                 id: string;
@@ -842,7 +885,16 @@ export interface components {
                     locator: string;
                     targetTitle: string;
                 } | null;
-                canDelete: boolean;
+                viewer: {
+                    availableActions: {
+                        edit: boolean;
+                        submit: boolean;
+                        delete: boolean;
+                        returnForRevision: boolean;
+                        publish: boolean;
+                        validate: boolean;
+                    };
+                };
             }[];
         };
         LessonPlanResponse: {
@@ -884,6 +936,16 @@ export interface components {
                 createdAt: string;
                 /** Format: date-time */
                 updatedAt: string;
+            };
+            viewer: {
+                availableActions: {
+                    edit: boolean;
+                    submit: boolean;
+                    delete: boolean;
+                    returnForRevision: boolean;
+                    publish: boolean;
+                    validate: boolean;
+                };
             };
             qa: {
                 passed: boolean;
@@ -962,6 +1024,16 @@ export interface components {
                 createdAt: string;
                 /** Format: date-time */
                 updatedAt: string;
+            };
+            viewer: {
+                availableActions: {
+                    edit: boolean;
+                    submit: boolean;
+                    delete: boolean;
+                    returnForRevision: boolean;
+                    publish: boolean;
+                    validate: boolean;
+                };
             };
             review: {
                 /** Format: uuid */
@@ -1052,10 +1124,14 @@ export interface components {
         RuntimeLlmModeRequest: {
             /** @enum {string} */
             mode: "mock" | "live";
+            /** @enum {string} */
+            mockScenario?: "happy_path" | "invalid_output" | "connection_failure";
         };
         RuntimeLlmModeStatus: {
             /** @enum {string} */
             mode: "mock" | "live";
+            /** @enum {string} */
+            mockScenario: "happy_path" | "invalid_output" | "connection_failure";
             liveAvailable: boolean;
             missing: string[];
         };
@@ -1171,6 +1247,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    AuthController_logoutAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AuthController_rotate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
             };
         };
     };

@@ -1,16 +1,17 @@
 import { useState, type FormEvent } from 'react'
-import { createRoute, redirect, useNavigate, useRouter } from '@tanstack/react-router'
+import { createRoute, redirect, useRouter } from '@tanstack/react-router'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Separator } from '../components/ui/separator'
+import { ApiPrincipalSchema } from '@nova/shared'
 import { ApiError, apiClient } from '../lib/api-client'
 import { currentUserQuery } from '../lib/current-user'
 import { queryClient } from '../lib/query-client'
-import { homeForUser, safeRedirectTarget } from '../lib/route-auth'
+import { destinationAfterLogin, loginAndCache } from '../lib/auth-session'
+import { homeForUser } from '../lib/route-auth'
 import { route as rootRoute } from './root'
 
 function LoginPage() {
-  const navigate = useNavigate()
   const router = useRouter()
   const { redirect: returnTo } = loginRoute.useSearch()
   const [email, setEmail] = useState('')
@@ -23,13 +24,16 @@ function LoginPage() {
     setIsSubmitting(true)
 
     try {
-      const { data } = await apiClient.POST('/api/auth/login', { body: credentials })
-      if (!data) throw new Error('The server returned an empty login response.')
-      queryClient.clear()
-      queryClient.setQueryData(['auth', 'me'], data.user)
-      const target = safeRedirectTarget(returnTo)
-      if (target) router.history.push(target)
-      else await navigate({ to: homeForUser(data.user) })
+      const user = await loginAndCache(
+        async () => {
+          const { data } = await apiClient.POST('/api/auth/login', { body: credentials })
+          return data ? ApiPrincipalSchema.parse(data.user) : undefined
+        },
+        () => queryClient.clear(),
+        (principal) => queryClient.setQueryData(['auth', 'me'], principal),
+      )
+      const target = destinationAfterLogin(returnTo, user)
+      router.history.push(target)
     } catch (cause) {
       setError(
         cause instanceof ApiError
@@ -111,6 +115,7 @@ function LoginPage() {
               <input
                 autoComplete="current-password"
                 className="h-9 w-full rounded-md border bg-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                maxLength={4096}
                 minLength={8}
                 onChange={(event) => setPassword(event.target.value)}
                 required

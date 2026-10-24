@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --experimental-strip-types --test test/*.test.mjs",
     "openapi:types": "openapi-typescript ../api/openapi.json -o src/lib/api-schema.d.ts"
   },
   "dependencies": {
