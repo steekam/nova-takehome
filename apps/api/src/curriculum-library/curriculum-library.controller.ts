@@ -51,10 +51,9 @@ export class CurriculumLibraryController {
     @Param('targetRevisionId') targetRevisionId: string,
     @CurrentUser() principal: ApiPrincipal,
     @Body(
-      new StandardSchemaPipe(
-        CurriculumLibrarySourceInputSchema,
-        'Correct the listed source fields and try again.',
-      ),
+      new StandardSchemaPipe(CurriculumLibrarySourceInputSchema, {
+        message: 'Correct the listed source fields and try again.',
+      }),
     )
     input: CurriculumLibrarySourceInput,
   ) {

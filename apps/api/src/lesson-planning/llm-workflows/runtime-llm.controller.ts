@@ -20,7 +20,11 @@ export class RuntimeLlmController {
   @ApiResponse({ status: 200, schema: { $ref: '#/components/schemas/RuntimeLlmModeStatus' } })
   @ApiResponse({ status: 400, schema: { $ref: '#/components/schemas/ApiErrorResponse' } })
   setMode(
-    @Body(new StandardSchemaPipe(RuntimeLlmModeRequestSchema, 'Choose either mock or live mode.'))
+    @Body(
+      new StandardSchemaPipe(RuntimeLlmModeRequestSchema, {
+        message: 'Choose either mock or live mode.',
+      }),
+    )
     body: { mode: LlmMode },
   ) {
     return this.provider.setMode(body.mode)
