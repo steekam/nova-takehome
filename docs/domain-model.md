@@ -206,7 +206,7 @@ erDiagram
   }
 ```
 
-An edit appends a plan version. `deletedAt` and a version's `targetRevisionId` are nullable. Generated versions pin their target and cite source chunks.
+An edit appends a plan version. `deletedAt` and a version's `targetRevisionId` are nullable. Generated versions pin one target revision and cite source chunks.
 
 | Related record | Key fields | Relationship and purpose |
 | --- | --- | --- |
@@ -217,6 +217,43 @@ An edit appends a plan version. `deletedAt` and a version's `targetRevisionId` a
 
 Review and validation use a composite foreign key so their version must belong to the stated plan. Later edits do not change the version that was reviewed or scored.
 
-The shared lesson content JSON has: title, subject, grade, learning outcome, duration, objectives, materials, starter, timed activities, check for understanding, and cited sources. Deterministic QA results are returned with the workflow. Schema, requested duration, target, and citation checks can block saving; activity-time totals are advisory warnings. Rubric QA is stored separately.
+Each plan version stores this content JSON:
+
+```json
+{
+  "title": "Elements and compounds",
+  "subject": "Integrated Science",
+  "grade": "Grade 8",
+  "learningOutcome": "Differentiate between atoms, elements, molecules and compounds",
+  "durationMinutes": 40,
+  "objectives": ["Classify examples as elements or compounds and explain the difference."],
+  "materials": ["Product labels", "Element-symbol cards"],
+  "starter": "Learners sort familiar product names into a first-guess grouping.",
+  "activities": [
+    {
+      "title": "Compare examples",
+      "description": "Use labels and cards to identify the elements named in each substance.",
+      "durationMinutes": 15
+    }
+  ],
+  "checkForUnderstanding": "Each learner classifies one new example and explains the evidence.",
+  "sources": [{ "documentId": "<resource UUID>", "chunkId": "<chunk UUID>" }]
+}
+```
+
+| Attribute | Meaning and relationship |
+| --- | --- |
+| `title` | Teacher-facing name for this plan. |
+| `subject`, `grade` | Readable snapshots of the selected offering and level. They are strings, not foreign keys. |
+| `learningOutcome` | Exact outcome wording copied for display. The relationship is `lesson_plan_versions.target_revision_id`, which points to the selected `curriculum_target_revisions` row. |
+| `durationMinutes` | Requested lesson length in minutes. It must match the generation request. |
+| `objectives` | Observable learner results the lesson aims to achieve. |
+| `materials` | Materials needed for the lesson. |
+| `starter` | Opening prompt or activity that brings learners into the topic. |
+| `activities` | Ordered lesson steps. Each has a `title`, teacher/learner `description`, and suggested `durationMinutes`; activity totals are advisory. |
+| `checkForUnderstanding` | What learners produce or do so the teacher can judge progress and respond. |
+| `sources` | Evidence cited by the plan. Each pair points to a `library_resources.id` (`documentId`) and a `library_resource_chunks.id` (`chunkId`); the chunk points to its immutable resource revision. |
+
+`sources` in JSON is also persisted as rows in `lesson_plan_version_sources`, linking the plan version to each cited chunk. Deterministic QA results are returned with the workflow. Schema, requested duration, target, and citation checks can block saving; activity-time totals are advisory warnings. Rubric QA is stored separately.
 
 `users` supplies teacher, lead, and attribution references. Authentication sessions and rate-limit counters support the application but are outside this product model.

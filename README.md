@@ -2,6 +2,8 @@
 
 A CBC lesson-planning prototype. Teachers create source-backed drafts; Curriculum Leads review and publish them.
 
+**[Watch the demo](https://www.loom.com/share/916db49d91a1469095cc6b8fbdc8dbe8)** · 3–5 minutes
+
 ## Start a tester environment
 
 Requires Node 24, pnpm 12.15.0, and Docker Compose. From a fresh checkout:
@@ -133,5 +135,3 @@ Use these references for implementation details:
 | Services and code boundaries | [Architecture](docs/architecture.md) |
 | Source intake, generation, and review | [Data flows](docs/data-flows.md) |
 | Prompts, traces, and telemetry | [Observability](docs/observability.md) |
-
-**Walkthrough:** The task asks for a 3–5 minute recording. Add the final Loom or Drive link before submission.
