@@ -20,6 +20,103 @@ export const CurriculumOutcomeDtoSchema = z
   .strict()
 export type CurriculumOutcomeDto = z.infer<typeof CurriculumOutcomeDtoSchema>
 
+export const CurriculumLibraryResourceTypeSchema = z.enum([
+  'curriculum_design',
+  'scheme_of_work',
+  'assessment_items',
+  'teaching_note',
+  'lead_guidance',
+  'exemplar',
+])
+export type CurriculumLibraryResourceType = z.infer<typeof CurriculumLibraryResourceTypeSchema>
+
+export const CurriculumSourceMetadataSchema = z
+  .object({
+    framework: z.string().trim().min(1).max(120).optional(),
+    programme: z.string().trim().min(1).max(120).optional(),
+    grade: z.string().trim().min(1).max(80).optional(),
+    subject: z.string().trim().min(1).max(120).optional(),
+    language: z.string().trim().min(2).max(35).optional(),
+    publisher: z.string().trim().min(1).max(200).optional(),
+    sourceAuthority: z.string().trim().min(1).max(200).optional(),
+    publicationDate: z.string().date().optional(),
+    attributes: z
+      .record(
+        z.string().trim().min(1).max(100),
+        z.union([z.string().max(1000), z.number(), z.boolean(), z.null()]),
+      )
+      .optional(),
+  })
+  .strict()
+export type CurriculumSourceMetadata = z.infer<typeof CurriculumSourceMetadataSchema>
+
+export const CurriculumChunkMetadataSchema = z
+  .object({
+    kind: z.string().trim().min(1).max(80).optional(),
+    headingPath: z.array(z.string().trim().min(1).max(200)).max(16).optional(),
+    outcomeCodes: z.array(z.string().trim().min(1).max(80)).max(100).optional(),
+    itemId: z.string().trim().min(1).max(100).optional(),
+    relatedItemIds: z.array(z.string().trim().min(1).max(100)).max(100).optional(),
+    instrument: z.string().trim().min(1).max(100).optional(),
+    term: z.number().int().positive().optional(),
+    week: z.number().int().positive().optional(),
+    periodStart: z.number().int().positive().optional(),
+    periodEnd: z.number().int().positive().optional(),
+    marks: z.number().nonnegative().optional(),
+    sourceLineStart: z.number().int().positive().optional(),
+    sourceLineEnd: z.number().int().positive().optional(),
+    printedPageStart: z.number().int().positive().optional(),
+    printedPageEnd: z.number().int().positive().optional(),
+    pdfPageStart: z.number().int().positive().optional(),
+    pdfPageEnd: z.number().int().positive().optional(),
+    attributes: z
+      .record(
+        z.string().trim().min(1).max(100),
+        z.union([z.string().max(1000), z.number(), z.boolean(), z.null()]),
+      )
+      .optional(),
+  })
+  .strict()
+  .superRefine((metadata, context) => {
+    for (const [startKey, endKey] of [
+      ['sourceLineStart', 'sourceLineEnd'],
+      ['printedPageStart', 'printedPageEnd'],
+      ['pdfPageStart', 'pdfPageEnd'],
+      ['periodStart', 'periodEnd'],
+    ] as const) {
+      const start = metadata[startKey]
+      const end = metadata[endKey]
+      if (start !== undefined && end !== undefined && end < start) {
+        context.addIssue({
+          code: 'custom',
+          path: [endKey],
+          message: `${endKey} must be greater than or equal to ${startKey}.`,
+        })
+      }
+    }
+  })
+export type CurriculumChunkMetadata = z.infer<typeof CurriculumChunkMetadataSchema>
+
+export const CurriculumLibrarySourceChunkInputSchema = z
+  .object({
+    content: z.string().trim().min(1).max(20000),
+    locator: z.string().trim().max(200).optional(),
+    metadata: CurriculumChunkMetadataSchema.default({}),
+  })
+  .strict()
+export type CurriculumLibrarySourceChunkInput = z.infer<
+  typeof CurriculumLibrarySourceChunkInputSchema
+>
+
+export const CurriculumSourceFormatSchema = z.enum([
+  'plain_text',
+  'markdown',
+  'html',
+  'docx',
+  'pdf',
+  'normalized',
+])
+
 export const CurriculumSourceDtoSchema = z
   .object({
     linkId: z.string().uuid().nullable(),
@@ -27,14 +124,7 @@ export const CurriculumSourceDtoSchema = z
     resourceRevisionId: z.string().uuid(),
     revisionNumber: z.number().int().positive(),
     chunkId: z.string().uuid(),
-    resourceType: z.enum([
-      'curriculum_design',
-      'scheme_of_work',
-      'assessment_item',
-      'teaching_note',
-      'lead_guidance',
-      'exemplar',
-    ]),
+    resourceType: CurriculumLibraryResourceTypeSchema,
     title: z.string(),
     subject: z.string(),
     grade: z.string(),
@@ -43,6 +133,9 @@ export const CurriculumSourceDtoSchema = z
     editionLabel: z.string().nullable(),
     sourceUrl: z.string().nullable(),
     locator: z.string().nullable(),
+    sourceLocator: z.string().nullable(),
+    resourceMetadata: CurriculumSourceMetadataSchema,
+    metadata: CurriculumChunkMetadataSchema.optional(),
     synthetic: z.boolean(),
     role: z.enum([
       'defines_target',
@@ -212,21 +305,20 @@ export const CurriculumSourceLinkResultSchema = z
 
 export const CurriculumLibrarySourceInputSchema = z
   .object({
+    sourceKey: z.string().trim().min(1).max(200).optional(),
     resourceId: z.string().uuid().optional(),
     title: z.string().trim().min(1).max(200),
-    resourceType: z.enum([
-      'curriculum_design',
-      'scheme_of_work',
-      'assessment_item',
-      'teaching_note',
-      'lead_guidance',
-      'exemplar',
-    ]),
+    resourceType: CurriculumLibraryResourceTypeSchema,
     authority: z.enum(['official', 'school', 'internal', 'synthetic']),
     editionLabel: z.string().trim().max(120).optional(),
     sourceUrl: z.string().url().optional(),
     locator: z.string().trim().max(200).optional(),
-    content: z.string().trim().min(20).max(20000),
+    content: z.string().trim().min(20).max(250000),
+    sourceFormat: CurriculumSourceFormatSchema.optional(),
+    parserVersion: z.string().trim().min(1).max(80).optional(),
+    chunkerVersion: z.string().trim().min(1).max(80).optional(),
+    resourceMetadata: CurriculumSourceMetadataSchema.optional(),
+    chunks: z.array(CurriculumLibrarySourceChunkInputSchema).min(1).max(1000).optional(),
     role: z.enum([
       'defines_target',
       'teaching_support',
@@ -237,6 +329,40 @@ export const CurriculumLibrarySourceInputSchema = z
   })
   .strict()
   .superRefine((source, context) => {
+    if (
+      !source.chunks &&
+      ['html', 'docx', 'pdf', 'normalized'].includes(source.sourceFormat ?? '')
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['chunks'],
+        message: 'This source format needs chunks from a format adapter.',
+      })
+    }
+    if (source.chunks && !source.chunkerVersion) {
+      context.addIssue({
+        code: 'custom',
+        path: ['chunkerVersion'],
+        message: 'Structured chunks need a chunker version.',
+      })
+    }
+    if (source.chunks && source.sourceFormat !== 'normalized' && !source.parserVersion) {
+      context.addIssue({
+        code: 'custom',
+        path: ['parserVersion'],
+        message: 'Adapter-produced chunks need a parser version.',
+      })
+    }
+    if (
+      source.chunks &&
+      source.chunks.reduce((total, chunk) => total + chunk.content.length, 0) > 250000
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['chunks'],
+        message: 'Combined chunk content must not exceed 250000 characters.',
+      })
+    }
     if (source.authority === 'official' && !source.sourceUrl) {
       context.addIssue({
         code: 'custom',
@@ -266,4 +392,13 @@ export const CurriculumLibrarySourceInputSchema = z
         })
     }
   })
+  .refine((source) => !(source.sourceKey && source.resourceId), {
+    path: ['sourceKey'],
+    message: 'Use either sourceKey or resourceId, not both.',
+  })
 export type CurriculumLibrarySourceInput = z.infer<typeof CurriculumLibrarySourceInputSchema>
+
+export const CurriculumMarkdownSourceInputSchema = z
+  .object({ markdown: z.string().trim().min(20).max(250000) })
+  .strict()
+export type CurriculumMarkdownSourceInput = z.infer<typeof CurriculumMarkdownSourceInputSchema>

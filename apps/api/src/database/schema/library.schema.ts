@@ -1,6 +1,7 @@
 import {
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -9,12 +10,14 @@ import {
   uuid,
   vector,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import type { CurriculumChunkMetadata, CurriculumSourceMetadata } from '@nova/shared'
 import { users } from './identity.schema'
 
 export const libraryResourceType = pgEnum('library_resource_type', [
   'curriculum_design',
   'scheme_of_work',
-  'assessment_item',
+  'assessment_items',
   'teaching_note',
   'lead_guidance',
   'exemplar',
@@ -33,13 +36,22 @@ export const libraryRevisionStatus = pgEnum('library_revision_status', [
   'retired',
 ])
 
-export const libraryResources = pgTable('library_resources', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  resourceType: libraryResourceType('resource_type').notNull(),
-  title: text('title').notNull(),
-  authority: libraryAuthority('authority').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-})
+export const libraryResources = pgTable(
+  'library_resources',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    sourceKey: text('source_key'),
+    resourceType: libraryResourceType('resource_type').notNull(),
+    title: text('title').notNull(),
+    authority: libraryAuthority('authority').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('library_resources_source_key_idx')
+      .on(table.sourceKey)
+      .where(sql`${table.sourceKey} is not null`),
+  ],
+)
 
 export const libraryResourceRevisions = pgTable(
   'library_resource_revisions',
@@ -51,8 +63,18 @@ export const libraryResourceRevisions = pgTable(
     revisionNumber: integer('revision_number').notNull(),
     editionLabel: text('edition_label'),
     sourceUrl: text('source_url'),
+    sourceLocator: text('source_locator'),
+    resourceMetadata: jsonb('resource_metadata')
+      .$type<CurriculumSourceMetadata>()
+      .notNull()
+      .default({}),
     contentHash: text('content_hash').notNull(),
+    pipelineFingerprint: text('pipeline_fingerprint').notNull(),
     content: text('content').notNull(),
+    sourceFormat: text('source_format').notNull().default('plain_text'),
+    parserVersion: text('parser_version').notNull().default('plain-text-v1'),
+    chunkerVersion: text('chunker_version').notNull().default('paragraph-v1'),
+    embeddingModel: text('embedding_model').notNull().default('unknown'),
     status: libraryRevisionStatus('status').default('draft').notNull(),
     createdBy: uuid('created_by').references(() => users.id),
     publishedAt: timestamp('published_at', { withTimezone: true }),
@@ -63,6 +85,7 @@ export const libraryResourceRevisions = pgTable(
       table.resourceId,
       table.revisionNumber,
     ),
+    index('library_resource_revisions_metadata_idx').using('gin', table.resourceMetadata),
   ],
 )
 
@@ -75,6 +98,7 @@ export const libraryResourceChunks = pgTable(
       .notNull(),
     ordinal: integer('ordinal').notNull(),
     locator: text('locator'),
+    metadata: jsonb('metadata').$type<CurriculumChunkMetadata>().notNull().default({}),
     content: text('content').notNull(),
     embedding: vector('embedding', { dimensions: 384 }).notNull(),
   },
@@ -83,6 +107,7 @@ export const libraryResourceChunks = pgTable(
       table.resourceRevisionId,
       table.ordinal,
     ),
+    index('library_resource_chunks_metadata_idx').using('gin', table.metadata),
     index('library_resource_chunks_embedding_hnsw_idx').using(
       'hnsw',
       table.embedding.op('vector_cosine_ops'),

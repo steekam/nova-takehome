@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { and, asc, count, countDistinct, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, count, countDistinct, desc, eq, inArray, ne, or, sql } from 'drizzle-orm'
 import { DatabaseService } from '../database/database.service'
 import type { DbExecutor } from '../database/executor'
 import {
@@ -245,6 +245,15 @@ export class CurriculumLibraryRepository {
       .limit(1)
   }
 
+  resourceBySourceKey(sourceKey: string, executor: DbExecutor = this.database.db) {
+    return executor
+      .select()
+      .from(libraryResources)
+      .where(eq(libraryResources.sourceKey, sourceKey))
+      .for('update')
+      .limit(1)
+  }
+
   latestResourceRevision(resourceId: string, executor: DbExecutor = this.database.db) {
     return executor
       .select()
@@ -256,13 +265,15 @@ export class CurriculumLibraryRepository {
 
   createResource(
     values: {
+      sourceKey?: string
       resourceType: typeof libraryResources.$inferInsert.resourceType
       title: string
       authority: typeof libraryResources.$inferInsert.authority
     },
     executor: DbExecutor = this.database.db,
   ) {
-    return executor.insert(libraryResources).values(values).returning()
+    const insert = executor.insert(libraryResources).values(values)
+    return values.sourceKey ? insert.onConflictDoNothing().returning() : insert.returning()
   }
 
   createResourceRevision(
@@ -283,7 +294,69 @@ export class CurriculumLibraryRepository {
     values: typeof curriculumSourceLinks.$inferInsert,
     executor: DbExecutor = this.database.db,
   ) {
-    return executor.insert(curriculumSourceLinks).values(values).returning()
+    return executor.insert(curriculumSourceLinks).values(values).onConflictDoNothing().returning()
+  }
+
+  sourceLinkForTarget(
+    targetRevisionId: string,
+    resourceRevisionId: string,
+    role: typeof curriculumSourceLinks.$inferInsert.role,
+    executor: DbExecutor = this.database.db,
+  ) {
+    return executor
+      .select()
+      .from(curriculumSourceLinks)
+      .where(
+        and(
+          eq(curriculumSourceLinks.targetRevisionId, targetRevisionId),
+          eq(curriculumSourceLinks.resourceRevisionId, resourceRevisionId),
+          eq(curriculumSourceLinks.role, role),
+        ),
+      )
+      .limit(1)
+  }
+
+  chunksForRevision(revisionId: string, executor: DbExecutor = this.database.db) {
+    return executor
+      .select({ id: libraryResourceChunks.id, locator: libraryResourceChunks.locator })
+      .from(libraryResourceChunks)
+      .where(eq(libraryResourceChunks.resourceRevisionId, revisionId))
+      .orderBy(asc(libraryResourceChunks.ordinal))
+  }
+
+  async retireSupersededLinks(
+    targetRevisionId: string,
+    resourceId: string,
+    role: typeof curriculumSourceLinks.$inferInsert.role,
+    exceptLinkId: string,
+    executor: DbExecutor = this.database.db,
+  ) {
+    const links = await executor
+      .select({ id: curriculumSourceLinks.id })
+      .from(curriculumSourceLinks)
+      .innerJoin(
+        libraryResourceRevisions,
+        eq(curriculumSourceLinks.resourceRevisionId, libraryResourceRevisions.id),
+      )
+      .where(
+        and(
+          eq(curriculumSourceLinks.targetRevisionId, targetRevisionId),
+          eq(libraryResourceRevisions.resourceId, resourceId),
+          eq(curriculumSourceLinks.role, role),
+          eq(curriculumSourceLinks.status, 'published'),
+          ne(curriculumSourceLinks.id, exceptLinkId),
+        ),
+      )
+    if (!links.length) return
+    await executor
+      .update(curriculumSourceLinks)
+      .set({ status: 'retired' })
+      .where(
+        inArray(
+          curriculumSourceLinks.id,
+          links.map(({ id }) => id),
+        ),
+      )
   }
 
   sourceLinkForUpdate(id: string, executor: DbExecutor = this.database.db) {
@@ -301,18 +374,6 @@ export class CurriculumLibraryRepository {
       .from(libraryResourceRevisions)
       .where(eq(libraryResourceRevisions.id, id))
       .for('update')
-      .limit(1)
-  }
-
-  resource(id: string, executor: DbExecutor = this.database.db) {
-    return executor.select().from(libraryResources).where(eq(libraryResources.id, id)).limit(1)
-  }
-
-  firstChunkForRevision(revisionId: string, executor: DbExecutor = this.database.db) {
-    return executor
-      .select()
-      .from(libraryResourceChunks)
-      .where(eq(libraryResourceChunks.resourceRevisionId, revisionId))
       .limit(1)
   }
 
@@ -352,7 +413,7 @@ export class CurriculumLibraryRepository {
       },
       with: {
         targetRevision: {
-          columns: { id: true },
+          columns: { id: true, sourceLocator: true },
           with: {
             designVersion: {
               columns: { offeringId: true },
@@ -374,43 +435,64 @@ export class CurriculumLibraryRepository {
             revisionNumber: true,
             editionLabel: true,
             sourceUrl: true,
+            sourceLocator: true,
+            resourceMetadata: true,
             status: true,
           },
           with: {
             resource: { columns: { id: true, resourceType: true, title: true, authority: true } },
-            chunks: { columns: { id: true, locator: true, content: true } },
+            chunks: { columns: { id: true, locator: true, metadata: true, content: true } },
           },
         },
       },
     })
 
-    return links.flatMap((link) =>
-      link.resourceRevision.chunks.map((chunk) => ({
-        linkId: link.id,
-        targetRevisionId: link.targetRevisionId,
-        role: link.role,
-        linkStatus: link.status,
-        documentId: link.resourceRevision.resource.id,
-        resourceRevisionId: link.resourceRevision.id,
-        revisionNumber: link.resourceRevision.revisionNumber,
-        chunkId: chunk.id,
-        resourceType: link.resourceRevision.resource.resourceType,
-        title: link.resourceRevision.resource.title,
-        authority: link.resourceRevision.resource.authority,
-        editionLabel: link.resourceRevision.editionLabel,
-        sourceUrl: link.resourceRevision.sourceUrl,
-        subject: link.targetRevision.designVersion.offering.subject.name,
-        grade: link.targetRevision.designVersion.offering.level?.label ?? null,
-        locator: chunk.locator,
-        content: chunk.content,
-        revisionStatus: link.resourceRevision.status,
-      })),
-    )
+    return links.flatMap((link) => {
+      const chunks = link.resourceRevision.chunks
+      const hasOutcomeScopedChunks = chunks.some((chunk) => chunk.metadata.outcomeCodes?.length)
+      return chunks
+        .filter((chunk) =>
+          isChunkForTarget(
+            chunk.metadata,
+            link.targetRevision.sourceLocator,
+            link.role,
+            hasOutcomeScopedChunks,
+          ),
+        )
+        .map((chunk) => ({
+          linkId: link.id,
+          targetRevisionId: link.targetRevisionId,
+          role: link.role,
+          linkStatus: link.status,
+          documentId: link.resourceRevision.resource.id,
+          resourceRevisionId: link.resourceRevision.id,
+          revisionNumber: link.resourceRevision.revisionNumber,
+          chunkId: chunk.id,
+          resourceType: link.resourceRevision.resource.resourceType,
+          title: link.resourceRevision.resource.title,
+          authority: link.resourceRevision.resource.authority,
+          editionLabel: link.resourceRevision.editionLabel,
+          sourceUrl: link.resourceRevision.sourceUrl,
+          sourceLocator: link.resourceRevision.sourceLocator,
+          resourceMetadata: link.resourceRevision.resourceMetadata,
+          subject: link.targetRevision.designVersion.offering.subject.name,
+          grade: link.targetRevision.designVersion.offering.level?.label ?? null,
+          locator: chunk.locator,
+          metadata: chunk.metadata,
+          content: chunk.content,
+          revisionStatus: link.resourceRevision.status,
+        }))
+    })
   }
 
   sourceChunksForTarget(targetRevisionId: string, embedding: number[], limit: number) {
     const vectorText = `[${embedding.join(',')}]`
     const distance = sql<number>`${libraryResourceChunks.embedding} <=> ${vectorText}::vector`
+    const hasOutcomeScopedChunks = sql`exists (
+      select 1 from library_resource_chunks scoped
+      where scoped.resource_revision_id = ${libraryResourceChunks.resourceRevisionId}
+        and coalesce(jsonb_array_length(scoped.metadata->'outcomeCodes'), 0) > 0
+    )`
     return this.database.db
       .select({
         linkId: curriculumSourceLinks.id,
@@ -423,13 +505,20 @@ export class CurriculumLibraryRepository {
         authority: libraryResources.authority,
         editionLabel: libraryResourceRevisions.editionLabel,
         sourceUrl: libraryResourceRevisions.sourceUrl,
+        sourceLocator: libraryResourceRevisions.sourceLocator,
+        resourceMetadata: libraryResourceRevisions.resourceMetadata,
         locator: libraryResourceChunks.locator,
+        metadata: libraryResourceChunks.metadata,
         content: libraryResourceChunks.content,
         role: curriculumSourceLinks.role,
         linkStatus: curriculumSourceLinks.status,
         revisionStatus: libraryResourceRevisions.status,
       })
       .from(curriculumSourceLinks)
+      .innerJoin(
+        curriculumTargetRevisions,
+        eq(curriculumSourceLinks.targetRevisionId, curriculumTargetRevisions.id),
+      )
       .innerJoin(
         libraryResourceRevisions,
         eq(curriculumSourceLinks.resourceRevisionId, libraryResourceRevisions.id),
@@ -444,6 +533,11 @@ export class CurriculumLibraryRepository {
           eq(curriculumSourceLinks.targetRevisionId, targetRevisionId),
           eq(curriculumSourceLinks.status, 'published'),
           eq(libraryResourceRevisions.status, 'published'),
+          or(
+            sql`${curriculumSourceLinks.role} = 'defines_target' and not (${hasOutcomeScopedChunks})`,
+            sql`${libraryResourceChunks.metadata}->'outcomeCodes' ? ${curriculumTargetRevisions.sourceLocator}`,
+            sql`${curriculumSourceLinks.role} <> 'defines_target' and coalesce(jsonb_array_length(${libraryResourceChunks.metadata}->'outcomeCodes'), 0) = 0`,
+          ),
         ),
       )
       .orderBy(distance, asc(curriculumSourceLinks.role), asc(curriculumSourceLinks.id))
@@ -471,7 +565,10 @@ export class CurriculumLibraryRepository {
           authority,
           editionLabel,
           sourceUrl,
+          sourceLocator,
+          resourceMetadata,
           locator,
+          metadata,
           content,
           role,
           linkStatus,
@@ -487,7 +584,10 @@ export class CurriculumLibraryRepository {
           authority,
           editionLabel,
           sourceUrl,
+          sourceLocator,
+          resourceMetadata,
           locator,
+          metadata,
           content,
           role,
           linkStatus,
@@ -495,4 +595,16 @@ export class CurriculumLibraryRepository {
         }),
       )
   }
+}
+
+function isChunkForTarget(
+  metadata: { outcomeCodes?: string[] },
+  targetLocator: string | null,
+  role: typeof curriculumSourceLinks.$inferSelect.role,
+  hasOutcomeScopedChunks: boolean,
+) {
+  const codes = metadata.outcomeCodes ?? []
+  if (role === 'defines_target')
+    return hasOutcomeScopedChunks ? targetLocator !== null && codes.includes(targetLocator) : true
+  return !codes.length || (targetLocator !== null && codes.includes(targetLocator))
 }

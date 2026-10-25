@@ -1,0 +1,2 @@
+ALTER TABLE "library_resource_chunks" ADD COLUMN "metadata" jsonb DEFAULT '{}' NOT NULL;--> statement-breakpoint
+CREATE INDEX "library_resource_chunks_metadata_idx" ON "library_resource_chunks" USING gin ("metadata");

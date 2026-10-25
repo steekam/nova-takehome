@@ -1,92 +1,73 @@
 # Architecture
 
-Use this page to locate services, code responsibilities, and access rules. See the [README](../README.md) to run the demo.
+Use this page to trace runtime boundaries and find the code that owns a change. See the [data model](domain-model.md) for records and [data flows](data-flows.md) for workflow steps.
 
-## Application path
-
-```mermaid
-flowchart TB
-  Teacher[Teacher] --> Browser[Browser]
-  Lead[Curriculum Lead] --> Browser
-  Browser --> Web[React + TanStack Router]
-  Web -->|HTTP + cookie auth| API[NestJS API]
-  API -->|Drizzle| PG[(PostgreSQL + pgvector)]
-```
-
-## Model routing
+## Application and model route
 
 ```mermaid
 flowchart LR
-  API[NestJS API] --> Runtime[Model runtime]
-  Runtime -->|mock| Mock[Deterministic mock adapter]
-  Runtime -->|live| Adapter[OpenAI-compatible adapter]
-  Adapter --> LiteLLM[LiteLLM proxy · full profile]
-  LiteLLM -->|model alias routing| Provider[Baseten or configured provider]
+  Teacher["Teacher"] --> Web["React web<br/>TanStack Router"]
+  Lead["Curriculum Lead"] --> Web
+  Web -->|HTTP + cookie auth| API["NestJS API"]
+  API -->|Drizzle| DB[("PostgreSQL + pgvector")]
+  API --> BGE["BGE-small local encoder<br/>384 dimensions"]
+  BGE -->|vectors| DB
+  DB -->|target-scoped evidence| API
+  API -->|mock mode| Mock["Mock provider"]
+  API -->|live mode| Adapter["OpenAI-compatible provider"]
+  Adapter --> Runtime["@nova/model-runtime<br/>Vercel AI SDK"]
+  Runtime -->|direct endpoint| Provider["Configured provider"]
+  Runtime -->|when configured| LiteLLM["LiteLLM proxy<br/>full demo"]
+  LiteLLM -->|model aliases| Provider
 ```
 
-The OpenAI-compatible adapter can call a provider directly. The full demo routes through LiteLLM for model aliases and provider routing.
+## AI and service telemetry
 
-## Embedding and retrieval
+The API creates AI observations with `@langfuse/tracing`; `LangfuseSpanProcessor` forwards only spans from the `langfuse-sdk` scope. Other API and LiteLLM signals go through the OpenTelemetry Collector.
 
 ```mermaid
 flowchart LR
-  API[NestJS API] -->|source chunks or target query| BGE[BGE-small · local, 384 dimensions]
-  BGE --> Cache[Local embedding cache]
-  Cache --> PG[(PostgreSQL + pgvector)]
-  PG --> Evidence[Target-scoped retrieved evidence]
-  Evidence --> API
+  API["API"] -->|AI SDK spans via scoped Langfuse processor| Langfuse["Langfuse"]
+  API -->|OTLP| Collector["OpenTelemetry Collector"]
+  LiteLLM["LiteLLM"] -->|OTLP| Collector
+  Collector --> Tempo["Tempo"]
+  Collector --> Prometheus["Prometheus"]
+  Collector --> Loki["Loki"]
+  Grafana["Grafana"] --> Tempo
+  Grafana --> Prometheus
+  Grafana --> Loki
+  API -->|Nova database| PostgreSQL[("Shared PostgreSQL")]
+  LiteLLM -->|LiteLLM database| PostgreSQL
+  Langfuse -->|Langfuse database| PostgreSQL
+  Langfuse --> Redis["Redis queues"]
+  Langfuse --> ClickHouse["ClickHouse"]
+  Langfuse --> MinIO["MinIO object storage"]
 ```
 
-## Local services
+## Demo modes
 
-The Compose profiles share one PostgreSQL service:
+The demo commands select the core services or the full observability stack:
 
-| Profile | Services |
+| Command | Services |
 | --- | --- |
-| Lite | PostgreSQL, API, web |
-| Full | Lite services plus LiteLLM, Langfuse, Redis, ClickHouse, MinIO, and the OpenTelemetry/Grafana stack |
+| `pnpm demo:up` | PostgreSQL, API bootstrap, API, and web. Uses mock AI. |
+| `pnpm demo:full` | Core services plus LiteLLM, Langfuse, Redis, ClickHouse, MinIO, OpenTelemetry Collector, Tempo, Prometheus, Loki, and Grafana. |
 
-PostgreSQL hosts separate Nova, LiteLLM, and Langfuse databases. Langfuse web and worker use Redis queues; the API does not use Redis as an application cache. See [observability](observability.md) for signal routing.
+The API bootstrap job runs migrations and seeds data before the API starts. Both modes default to deterministic mock AI. Mock output is visibly labelled and uses sub-strand scaffolds to exercise generation, source display, validation, and review. It does not measure lesson quality; use a live provider for that. In full mode, select Live and configure an OpenAI-compatible endpoint. `COMPOSE_LLM_BASE_URL` defaults to LiteLLM, which routes model aliases; set it to a provider endpoint to bypass the proxy. One PostgreSQL service hosts separate Nova, LiteLLM, and Langfuse databases. Redis serves Langfuse queues; the API stores rate-limit counters in PostgreSQL.
 
-## Code map
+## Code ownership
 
-The main directories own these responsibilities:
+Feature modules own their HTTP routes, use cases, and repositories. The API authorizes actions and enforces plan ownership and state transitions; web role guards shape navigation only.
 
-```text
-apps/
-  api/                 HTTP, authentication, policies, use cases, persistence, retrieval
-  web/                 Screens, forms, routing, typed HTTP calls
-packages/
-  shared/              Zod request and response contracts
-  model-runtime/       Provider adapters
-```
+| Code | Owns |
+| --- | --- |
+| `apps/web` | React screens, TanStack Router, and generated API client types. |
+| `apps/api/src/common` | Request handling, authentication and policy guards, validation, errors, and security plumbing. |
+| `apps/api/src/curriculum-library` | Curriculum catalogue, source lifecycle, and target-scoped retrieval. |
+| `apps/api/src/lesson-planning` | Plan operations and the nested generation, validation, and rubric workflows. |
+| `apps/api/src/database` | Drizzle schemas, database connection/executor, and CRUD primitives. |
+| `apps/api/src/embeddings` | Local embedding adapter and cache. |
+| `packages/shared` | Zod API contracts, permissions, and shared types. |
+| `packages/model-runtime` | OpenAI-compatible model calls and provider error classification through the Vercel AI SDK. |
 
-Database tables live in feature files under `apps/api/src/database/schema`; feature repositories use Drizzle. Shared contracts produce the OpenAPI description and web client types. The API owns embedding and retrieval.
-
-## Access rules
-
-The API requires authentication, checks capabilities, then enforces plan ownership and workflow state. Web role guards choose the workspace; the API remains responsible for authorization.
-
-| Action | Teacher | Curriculum Lead |
-| --- | --- | --- |
-| List or read plans | Own plans and published plans | Submitted and published plans |
-| Generate | Yes | — |
-| Edit | Own Draft or Returned plans | — |
-| Submit | Own Draft plans | — |
-| Delete | Own unreviewed Draft plans | — |
-| Run rubric QA | Any readable plan | Any readable plan |
-| Return or publish | — | Submitted plans |
-| Browse library | Published catalogue and sources | Also draft designs and source revisions/links |
-| Add or publish sources | — | Yes |
-| Read or change LLM mode | Yes | Yes |
-
-Source management is API-only; the web library does not expose those actions. Source intake creates a resource or revision, chunks, and a draft target link. Publication is a separate action. See [data flows](data-flows.md) for the workflow.
-
-## Add a workflow
-
-Follow the existing contract-to-screen path:
-
-1. Define the request and response in `packages/shared`.
-2. Add the API use case and repository operations. Commit state changes and their version/review records in one transaction.
-3. Expose the controller route and connect the web client and screen.
-4. Trace AI work at the AI workflow boundary. Keep ordinary HTTP and database spans in OpenTelemetry.
+Shared workflow schemas are validated by the Standard Schema pipe and referenced in OpenAPI. The web API client types are generated from OpenAPI. See [observability](observability.md) for signal routing and trace details.

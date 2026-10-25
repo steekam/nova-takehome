@@ -66,8 +66,9 @@ function printSummary(full) {
       : '.env.local'
     : 'default Compose services'
   const requestedLive = full && configured('LLM_PROVIDER') === 'openai-compatible'
+  const baseUrl = configured('COMPOSE_LLM_BASE_URL') || configured('LLM_BASE_URL')
   const missing = [
-    ...(!configured('LLM_BASE_URL') ? ['LLM_BASE_URL'] : []),
+    ...(!baseUrl ? ['COMPOSE_LLM_BASE_URL'] : []),
     ...(!configured('LLM_GENERATOR_MODEL') && !configured('LLM_MODEL')
       ? ['LLM_GENERATOR_MODEL']
       : []),
@@ -81,6 +82,8 @@ function printSummary(full) {
   process.stdout.write(
     `LLM config default   ${provider} (${modeSource}; app header shows current runtime mode)\n`,
   )
+  if (provider === 'mock')
+    process.stdout.write('Mock generation is for workflow checks; use Live mode to assess lesson quality.\n')
   process.stdout.write(
     `Langfuse prompts     ${full && configured('LANGFUSE_USE_MANAGED_PROMPTS') !== 'false' ? `${configured('LANGFUSE_PROMPT_LABEL') || 'production'} label` : 'code fallback'}\n`,
   )

@@ -47,6 +47,7 @@ if (existingKey) {
     const body = await response.json()
     if (
       body.info?.key_alias === 'nova-api' &&
+      body.info.max_budget == null &&
       models.every((model) => body.info.models?.includes(model))
     ) {
       process.stdout.write('Existing LiteLLM API key is valid for the configured model aliases.\n')
@@ -61,8 +62,6 @@ const response = await fetch(`${proxyUrl}/key/generate`, {
   body: JSON.stringify({
     models,
     key_alias: 'nova-api',
-    max_budget: 0.5,
-    budget_duration: '30d',
     duration: '30d',
   }),
 })
@@ -90,5 +89,5 @@ else lines.push(keyLine)
 writeFileSync(envPath, `${lines.join('\n').replace(/\n+$/, '')}\n`, { mode: 0o600 })
 chmodSync(envPath, 0o600)
 process.stdout.write(
-  'Created a 30-day API virtual key scoped to lesson-planner with a $0.50 spend budget; saved it in .env.local.\n',
+  'Created a 30-day API virtual key scoped to lesson-planner with no per-key spend budget; saved it in .env.local.\n',
 )

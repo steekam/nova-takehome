@@ -4,6 +4,8 @@ import {
   CurriculumLibrarySourceInputSchema,
   type ApiPrincipal,
   type CurriculumLibrarySourceInput,
+  CurriculumMarkdownSourceInputSchema,
+  type CurriculumMarkdownSourceInput,
 } from '@nova/shared'
 import { CurrentUser } from '../common/auth/current-user.decorator'
 import { Can } from '../common/auth/policy'
@@ -62,6 +64,24 @@ export class CurriculumLibraryController {
     input: CurriculumLibrarySourceInput,
   ) {
     return this.library.addSource(targetRevisionId, input, principal)
+  }
+
+  @Post('curriculum/library/targets/:targetRevisionId/sources/markdown')
+  @ApiBody({ schema: { $ref: '#/components/schemas/CurriculumMarkdownSourceInput' } })
+  @ApiResponse({ status: 201, schema: { $ref: '#/components/schemas/CurriculumSourceLinkResult' } })
+  @ApiResponse({ status: 400, schema: { $ref: '#/components/schemas/ValidationErrorResponse' } })
+  @Can(CurriculumSourcePolicy, 'add')
+  async addMarkdownSource(
+    @Param('targetRevisionId') targetRevisionId: string,
+    @CurrentUser() principal: ApiPrincipal,
+    @Body(
+      new StandardSchemaPipe(CurriculumMarkdownSourceInputSchema, {
+        message: 'Provide a Markdown source with valid frontmatter and readable content.',
+      }),
+    )
+    input: CurriculumMarkdownSourceInput,
+  ) {
+    return this.library.addMarkdownSource(targetRevisionId, input.markdown, principal)
   }
 
   @Post('curriculum/library/source-links/:linkId/publish')

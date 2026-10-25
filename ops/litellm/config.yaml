@@ -22,5 +22,3 @@ general_settings:
 
 litellm_settings:
   callbacks: [prometheus, otel]
-  max_budget: 1.0
-  budget_duration: 1h

@@ -1,17 +1,17 @@
 # Curriculum Design Hub
 
-A CBC lesson-planning demo. Teachers generate source-backed drafts, edit them, and submit them for Curriculum Lead review.
+A CBC lesson-planning prototype. Teachers create source-backed drafts; Curriculum Leads review and publish them.
 
-## Run the demo
+## Start a tester environment
 
-Requires Node 24, pnpm 12.11.2, and Docker Compose. Install dependencies and start the lite profile:
+Requires Node 24, pnpm 12.11.2, and Docker Compose. From a fresh checkout:
 
 ```sh
 pnpm install
 pnpm demo:up
 ```
 
-Startup migrates, seeds, checks health, and prints URLs. Lite runs PostgreSQL, API, and web with mock AI. The first run downloads the embedding model.
+Startup builds the app, migrates the database, seeds the corpus, checks health, and prints URLs. The first run downloads the local embedding model and can take longer. No LLM key is needed for the workflow smoke test.
 
 Open [localhost:5173/login](http://localhost:5173/login) and sign in with either account:
 
@@ -20,7 +20,9 @@ Open [localhost:5173/login](http://localhost:5173/login) and sign in with either
 | Teacher | `teacher@example.test` | `NovaLocal123!` |
 | Curriculum Lead | `curriculum-lead@example.test` | `NovaLocal123!` |
 
-Sign out to switch roles. Use these commands to manage the stack:
+Use the Teacher demo login for generation. Sign out and use the Curriculum Lead demo login for review. `pnpm demo:down` stops the services but keeps database contents and saved plans.
+
+Use these commands to manage the stack:
 
 | Command | Purpose |
 | --- | --- |
@@ -29,21 +31,27 @@ Sign out to switch roles. Use these commands to manage the stack:
 | `pnpm demo:check:full` | Check the full profile and print URLs. |
 | `pnpm demo:down` | Stop services and keep data. |
 
-## Try the workflow
+## Curriculum sample
 
-Use CBC → Junior School → Grade 8 → Integrated Science → July 2024 to generate from any `1.1(a)`–`1.1(e)` outcome or the existing `1.2(a)` particle target. Other catalogue paths are browse-only.
+Choose Kenya CBC → Junior School → Grade 8 → Integrated Science → **July 2024 · Revision 1**. The edition has 37 generation-ready learning outcomes across all eight sub-strands, official KICD outcome excerpts, eight assessment packs, three schemes of work, and curriculum guidance. Each outcome links to relevant source chunks.
 
-1. As Teacher, select the target and generate a draft.
-2. Inspect its sources and QA, edit it, save, and submit.
-3. As Curriculum Lead, return it with feedback.
-4. As Teacher, revise, rerun QA, and resubmit.
-5. As Curriculum Lead, publish it to the lesson bank.
+## Try the review workflow
+
+1. Start the local app with `pnpm demo:up`, open [localhost:5173/login](http://localhost:5173/login), and choose the Teacher demo login.
+2. Create a plan for outcome `1.1(a)` and generate in Mock mode. Check the exact curriculum outcome, KICD defining source, and relevant assessment or scheme sources. The title starts with **Mock plan**.
+3. Edit and save the draft, run deterministic QA, then submit it for review.
+4. Sign out and choose the Curriculum Lead demo login. Return the plan with feedback.
+5. Sign back in as Teacher, revise, rerun QA, and resubmit; then sign in as Curriculum Lead and publish it.
 
 Edits append immutable versions. Reviews and rubric results retain the assessed version. Teachers can delete unreviewed drafts; reviewed plans stay auditable.
 
-## Use mock or live AI
+This checks setup, target selection, source links, editing, QA, and review transitions. Mock generation is deterministic and does not assess lesson quality.
 
-Mock mode is the default. Select a scenario before generation:
+## Mock mode and content quality
+
+`pnpm demo:up` uses deterministic mock AI. It is for checking the workflow, source links, validation, and review states. Its output is labelled “Mock plan” and is not evidence of lesson-plan quality. Use a configured live provider to assess generated content.
+
+Mock scenarios:
 
 | Scenario | Expected result |
 | --- | --- |
@@ -51,20 +59,47 @@ Mock mode is the default. Select a scenario before generation:
 | Invalid output | One repair, then `LLM_INVALID_RESPONSE`; no draft is saved. |
 | Provider unavailable | `LLM_PROVIDER_UNAVAILABLE`; no draft is saved. |
 
-Switch to Live mode in the header without restarting. Missing credentials keep mock mode active and show an error. Keys stay on the server.
+The mock uses outcome-specific lesson scaffolds, but it remains deterministic. For a content-quality pass, use Live mode and test one outcome from each sub-strand:
 
-To configure an OpenAI-compatible provider, add these values to `.env.local`:
+| Outcome | What it covers |
+| --- | --- |
+| `1.1(c)` | Word equations for compound formation |
+| `1.2(c)` | Physical and chemical changes |
+| `1.3(c)` | Safe control of different fire classes |
+| `2.1(a)` | Cell observation and structure |
+| `2.2(b)` | Demonstrating diffusion and osmosis |
+| `2.3(b)` | A menstrual-cycle support plan using fictional scenarios |
+| `3.1(c)` | Energy transformations |
+| `3.2(a)` | Demonstrating pressure in solids and liquids |
+
+For each plan, check that objectives, activities, and evidence match the outcome, timings fit the lesson duration, and source passages support the claims. Check safety and age-appropriate handling, especially for fire, practical activities, and reproductive health. Confirm the selected outcome stays unchanged in the saved draft.
+
+## Configure Live mode
+
+Use an OpenAI-compatible provider reachable from the API container. Add these values to `.env.local`:
 
 ```dotenv
 LLM_PROVIDER=openai-compatible
-COMPOSE_LLM_BASE_URL=https://api.example.com/v1
+COMPOSE_LLM_BASE_URL=https://provider.example/v1
 LLM_API_KEY=PROVIDER_API_KEY
 LLM_GENERATOR_MODEL=GENERATOR_MODEL_ID
 LLM_REVIEWER_MODEL=REVIEWER_MODEL_ID
 LANGFUSE_USE_MANAGED_PROMPTS=false
 ```
 
-Replace the endpoint, key, and model IDs, then run `pnpm demo:full`. Prompt capture defaults on; set `LANGFUSE_CAPTURE_PROMPTS=false` for sensitive content. See [observability](docs/observability.md).
+Replace the endpoint, key, and model IDs, then run `pnpm demo:full`. The endpoint must be reachable from Docker. After startup, choose **Live** in the app header. If you add or change credentials while the stack is running, rerun `pnpm demo:full` so Compose recreates the API with the new values. Prompt capture defaults on; set `LANGFUSE_CAPTURE_PROMPTS=false` for sensitive content. See [observability](docs/observability.md).
+
+## Reset the local sample
+
+`pnpm demo:down` keeps the database and saved plans. To clear curriculum resources and lesson plans while keeping demo accounts, stop the stack, reset the local database, and start it again:
+
+```sh
+pnpm demo:down
+env NODE_ENV=development pnpm --filter @nova/api db:reset:curriculum-content -- --confirm-curriculum-content-reset
+pnpm demo:up
+```
+
+The reset command is restricted to development or test databases on this machine. Startup reruns migrations and seeds the 37 outcomes and corpus sources.
 
 ## Verify
 

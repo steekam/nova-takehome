@@ -1,11 +1,12 @@
 FROM node:24-bookworm-slim
 
 WORKDIR /workspace
-RUN corepack enable && corepack prepare pnpm@12.11.2 --activate
+RUN mkdir -p .agents/skills && corepack enable && corepack prepare pnpm@12.11.2 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps ./apps
 COPY packages ./packages
+COPY corpus ./corpus
 COPY tsconfig.base.json ./tsconfig.base.json
 
 RUN pnpm install --frozen-lockfile

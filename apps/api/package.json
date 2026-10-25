@@ -16,7 +16,9 @@
     "test:e2e": "env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json --runInBand --no-watchman",
     "db:generate": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && drizzle-kit generate",
     "db:migrate": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && drizzle-kit migrate",
-    "db:seed": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && pnpm build && node dist/src/database/seed.js"
+    "db:seed": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && pnpm build && node dist/src/database/seed.js",
+    "db:reset:curriculum-content": "pnpm --filter @nova/shared build && pnpm --filter @nova/model-runtime build && pnpm build && node dist/src/database/reset-curriculum-content.js",
+    "corpus:preview": "pnpm --filter @nova/shared build && pnpm build && node dist/src/curriculum-library/corpus-preview.js"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.3",

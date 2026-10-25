@@ -186,6 +186,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/curriculum/library/targets/{targetRevisionId}/sources/markdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CurriculumLibraryController_addMarkdownSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/curriculum/library/source-links/{linkId}/publish": {
         parameters: {
             query?: never;
@@ -500,7 +516,7 @@ export interface components {
                         /** Format: uuid */
                         chunkId: string;
                         /** @enum {string} */
-                        resourceType: "curriculum_design" | "scheme_of_work" | "assessment_item" | "teaching_note" | "lead_guidance" | "exemplar";
+                        resourceType: "curriculum_design" | "scheme_of_work" | "assessment_items" | "teaching_note" | "lead_guidance" | "exemplar";
                         title: string;
                         subject: string;
                         grade: string;
@@ -510,6 +526,43 @@ export interface components {
                         editionLabel: string | null;
                         sourceUrl: string | null;
                         locator: string | null;
+                        sourceLocator: string | null;
+                        resourceMetadata: {
+                            framework?: string;
+                            programme?: string;
+                            grade?: string;
+                            subject?: string;
+                            language?: string;
+                            publisher?: string;
+                            sourceAuthority?: string;
+                            /** Format: date */
+                            publicationDate?: string;
+                            attributes?: {
+                                [key: string]: string | number | boolean | (null);
+                            };
+                        };
+                        metadata?: {
+                            kind?: string;
+                            headingPath?: string[];
+                            outcomeCodes?: string[];
+                            itemId?: string;
+                            relatedItemIds?: string[];
+                            instrument?: string;
+                            term?: number;
+                            week?: number;
+                            periodStart?: number;
+                            periodEnd?: number;
+                            marks?: number;
+                            sourceLineStart?: number;
+                            sourceLineEnd?: number;
+                            printedPageStart?: number;
+                            printedPageEnd?: number;
+                            pdfPageStart?: number;
+                            pdfPageEnd?: number;
+                            attributes?: {
+                                [key: string]: string | number | boolean | (null);
+                            };
+                        };
                         synthetic: boolean;
                         /** @enum {string} */
                         role: "defines_target" | "teaching_support" | "assessment_support" | "guidance" | "exemplar";
@@ -561,7 +614,7 @@ export interface components {
                 /** Format: uuid */
                 chunkId: string;
                 /** @enum {string} */
-                resourceType: "curriculum_design" | "scheme_of_work" | "assessment_item" | "teaching_note" | "lead_guidance" | "exemplar";
+                resourceType: "curriculum_design" | "scheme_of_work" | "assessment_items" | "teaching_note" | "lead_guidance" | "exemplar";
                 title: string;
                 subject: string;
                 grade: string;
@@ -571,6 +624,43 @@ export interface components {
                 editionLabel: string | null;
                 sourceUrl: string | null;
                 locator: string | null;
+                sourceLocator: string | null;
+                resourceMetadata: {
+                    framework?: string;
+                    programme?: string;
+                    grade?: string;
+                    subject?: string;
+                    language?: string;
+                    publisher?: string;
+                    sourceAuthority?: string;
+                    /** Format: date */
+                    publicationDate?: string;
+                    attributes?: {
+                        [key: string]: string | number | boolean | (null);
+                    };
+                };
+                metadata?: {
+                    kind?: string;
+                    headingPath?: string[];
+                    outcomeCodes?: string[];
+                    itemId?: string;
+                    relatedItemIds?: string[];
+                    instrument?: string;
+                    term?: number;
+                    week?: number;
+                    periodStart?: number;
+                    periodEnd?: number;
+                    marks?: number;
+                    sourceLineStart?: number;
+                    sourceLineEnd?: number;
+                    printedPageStart?: number;
+                    printedPageEnd?: number;
+                    pdfPageStart?: number;
+                    pdfPageEnd?: number;
+                    attributes?: {
+                        [key: string]: string | number | boolean | (null);
+                    };
+                };
                 synthetic: boolean;
                 /** @enum {string} */
                 role: "defines_target" | "teaching_support" | "assessment_support" | "guidance" | "exemplar";
@@ -612,7 +702,7 @@ export interface components {
                 /** Format: uuid */
                 chunkId: string;
                 /** @enum {string} */
-                resourceType: "curriculum_design" | "scheme_of_work" | "assessment_item" | "teaching_note" | "lead_guidance" | "exemplar";
+                resourceType: "curriculum_design" | "scheme_of_work" | "assessment_items" | "teaching_note" | "lead_guidance" | "exemplar";
                 title: string;
                 subject: string;
                 grade: string;
@@ -622,6 +712,43 @@ export interface components {
                 editionLabel: string | null;
                 sourceUrl: string | null;
                 locator: string | null;
+                sourceLocator: string | null;
+                resourceMetadata: {
+                    framework?: string;
+                    programme?: string;
+                    grade?: string;
+                    subject?: string;
+                    language?: string;
+                    publisher?: string;
+                    sourceAuthority?: string;
+                    /** Format: date */
+                    publicationDate?: string;
+                    attributes?: {
+                        [key: string]: string | number | boolean | (null);
+                    };
+                };
+                metadata?: {
+                    kind?: string;
+                    headingPath?: string[];
+                    outcomeCodes?: string[];
+                    itemId?: string;
+                    relatedItemIds?: string[];
+                    instrument?: string;
+                    term?: number;
+                    week?: number;
+                    periodStart?: number;
+                    periodEnd?: number;
+                    marks?: number;
+                    sourceLineStart?: number;
+                    sourceLineEnd?: number;
+                    printedPageStart?: number;
+                    printedPageEnd?: number;
+                    pdfPageStart?: number;
+                    pdfPageEnd?: number;
+                    attributes?: {
+                        [key: string]: string | number | boolean | (null);
+                    };
+                };
                 synthetic: boolean;
                 /** @enum {string} */
                 role: "defines_target" | "teaching_support" | "assessment_support" | "guidance" | "exemplar";
@@ -630,11 +757,12 @@ export interface components {
             }[];
         };
         CurriculumSourceInput: {
+            sourceKey?: string;
             /** Format: uuid */
             resourceId?: string;
             title: string;
             /** @enum {string} */
-            resourceType: "curriculum_design" | "scheme_of_work" | "assessment_item" | "teaching_note" | "lead_guidance" | "exemplar";
+            resourceType: "curriculum_design" | "scheme_of_work" | "assessment_items" | "teaching_note" | "lead_guidance" | "exemplar";
             /** @enum {string} */
             authority: "official" | "school" | "internal" | "synthetic";
             editionLabel?: string;
@@ -643,7 +771,55 @@ export interface components {
             locator?: string;
             content: string;
             /** @enum {string} */
+            sourceFormat?: "plain_text" | "markdown" | "html" | "docx" | "pdf" | "normalized";
+            parserVersion?: string;
+            chunkerVersion?: string;
+            resourceMetadata?: {
+                framework?: string;
+                programme?: string;
+                grade?: string;
+                subject?: string;
+                language?: string;
+                publisher?: string;
+                sourceAuthority?: string;
+                /** Format: date */
+                publicationDate?: string;
+                attributes?: {
+                    [key: string]: string | number | boolean | (null);
+                };
+            };
+            chunks?: {
+                content: string;
+                locator?: string;
+                /** @default {} */
+                metadata: {
+                    kind?: string;
+                    headingPath?: string[];
+                    outcomeCodes?: string[];
+                    itemId?: string;
+                    relatedItemIds?: string[];
+                    instrument?: string;
+                    term?: number;
+                    week?: number;
+                    periodStart?: number;
+                    periodEnd?: number;
+                    marks?: number;
+                    sourceLineStart?: number;
+                    sourceLineEnd?: number;
+                    printedPageStart?: number;
+                    printedPageEnd?: number;
+                    pdfPageStart?: number;
+                    pdfPageEnd?: number;
+                    attributes?: {
+                        [key: string]: string | number | boolean | (null);
+                    };
+                };
+            }[];
+            /** @enum {string} */
             role: "defines_target" | "teaching_support" | "assessment_support" | "guidance" | "exemplar";
+        };
+        CurriculumMarkdownSourceInput: {
+            markdown: string;
         };
         CurriculumSourceLinkResult: {
             /** Format: uuid */
@@ -1380,6 +1556,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CurriculumSourceInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurriculumSourceLinkResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorResponse"];
+                };
+            };
+        };
+    };
+    CurriculumLibraryController_addMarkdownSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                targetRevisionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CurriculumMarkdownSourceInput"];
             };
         };
         responses: {

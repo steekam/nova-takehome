@@ -1,10 +1,27 @@
 # Data flows
 
-Follow the implemented source, generation, and review paths here. See the [data model](domain-model.md) for records and the [ingestion proposal](corpus-ingestion.md) for future file handling.
+Follow the implemented corpus seed, source, generation, and review paths here. See the [data model](domain-model.md) for records and [corpus ingestion](corpus-ingestion.md) for the importer and future publisher-file handling.
+
+## Seed the curriculum corpus
+
+The startup bootstrap runs migrations, creates or reuses the Grade 8 Integrated Science catalogue offering, parses the repository Markdown corpus, and verifies that the official design contains the expected 37 outcomes. It creates or reuses the published design, target revisions, resource revisions, typed chunks, embeddings, and published source links. Content and pipeline fingerprints make unchanged imports idempotent; changed content or processing versions produce new resource revisions. Catalogue records can exist without outcomes or sources; generation uses a target from a design version and its published defining source link.
+
+```mermaid
+flowchart LR
+  Files[Corpus Markdown] --> Parse[Parse frontmatter and structure]
+  Parse --> Chunk[Resource-type chunker + metadata]
+  Chunk --> Embed[Local BGE-small embeddings]
+  Embed --> Seed[Idempotent database seed]
+  Seed --> Catalogue[Catalogue offering]
+  Seed --> Design[Published design + targets]
+  Seed --> Resources[Resource revisions + chunks]
+  Design --> Links[Published target-source links]
+  Resources --> Links
+```
 
 ## Source intake and publication
 
-A Curriculum Lead submits text and metadata through the API. Each update creates an immutable resource revision. Publishing its target link makes the source eligible for retrieval.
+A Curriculum Lead submits text and metadata through the API. Each update creates an immutable resource revision and ordered chunks with locator and metadata. Publishing its target link makes the source eligible for retrieval.
 
 ```mermaid
 flowchart TD

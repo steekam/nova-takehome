@@ -1154,18 +1154,18 @@ function SourceCard({ chunks }: { chunks: CurriculumSourceDto[] }) {
             </span>
           </div>
           <SourceProvenance source={source} />
-          {(source.editionLabel || source.locator) && (
+          {(source.editionLabel || source.sourceLocator) && (
             <p className="mt-1 text-xs text-muted-foreground">
-              {[source.editionLabel, source.locator].filter(Boolean).join(' · ')}
+              {[source.editionLabel, source.sourceLocator].filter(Boolean).join(' · ')}
             </p>
           )}
         </div>
       </div>
       <div className="mt-3 space-y-3">
-        {chunks.map((chunk, index) => (
+        {chunks.map((chunk) => (
           <div key={chunk.chunkId}>
-            {chunks.length > 1 && (
-              <p className="mb-1 text-xs font-medium text-foreground">Excerpt {index + 1}</p>
+            {chunk.locator && (
+              <p className="mb-1 text-xs font-medium text-foreground">{chunk.locator}</p>
             )}
             <SourcePassage source={chunk} />
           </div>

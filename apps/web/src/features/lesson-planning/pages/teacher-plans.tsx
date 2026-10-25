@@ -5,13 +5,11 @@ import { useEffect, useRef, useState } from 'react'
 import type { ApiPrincipal } from '@nova/shared'
 import { LessonPlanContentSchema } from '@nova/shared'
 import { AppShell } from '../../../components/app-shell'
-import { QualityChecks } from '../../../components/quality-checks'
-import { RubricQaPanel } from '../../../components/rubric-qa-panel'
 import { Button } from '../../../components/ui/button'
 import { buttonVariants } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
-import { PlanReviewHistory, type LessonPlanVersion } from '../../../components/plan-history'
-import { PlanDetailLayout, PlanSources } from '../components/plan-detail-layout'
+import type { LessonPlanVersion } from '../../../components/plan-history'
+import { PlanDetailLayout } from '../components/plan-detail-layout'
 import {
   generateLessonPlan,
   getLessonPlan,
@@ -36,12 +34,6 @@ type Detail = LessonPlanDetails
 type CurriculumTarget = Awaited<
   ReturnType<typeof getCurriculumDesign>
 >['designs'][number]['targets'][number]
-const statusLabel: Record<Plan['status'], string> = {
-  draft: 'Draft',
-  submitted: 'In review',
-  returned: 'Returned',
-  published: 'Published',
-}
 
 export function GeneratePage({
   user,
@@ -1047,8 +1039,9 @@ function PlanEditor({
   const [content, setContent] = useState(plan.content)
   const [savedContent, setSavedContent] = useState(plan.content)
   const [versions, setVersions] = useState(initial.versions)
+  const [currentVersionId, setCurrentVersionId] = useState(plan.versionId)
+  const [currentVersion, setCurrentVersion] = useState(plan.version)
   const [qa, setQa] = useState(initial.qa)
-  const [qaStale, setQaStale] = useState(false)
   const [submittedView, setSubmittedView] = useState<Pick<Detail, 'plan' | 'viewer'> | null>(null)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const hasUnsavedChanges = JSON.stringify(content) !== JSON.stringify(savedContent)
@@ -1065,8 +1058,9 @@ function PlanEditor({
       setViewer(result.viewer)
       setContent(result.plan.content)
       setSavedContent(result.plan.content)
+      setCurrentVersionId(result.plan.versionId)
+      setCurrentVersion(result.plan.version)
       setQa(result.qa)
-      setQaStale(false)
       setVersions((current) => withLatestVersion(current, result.plan))
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: lessonPlanningKeys.detail(plan.id) }),
@@ -1083,8 +1077,9 @@ function PlanEditor({
         setContent(saved.plan.content)
         setViewer(saved.viewer)
         setSavedContent(saved.plan.content)
+        setCurrentVersionId(saved.plan.versionId)
+        setCurrentVersion(saved.plan.version)
         setQa(saved.qa)
-        setQaStale(false)
         setVersions((current) => withLatestVersion(current, saved.plan))
         queryClient.setQueryData(lessonPlanningKeys.detail(plan.id), {
           ...initial,
@@ -1114,7 +1109,6 @@ function PlanEditor({
   }, [validationErrors])
   function update<K extends keyof LessonPlanContent>(key: K, value: LessonPlanContent[K]) {
     setContent((existing) => ({ ...existing, [key]: value }))
-    setQaStale(true)
     setValidationErrors([])
     save.reset()
     submit.reset()
@@ -1130,7 +1124,13 @@ function PlanEditor({
     setValidationErrors([])
     return result.data
   }
-  const sourceContent: Detail = { ...initial, viewer, versions, plan: { ...plan, content } }
+  const editorDetail: Detail = {
+    ...initial,
+    viewer,
+    versions,
+    qa,
+    plan: { ...plan, versionId: currentVersionId, version: currentVersion, content },
+  }
   if (submittedView)
     return (
       <PlanContent
@@ -1141,219 +1141,191 @@ function PlanEditor({
       />
     )
   return (
-    <div className="space-y-7 pb-28">
-      <header className="flex flex-col justify-between gap-4 border-b border-primary/15 pb-6 sm:flex-row sm:items-end">
-        <div>
-          <Link
-            to="/teacher/plans/$planId"
-            params={{ planId: plan.id }}
-            className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground"
-          >
-            <ArrowLeft aria-hidden="true" className="size-4" /> View plan
-          </Link>
-          <h1 className="text-3xl font-semibold tracking-tight">Edit lesson plan</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Changes stay in draft until you submit for review.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-muted px-3 py-1.5 text-sm font-medium">
-            {statusLabel[plan.status]}
-          </span>
-          <span
-            className={`rounded-full px-3 py-1.5 text-sm font-medium ${hasUnsavedChanges ? 'bg-amber-100 text-amber-950' : 'bg-emerald-100 text-emerald-950'}`}
-          >
-            {hasUnsavedChanges ? 'Unsaved changes' : 'All changes saved'}
-          </span>
-        </div>
-      </header>
-      {(plan.status === 'returned' || (latestReturn && plan.status === 'draft')) && (
-        <section
-          className="rounded-xl border border-amber-700/20 bg-amber-50 p-4 text-amber-950"
-          aria-labelledby="lead-feedback-heading"
+    <PlanDetailLayout
+      detail={editorDetail}
+      sources={sources}
+      sourcesLoading={sourcesLoading}
+      sourcesError={sourcesError}
+      qualityStale={hasUnsavedChanges}
+      panelBottomClassName="bottom-28 md:bottom-20"
+      backLink={
+        <Link
+          to="/teacher/plans/$planId"
+          params={{ planId: plan.id }}
+          className="mb-1 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground"
         >
-          <h2 id="lead-feedback-heading" className="font-semibold">
-            Feedback from your curriculum lead
-          </h2>
-          {latestReturn ? (
-            <>
-              <p className="mt-1 text-xs text-amber-900/80">
-                Returned · Version {latestReturn.lessonPlanVersionNumber} ·{' '}
-                {new Date(latestReturn.createdAt).toLocaleDateString()}
-              </p>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
-                {latestReturn.comment ?? 'No written feedback was recorded for this return.'}
-              </p>
-            </>
-          ) : (
-            <p className="mt-2 text-sm leading-6">
-              No written feedback was recorded. Ask your curriculum lead if you need clarification.
-            </p>
-          )}
-        </section>
-      )}
-      {validationErrors.length > 0 && (
-        <div
-          ref={errorsRef}
-          tabIndex={-1}
-          role="alert"
-          className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
-        >
-          <p className="font-medium">Fix these fields before saving:</p>
-          <ul className="mt-2 list-inside list-disc">
-            {validationErrors.map((error) => (
-              <li key={error}>{error}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.7fr)]">
-        <fieldset disabled={save.isPending || submit.isPending} className="min-w-0 space-y-7">
-          <Card>
-            <CardHeader>
-              <CardTitle>Plan details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <TextField
-                label="Title"
-                value={content.title}
-                onChange={(value) => update('title', value)}
-              />
-              <div className="grid gap-4 sm:grid-cols-2">
-                <TextField
-                  label="Subject"
-                  readOnly={!!plan.targetRevisionId}
-                  value={content.subject}
-                  onChange={(value) => update('subject', value)}
-                />
-                <TextField
-                  label="Grade"
-                  readOnly={!!plan.targetRevisionId}
-                  value={content.grade}
-                  onChange={(value) => update('grade', value)}
-                />
-              </div>
-              <TextAreaField
-                label="Learning outcome"
-                readOnly={!!plan.targetRevisionId}
-                value={content.learningOutcome}
-                onChange={(value) => update('learningOutcome', value)}
-              />
-              {plan.targetRevisionId && (
-                <p className="text-sm text-muted-foreground">
-                  The curriculum target fixes the subject, grade and learning outcome.{' '}
-                  <Link to="/teacher/plans/new" className="font-medium text-primary underline">
-                    Create a new plan
-                  </Link>{' '}
-                  to choose another target.
+          <ArrowLeft aria-hidden="true" className="size-4" /> View plan
+        </Link>
+      }
+      headerSupplement={
+        <p className="mt-1 text-sm text-muted-foreground">
+          Changes stay in draft until you submit for review.
+        </p>
+      }
+    >
+      <div className="space-y-5 pb-36">
+        {(plan.status === 'returned' || (latestReturn && plan.status === 'draft')) && (
+          <section
+            className="rounded-xl border border-amber-700/20 bg-amber-50 p-4 text-amber-950"
+            aria-labelledby="lead-feedback-heading"
+          >
+            <h2 id="lead-feedback-heading" className="font-semibold">
+              Feedback from your curriculum lead
+            </h2>
+            {latestReturn ? (
+              <>
+                <p className="mt-1 text-xs text-amber-900/80">
+                  Returned · Version {latestReturn.lessonPlanVersionNumber} ·{' '}
+                  {new Date(latestReturn.createdAt).toLocaleDateString()}
                 </p>
-              )}
-              <ListEditor
-                label="Objectives"
-                values={content.objectives}
-                onChange={(values) => update('objectives', values)}
-              />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Lesson sequence</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <ListEditor
-                label="Materials"
-                values={content.materials}
-                onChange={(values) => update('materials', values)}
-                allowEmpty
-              />
-              <TextAreaField
-                label="Starter"
-                value={content.starter}
-                onChange={(value) => update('starter', value)}
-              />
-              <ActivitiesEditor
-                activities={content.activities}
-                onChange={(activities) => update('activities', activities)}
-              />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Assessment</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <TextAreaField
-                label="Check for understanding"
-                value={content.checkForUnderstanding}
-                onChange={(value) => update('checkForUnderstanding', value)}
-              />
-            </CardContent>
-          </Card>
-        </fieldset>
-        <aside className="space-y-6 xl:sticky xl:top-6">
-          <PlanSources
-            detail={sourceContent}
-            sources={sources}
-            sourcesLoading={sourcesLoading}
-            sourcesError={sourcesError}
-          />
-          {!qaStale && viewer.availableActions.validate && (
-            <RubricQaPanel
-              planId={plan.id}
-              versionId={plan.versionId}
-              validation={initial.rubricQa}
-            />
-          )}
-          {qaStale ? (
-            <p
-              role="status"
-              className="rounded-xl border bg-card p-4 text-sm text-muted-foreground"
-            >
-              Quality checks need to be rerun after your edits. Save the draft to check the current
-              plan.
-            </p>
-          ) : (
-            qa && <QualityChecks qa={qa} />
-          )}
-          {initial.reviews.length > 0 && <PlanReviewHistory reviews={initial.reviews} />}
-        </aside>
-      </div>
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg backdrop-blur md:pl-64 md:pr-0">
-        <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-2 md:px-8">
-          {(save.error || submit.error) && (
-            <div role="alert" className="text-sm text-destructive">
-              {save.error?.message ?? submit.error?.message ?? 'The plan could not be saved.'}
-            </div>
-          )}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p role="status" aria-live="polite" className="text-sm font-medium">
-              {hasUnsavedChanges ? 'Unsaved changes' : 'All changes saved'}
-            </p>
-            <div role="group" aria-label="Save and submit lesson plan" className="flex gap-2">
-              <Button
-                variant="outline"
-                disabled={save.isPending || submit.isPending}
-                onClick={() => {
-                  const valid = validate()
-                  if (valid) save.mutate(valid)
-                }}
-              >
-                {save.isPending ? 'Saving…' : 'Save draft'}
-              </Button>
-              <Button
-                disabled={!viewer.availableActions.submit || submit.isPending || save.isPending}
-                onClick={() => {
-                  const valid = validate()
-                  if (valid) submit.mutate(valid)
-                }}
-              >
-                {submit.isPending ? 'Submitting…' : 'Submit for review'}
-              </Button>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
+                  {latestReturn.comment ?? 'No written feedback was recorded for this return.'}
+                </p>
+              </>
+            ) : (
+              <p className="mt-2 text-sm leading-6">
+                No written feedback was recorded. Ask your curriculum lead if you need
+                clarification.
+              </p>
+            )}
+          </section>
+        )}
+        {validationErrors.length > 0 && (
+          <div
+            ref={errorsRef}
+            tabIndex={-1}
+            role="alert"
+            className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
+          >
+            <p className="font-medium">Fix these fields before saving:</p>
+            <ul className="mt-2 list-inside list-disc">
+              {validationErrors.map((error) => (
+                <li key={error}>{error}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="mx-auto max-w-4xl">
+          <fieldset disabled={save.isPending || submit.isPending} className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Plan details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <TextField
+                  label="Title"
+                  value={content.title}
+                  onChange={(value) => update('title', value)}
+                />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <TextField
+                    label="Subject"
+                    readOnly={!!plan.targetRevisionId}
+                    value={content.subject}
+                    onChange={(value) => update('subject', value)}
+                  />
+                  <TextField
+                    label="Grade"
+                    readOnly={!!plan.targetRevisionId}
+                    value={content.grade}
+                    onChange={(value) => update('grade', value)}
+                  />
+                </div>
+                <TextAreaField
+                  label="Learning outcome"
+                  readOnly={!!plan.targetRevisionId}
+                  value={content.learningOutcome}
+                  onChange={(value) => update('learningOutcome', value)}
+                />
+                {plan.targetRevisionId && (
+                  <p className="text-sm text-muted-foreground">
+                    The curriculum target fixes the subject, grade and learning outcome.{' '}
+                    <Link to="/teacher/plans/new" className="font-medium text-primary underline">
+                      Create a new plan
+                    </Link>{' '}
+                    to choose another target.
+                  </p>
+                )}
+                <ListEditor
+                  label="Objectives"
+                  values={content.objectives}
+                  onChange={(values) => update('objectives', values)}
+                />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Lesson sequence</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <ListEditor
+                  label="Materials"
+                  values={content.materials}
+                  onChange={(values) => update('materials', values)}
+                  allowEmpty
+                />
+                <TextAreaField
+                  label="Starter"
+                  value={content.starter}
+                  onChange={(value) => update('starter', value)}
+                />
+                <ActivitiesEditor
+                  activities={content.activities}
+                  onChange={(activities) => update('activities', activities)}
+                />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Assessment</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TextAreaField
+                  label="Check for understanding"
+                  value={content.checkForUnderstanding}
+                  onChange={(value) => update('checkForUnderstanding', value)}
+                />
+              </CardContent>
+            </Card>
+          </fieldset>
+        </div>
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg backdrop-blur md:pl-64 md:pr-0">
+          <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-2 md:px-8">
+            {(save.error || submit.error) && (
+              <div role="alert" className="text-sm text-destructive">
+                {save.error?.message ?? submit.error?.message ?? 'The plan could not be saved.'}
+              </div>
+            )}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p role="status" aria-live="polite" className="text-sm font-medium">
+                {hasUnsavedChanges ? 'Unsaved changes' : 'All changes saved'}
+              </p>
+              <div role="group" aria-label="Save and submit lesson plan" className="flex gap-2">
+                <Button
+                  variant="outline"
+                  disabled={save.isPending || submit.isPending}
+                  onClick={() => {
+                    const valid = validate()
+                    if (valid) save.mutate(valid)
+                  }}
+                >
+                  {save.isPending ? 'Saving…' : 'Save draft'}
+                </Button>
+                <Button
+                  disabled={!viewer.availableActions.submit || submit.isPending || save.isPending}
+                  onClick={() => {
+                    const valid = validate()
+                    if (valid) submit.mutate(valid)
+                  }}
+                >
+                  {submit.isPending ? 'Submitting…' : 'Submit for review'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </PlanDetailLayout>
   )
 }
 

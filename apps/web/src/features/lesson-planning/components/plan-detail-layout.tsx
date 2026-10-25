@@ -33,6 +33,8 @@ export function PlanDetailLayout({
   headerNote,
   headerSupplement,
   headerAction,
+  qualityStale = false,
+  panelBottomClassName = 'bottom-0',
   children,
 }: {
   detail: LessonPlanDetails
@@ -43,6 +45,8 @@ export function PlanDetailLayout({
   headerNote?: ReactNode
   headerSupplement?: ReactNode
   headerAction?: ReactNode
+  qualityStale?: boolean
+  panelBottomClassName?: string
   children: ReactNode
 }) {
   const { plan } = detail
@@ -63,6 +67,7 @@ export function PlanDetailLayout({
       label: 'Quality',
       icon: ClipboardCheck,
       marker:
+        qualityStale ||
         detail.qa?.passed === false ||
         detail.qa?.checks.some((check) => check.status === 'warning') ||
         (detail.rubricQa?.status !== undefined && detail.rubricQa.status !== 'completed')
@@ -167,7 +172,7 @@ export function PlanDetailLayout({
         role="dialog"
         aria-modal="false"
         aria-labelledby={`${panelId}-title`}
-        className="fixed inset-x-0 top-40 bottom-0 z-40 flex min-h-0 flex-col border bg-card text-card-foreground shadow-xl md:top-[9.5rem] md:right-0 md:left-auto md:w-[min(26rem,calc(100vw-20rem))] xl:top-16"
+        className={`fixed inset-x-0 top-40 z-40 flex min-h-0 flex-col border bg-card text-card-foreground shadow-xl md:top-[9.5rem] md:right-0 md:left-auto md:w-[min(26rem,calc(100vw-20rem))] xl:top-16 ${panelBottomClassName}`}
       >
         <div className="flex shrink-0 items-center justify-between gap-4 border-b px-5 py-3">
           <h2 id={`${panelId}-title`} className="text-base font-semibold">
@@ -195,17 +200,27 @@ export function PlanDetailLayout({
           )}
           {activePanel === 'quality' && (
             <div className="space-y-4">
-              {detail.qa ? (
-                <QualityChecks qa={detail.qa} />
+              {qualityStale ? (
+                <p role="status" className="text-sm text-muted-foreground">
+                  Save your edits to refresh quality checks and run guided review on this version.
+                </p>
               ) : (
-                <p className="text-sm text-muted-foreground">No quality checks are available.</p>
-              )}
-              {detail.viewer.availableActions.validate && (
-                <RubricQaPanel
-                  planId={plan.id}
-                  versionId={plan.versionId}
-                  validation={detail.rubricQa}
-                />
+                <>
+                  {detail.qa ? (
+                    <QualityChecks qa={detail.qa} />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No quality checks are available.
+                    </p>
+                  )}
+                  {detail.viewer.availableActions.validate && (
+                    <RubricQaPanel
+                      planId={plan.id}
+                      versionId={plan.versionId}
+                      validation={detail.rubricQa}
+                    />
+                  )}
+                </>
               )}
             </div>
           )}

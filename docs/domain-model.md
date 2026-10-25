@@ -106,16 +106,16 @@ erDiagram
   }
 ```
 
-An **edition** names a curriculum release; a **revision** records a corrected import of that release. Each offering has a unique edition/revision pair. The design source revision, `publishedAt`, and `supersedesId` are optional. Node `parentNodeId`, `code`, and `sourceLocator`, plus target `code`, are optional. `parentNodeId` makes the strand/sub-strand/topic tree. Composite foreign keys keep each node and target inside one design version. The app currently does not freeze a published tree against edits; see the [ingestion extension](corpus-ingestion.md).
+An **edition** names a curriculum release; a **revision** records a corrected import of that release. Each offering has a unique edition/revision pair. The design source revision, `publishedAt`, and `supersedesId` are optional. Node `parentNodeId`, `code`, and `sourceLocator`, plus target `code`, are optional; a target's `sourceLocator` is required. `parentNodeId` makes the strand/sub-strand/topic tree. Composite foreign keys keep each node and target inside one design version. The app currently does not freeze a published tree against edits; see the [ingestion extension](corpus-ingestion.md).
 
 For the Grade 8 Integrated Science offering above, the content tree starts at a design version. The offering identifies the catalogue path; nodes organize the curriculum content inside that version.
 
 ```text
 Offering: Kenya CBC / Junior School / Grade 8 / Integrated Science
 └── July 2024 · revision 1
-    └── Strand 1.0 — Mixtures, Elements and Compounds
-        └── Sub-strand 1.2 — Physical and chemical changes
-            └── Outcome 1.2(a) — Describe the characteristics of particles in the three states of matter
+    └── Strand 1 — Mixtures, Elements and Compounds
+        └── Sub-strand 1.1 — Elements and compounds
+            └── Outcome 1.1(a) — Differentiate between atoms, elements, molecules and compounds
 ```
 
 ## Source evidence
@@ -130,6 +130,7 @@ erDiagram
 
   RESOURCE {
     uuid id PK
+    string sourceKey UK
     enum resourceType
     string title
     enum authority
@@ -141,8 +142,15 @@ erDiagram
     int revisionNumber
     string editionLabel
     string sourceUrl
+    string sourceLocator
+    json resourceMetadata
     string contentHash
+    string pipelineFingerprint
     text content
+    string sourceFormat
+    string parserVersion
+    string chunkerVersion
+    string embeddingModel
     enum status
     uuid createdBy FK
     timestamp publishedAt
@@ -153,6 +161,7 @@ erDiagram
     uuid resourceRevisionId FK
     int ordinal
     string locator
+    json metadata
     text content
     vector embedding
   }
@@ -169,7 +178,7 @@ erDiagram
   }
 ```
 
-The link is many-to-many: one target can use several source revisions, and one source revision can support several targets. Revision edition label, URL, creator, and publication time are optional; chunk locator is optional; link publisher and publication time are optional. Only published links are retrievable. Embeddings are 384-dimensional vectors; chunks retain their source revision and locator.
+The link is many-to-many: one target can use several source revisions, and one source revision can support several targets. Catalogue paths (framework, programme, level, subject, offering) exist independently of design versions, targets, and sources. Targets belong to a design version; sources link to targets as evidence and are not catalogue fields. Generation requires a target and its published defining source link. Resource revision edition label, URL, locator, metadata, creator, and publication time may be absent; chunk locator is optional and typed metadata defaults to an empty object. Metadata can hold kind, heading path, outcome or assessment item codes, weekly-plan fields, marks, source lines, printed/PDF page ranges, and extension attributes. Only published links are retrievable. Embeddings are 384-dimensional vectors; chunks retain their source revision, locator, and metadata.
 
 ## Lesson plans and audit history
 

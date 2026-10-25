@@ -1,16 +1,18 @@
 # Curriculum source ingestion
 
-The API accepts text passages. This proposal extends intake to publisher files while retaining reviewed, versioned evidence.
+The system has two implemented paths: Curriculum Leads can submit text through the API, and startup seeds versioned Markdown files from `corpus/grade-8-integrated-science`. Publisher-file extraction remains future work.
 
 ## Implemented intake
 
-The API validates a target in a published design, hashes submitted text, splits paragraphs into chunks of up to 1,200 characters, embeds them at 384 dimensions, and creates a draft source link for a Curriculum Lead to publish. A `defines_target` link requires an official curriculum design, edition, URL, and locator. See [source intake](data-flows.md#source-intake-and-publication).
+Manual text intake validates the target and source metadata, hashes the text and pipeline configuration, chunks and embeds it at 384 dimensions, then creates a draft source link for a Curriculum Lead to publish. A `defines_target` link requires an official curriculum design, edition, URL, and locator. See [source intake](data-flows.md#source-intake-and-publication).
 
-The seed uses eight July 2024 passages from [KICD Grade Eight designs](https://kicd.ac.ke/cbc-materials/curriculum-designs/grade-eight-designs/): five sub-strand 1.1 outcomes, shared sub-strand guidance, and the existing 1.2(a) particle outcome and inquiry question. Seven synthetic teaching and assessment supports round out the demo corpus. The original PDF is not stored.
+The corpus importer reads Markdown frontmatter and body text. It records source format, parser/chunker versions, embedding model, source metadata, and a pipeline fingerprint. Resource-specific chunkers preserve structure: curriculum outcomes and hierarchy, assessment items and shared stimuli, scheme-of-work weeks, or general Markdown sections. Chunks retain heading paths, codes, item/term/week details, and source line or page locators where present. Oversized chunks split at the configured 1,600-character limit. Re-running startup reuses unchanged revisions and links; changed content or pipeline inputs create new revisions. Catalogue records can exist without outcomes or sources; the published design contains the 37 outcomes, and source links associate evidence with each target.
+
+The Grade 8 Integrated Science seed contains all 37 outcomes across eight sub-strands, each linked to its KICD defining excerpt. It also includes eight assessment-support documents (stored as `assessment_items` resources), three schemes of work, and curriculum guidance with typed chunk metadata. The source URLs point to [KICD Grade Eight designs](https://kicd.ac.ke/cbc-materials/curriculum-designs/grade-eight-designs/); the original PDF is not stored in the repo.
 
 ## Proposed file pipeline
 
-Extend the existing catalogue and source library through these steps:
+Extend the pipeline for publisher files through these steps:
 
 1. **Capture:** Register the issuing authority and preserve the original file with its source, release, checksum, and reuse terms.
 2. **Extract:** Parse headings and tables into catalogue nodes and target revisions. Split support material by section, activity, or assessment item; retain page, table, row, or text locators. Use OCR for scanned pages.

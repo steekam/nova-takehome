@@ -26,6 +26,17 @@ import { EmbeddingError } from '../embeddings/embedding.adapter'
 import { CurriculumLibraryRepository } from './curriculum-library.repository'
 import { authorize } from '../common/auth/policy'
 import { CurriculumSourcePolicy } from '../common/auth/policies'
+import {
+  chunkMarkdownContent,
+  chunkPlainText,
+  displayLocator,
+  MARKDOWN_PARSER_VERSION,
+  markdownChunkerVersion,
+  NORMALIZED_PARSER_VERSION,
+  NORMALIZED_CHUNKER_VERSION,
+  PLAIN_TEXT_PARSER_VERSION,
+  parseMarkdownSource,
+} from './source-ingestion'
 
 type SourceRow = Awaited<ReturnType<CurriculumLibraryRepository['catalogue']>>['sources'][number]
 
@@ -283,6 +294,9 @@ export class CurriculumLibraryService {
         editionLabel: source.editionLabel,
         sourceUrl: source.sourceUrl,
         locator: source.locator,
+        sourceLocator: source.sourceLocator,
+        resourceMetadata: source.resourceMetadata,
+        metadata: source.metadata,
         synthetic: source.authority === 'synthetic',
         role: source.role,
         status: source.linkStatus,
@@ -319,62 +333,93 @@ export class CurriculumLibraryService {
         message: 'Sources can only be linked to a published curriculum design.',
       })
 
-    const chunks = splitContent(input.content)
-    const vectors = await Promise.all(chunks.map((chunk) => this.embedDocument(chunk.content)))
-    const contentHash = createHash('sha256').update(input.content).digest('hex')
-    const [created] = await this.database.db.transaction(async (tx) => {
-      let resourceId = input.resourceId
-      let revisionNumber = 1
-      if (resourceId) {
-        const [resource] = await this.repository.resourceForUpdate(resourceId, tx)
-        if (!resource) throw new NotFoundException('Source resource not found')
-        if (
-          resource.resourceType !== input.resourceType ||
-          resource.title !== input.title ||
-          resource.authority !== input.authority
-        ) {
-          throw new BadRequestException({
-            code: 'SOURCE_RESOURCE_IDENTITY_IMMUTABLE',
-            message: 'A source revision must keep the resource title, type, and authority.',
-          })
-        }
-        const [latestRevision] = await this.repository.latestResourceRevision(resourceId, tx)
-        revisionNumber = (latestRevision?.revisionNumber ?? 0) + 1
-      } else {
-        const [resource] = await this.repository.createResource(
+    const normalized = normalizeSource(input)
+    const contentHash = createHash('sha256').update(normalized.content).digest('hex')
+    const pipelineFingerprint = fingerprintSource(normalized, input, this.embeddings.modelIdentity)
+    const earlyLink = await this.findUnchangedSourceLink(
+      targetRevisionId,
+      input,
+      pipelineFingerprint,
+      principal,
+    )
+    if (earlyLink) return { linkId: earlyLink.id, targetRevisionId, status: earlyLink.status }
+
+    const vectors = await Promise.all(
+      normalized.chunks.map((chunk) => this.embedDocument(chunk.content)),
+    )
+    const link = await this.database.db.transaction(async (tx) => {
+      let resource = input.sourceKey
+        ? (await this.repository.resourceBySourceKey(input.sourceKey, tx))[0]
+        : input.resourceId
+          ? (await this.repository.resourceForUpdate(input.resourceId, tx))[0]
+          : undefined
+
+      if (resource) assertResourceIdentity(resource, input)
+      else {
+        const [created] = await this.repository.createResource(
           {
+            ...(input.sourceKey ? { sourceKey: input.sourceKey } : {}),
             resourceType: input.resourceType,
             title: input.title,
             authority: input.authority,
           },
           tx,
         )
-        resourceId = resource.id
+        resource =
+          created ??
+          (input.sourceKey
+            ? (await this.repository.resourceBySourceKey(input.sourceKey, tx))[0]
+            : undefined)
+        if (!resource) throw new ConflictException('Could not create source resource.')
+        assertResourceIdentity(resource, input)
       }
-      const [revision] = await this.repository.createResourceRevision(
-        {
-          resourceId,
-          revisionNumber,
-          editionLabel: input.editionLabel,
-          sourceUrl: input.sourceUrl,
-          contentHash,
-          content: input.content,
-          status: 'draft',
-          createdBy: principal.subject,
-        },
+
+      const [latestRevision] = await this.repository.latestResourceRevision(resource.id, tx)
+      let revision = latestRevision
+      if (!revision || revision.pipelineFingerprint !== pipelineFingerprint) {
+        const [createdRevision] = await this.repository.createResourceRevision(
+          {
+            resourceId: resource.id,
+            revisionNumber: (latestRevision?.revisionNumber ?? 0) + 1,
+            editionLabel: input.editionLabel,
+            sourceUrl: input.sourceUrl,
+            sourceLocator: input.locator,
+            resourceMetadata: input.resourceMetadata ?? {},
+            contentHash,
+            pipelineFingerprint,
+            content: normalized.content,
+            sourceFormat: normalized.sourceFormat,
+            parserVersion: normalized.parserVersion,
+            chunkerVersion: normalized.chunkerVersion,
+            embeddingModel: this.embeddings.modelIdentity,
+            status: 'draft',
+            createdBy: principal.subject,
+          },
+          tx,
+        )
+        revision = createdRevision
+        await this.repository.createChunks(
+          normalized.chunks.map((chunk, ordinal) => ({
+            resourceRevisionId: revision.id,
+            ordinal,
+            locator: chunk.locator || displayLocator(chunk.metadata),
+            metadata: chunk.metadata,
+            content: chunk.content,
+            embedding: vectors[ordinal],
+          })),
+          tx,
+        )
+      }
+
+      const [existingLink] = await this.repository.sourceLinkForTarget(
+        targetRevisionId,
+        revision.id,
+        input.role,
         tx,
       )
-      await this.repository.createChunks(
-        chunks.map((chunk, index) => ({
-          resourceRevisionId: revision.id,
-          ordinal: index,
-          locator: input.locator ?? `Text ${index + 1}`,
-          content: chunk.content,
-          embedding: vectors[index],
-        })),
-        tx,
-      )
-      const [link] = await this.repository.createSourceLink(
+      if (existingLink) return existingLink
+
+      const [createdLink] = await this.repository.createSourceLink(
         {
           targetRevisionId,
           resourceRevisionId: revision.id,
@@ -384,9 +429,51 @@ export class CurriculumLibraryService {
         },
         tx,
       )
-      return [link]
+      if (createdLink) return createdLink
+      const [concurrentLink] = await this.repository.sourceLinkForTarget(
+        targetRevisionId,
+        revision.id,
+        input.role,
+        tx,
+      )
+      if (!concurrentLink)
+        throw new ConflictException('Could not link source to curriculum target.')
+      return concurrentLink
     })
-    return { linkId: created.id, targetRevisionId, status: created.status }
+    return { linkId: link.id, targetRevisionId, status: link.status }
+  }
+
+  async addMarkdownSource(targetRevisionId: string, markdown: string, principal: ApiPrincipal) {
+    let source: ReturnType<typeof parseMarkdownSource>
+    try {
+      source = parseMarkdownSource(markdown)
+    } catch (error) {
+      throw new BadRequestException({
+        code: 'SOURCE_MARKDOWN_INVALID',
+        message:
+          error instanceof Error ? error.message : 'The Markdown source could not be parsed.',
+      })
+    }
+    return this.addSource(
+      targetRevisionId,
+      {
+        sourceKey: source.sourceKey,
+        title: source.title,
+        resourceType: source.resourceType,
+        authority: source.authority,
+        editionLabel: source.editionLabel,
+        sourceUrl: source.sourceUrl,
+        locator: source.locator,
+        content: source.content,
+        sourceFormat: source.sourceFormat,
+        parserVersion: source.parserVersion,
+        chunkerVersion: source.chunkerVersion,
+        resourceMetadata: source.resourceMetadata,
+        chunks: source.chunks,
+        role: source.role,
+      },
+      principal,
+    )
   }
 
   async publishSource(linkId: string, principal: ApiPrincipal) {
@@ -404,10 +491,16 @@ export class CurriculumLibraryService {
         tx,
       )
       if (!revision) throw new NotFoundException('Source revision not found')
-      const [resource] = await this.repository.resource(revision.resourceId, tx)
+      const [resource] = await this.repository.resourceForUpdate(revision.resourceId, tx)
       if (!resource) throw new NotFoundException('Source resource not found')
-      const [chunk] = await this.repository.firstChunkForRevision(revision.id, tx)
-      if (!chunk)
+      const [latestRevision] = await this.repository.latestResourceRevision(resource.id, tx)
+      if (!latestRevision || latestRevision.id !== revision.id)
+        throw new ConflictException({
+          code: 'SOURCE_REVISION_SUPERSEDED',
+          message: 'Only the latest source revision can be published.',
+        })
+      const chunks = await this.repository.chunksForRevision(revision.id, tx)
+      if (!chunks.length)
         throw new BadRequestException({
           code: 'SOURCE_HAS_NO_CHUNKS',
           message: 'Add readable source text before publishing this source.',
@@ -418,7 +511,8 @@ export class CurriculumLibraryService {
           resource.authority !== 'official' ||
           !revision.editionLabel ||
           !revision.sourceUrl ||
-          !chunk.locator)
+          !revision.sourceLocator ||
+          chunks.some((chunk) => !chunk.locator))
       ) {
         throw new BadRequestException({
           code: 'TARGET_SOURCE_PROVENANCE_REQUIRED',
@@ -428,6 +522,13 @@ export class CurriculumLibraryService {
       }
 
       const publishedAt = new Date()
+      await this.repository.retireSupersededLinks(
+        link.targetRevisionId,
+        revision.resourceId,
+        link.role,
+        link.id,
+        tx,
+      )
       await this.repository.publishResourceRevision(revision.id, publishedAt, tx)
       await this.repository.publishSourceLink(link.id, principal.subject, publishedAt, tx)
       return {
@@ -435,6 +536,52 @@ export class CurriculumLibraryService {
         targetRevisionId: link.targetRevisionId,
         status: 'published' as const,
       }
+    })
+  }
+
+  private async findUnchangedSourceLink(
+    targetRevisionId: string,
+    input: CurriculumLibrarySourceInput,
+    pipelineFingerprint: string,
+    principal: ApiPrincipal,
+  ) {
+    if (!input.sourceKey && !input.resourceId) return undefined
+    return this.database.db.transaction(async (tx) => {
+      const [resource] = input.sourceKey
+        ? await this.repository.resourceBySourceKey(input.sourceKey, tx)
+        : input.resourceId
+          ? await this.repository.resourceForUpdate(input.resourceId, tx)
+          : []
+      if (!resource) return undefined
+      assertResourceIdentity(resource, input)
+      const [latestRevision] = await this.repository.latestResourceRevision(resource.id, tx)
+      if (!latestRevision || latestRevision.pipelineFingerprint !== pipelineFingerprint)
+        return undefined
+      const [existingLink] = await this.repository.sourceLinkForTarget(
+        targetRevisionId,
+        latestRevision.id,
+        input.role,
+        tx,
+      )
+      if (existingLink) return existingLink
+      const [createdLink] = await this.repository.createSourceLink(
+        {
+          targetRevisionId,
+          resourceRevisionId: latestRevision.id,
+          role: input.role,
+          status: 'draft',
+          addedBy: principal.subject,
+        },
+        tx,
+      )
+      if (createdLink) return createdLink
+      const [concurrentLink] = await this.repository.sourceLinkForTarget(
+        targetRevisionId,
+        latestRevision.id,
+        input.role,
+        tx,
+      )
+      return concurrentLink
     })
   }
 
@@ -465,6 +612,9 @@ function toSourceDto(source: SourceRow): CurriculumSourceDto {
     editionLabel: source.editionLabel,
     sourceUrl: source.sourceUrl,
     locator: source.locator,
+    sourceLocator: source.sourceLocator,
+    resourceMetadata: source.resourceMetadata,
+    metadata: source.metadata,
     synthetic: source.authority === 'synthetic',
     role: source.role,
     status:
@@ -495,15 +645,97 @@ function toCurriculumOutcome(target: CurriculumLibraryTargetDto): CurriculumOutc
   })
 }
 
-function splitContent(content: string) {
-  const paragraphs = content
-    .split(/\n\s*\n/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-  const chunks: Array<{ content: string }> = []
-  for (const paragraph of paragraphs) {
-    for (let start = 0; start < paragraph.length; start += 1200)
-      chunks.push({ content: paragraph.slice(start, start + 1200) })
+function normalizeSource(input: CurriculumLibrarySourceInput) {
+  const content = input.content.replace(/\r\n?/g, '\n').trim()
+  const sourceFormat = input.sourceFormat ?? (input.chunks ? 'normalized' : 'plain_text')
+  const chunks =
+    input.chunks ??
+    (sourceFormat === 'markdown'
+      ? chunkMarkdownContent(content, input.resourceType)
+      : sourceFormat === 'plain_text'
+        ? chunkPlainText(content)
+        : [])
+  if (!chunks.length)
+    throw new BadRequestException({
+      code: 'SOURCE_CHUNKS_REQUIRED',
+      message: 'This source format needs an adapter that returns readable chunks.',
+    })
+
+  return {
+    content,
+    sourceFormat,
+    parserVersion:
+      input.parserVersion ??
+      (sourceFormat === 'markdown'
+        ? MARKDOWN_PARSER_VERSION
+        : sourceFormat === 'plain_text'
+          ? PLAIN_TEXT_PARSER_VERSION
+          : NORMALIZED_PARSER_VERSION),
+    chunkerVersion:
+      input.chunkerVersion ??
+      (sourceFormat === 'markdown'
+        ? markdownChunkerVersion(input.resourceType)
+        : sourceFormat === 'plain_text'
+          ? 'plain-text-blocks-v1'
+          : NORMALIZED_CHUNKER_VERSION),
+    chunks: chunks.map((chunk) => ({
+      content: chunk.content.trim(),
+      locator: chunk.locator ?? displayLocator(chunk.metadata),
+      metadata: chunk.metadata,
+    })),
   }
-  return chunks
+}
+
+function fingerprintSource(
+  normalized: ReturnType<typeof normalizeSource>,
+  input: CurriculumLibrarySourceInput,
+  embeddingModel: string,
+) {
+  const payload = {
+    title: input.title,
+    resourceType: input.resourceType,
+    authority: input.authority,
+    editionLabel: input.editionLabel ?? null,
+    sourceUrl: input.sourceUrl ?? null,
+    sourceLocator: input.locator ?? null,
+    resourceMetadata: input.resourceMetadata ?? {},
+    role: input.role,
+    sourceFormat: normalized.sourceFormat,
+    parserVersion: normalized.parserVersion,
+    chunkerVersion: normalized.chunkerVersion,
+    embeddingModel,
+    content: normalized.content,
+    chunks: normalized.chunks,
+  }
+  return createHash('sha256')
+    .update(JSON.stringify(stableValue(payload)))
+    .digest('hex')
+}
+
+function stableValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableValue)
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, child]) => child !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, child]) => [key, stableValue(child)]),
+    )
+  return value
+}
+
+function assertResourceIdentity(
+  resource: { resourceType: string; title: string; authority: string },
+  input: CurriculumLibrarySourceInput,
+) {
+  if (
+    resource.resourceType !== input.resourceType ||
+    resource.title !== input.title ||
+    resource.authority !== input.authority
+  ) {
+    throw new BadRequestException({
+      code: 'SOURCE_RESOURCE_IDENTITY_IMMUTABLE',
+      message: 'A source revision must keep the resource title, type, and authority.',
+    })
+  }
 }
