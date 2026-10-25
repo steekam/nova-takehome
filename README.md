@@ -104,9 +104,25 @@ LLM_REVIEWER_MODEL=PROVIDER/MODEL_ID
 LANGFUSE_USE_MANAGED_PROMPTS=false
 ```
 
-Replace the placeholders with your key and supported model IDs. OpenRouter model IDs use the `provider/model` form. You can use different models for generation and review; both must support JSON object output. These direct-provider examples disable managed prompts so the API uses the configured model IDs. The full demo's managed prompts use the `lesson-planner` LiteLLM alias by default. For `pnpm demo:full`, the endpoint must be reachable from the API container. If you run the API on your machine, set `LLM_BASE_URL` instead of `COMPOSE_LLM_BASE_URL`.
+To reuse an existing local LiteLLM and Langfuse stack from the lite profile, point the API container to the host services. Set `LLM_API_KEY` to your LiteLLM virtual key and keep the model aliases configured in LiteLLM:
 
-Then run `pnpm demo:full` and choose **Live** in the app header. If you change credentials while the stack is running, rerun the command so Compose recreates the API with the new values. Prompt capture defaults on; set `LANGFUSE_CAPTURE_PROMPTS=false` for sensitive content. See [observability](docs/observability.md), the [OpenAI API reference](https://platform.openai.com/docs/api-reference/chat), and [OpenRouter](https://openrouter.ai/developers).
+```dotenv
+LLM_PROVIDER=openai-compatible
+COMPOSE_LLM_BASE_URL=http://host.docker.internal:4000/v1
+LLM_API_KEY=YOUR_LITELLM_API_KEY
+LLM_GENERATOR_MODEL=lesson-planner
+LLM_REVIEWER_MODEL=lesson-planner
+COMPOSE_LANGFUSE_BASE_URL=http://host.docker.internal:3002
+LANGFUSE_PUBLIC_KEY=YOUR_LANGFUSE_PUBLIC_KEY
+LANGFUSE_SECRET_KEY=YOUR_LANGFUSE_SECRET_KEY
+LANGFUSE_USE_MANAGED_PROMPTS=true
+```
+
+Start with `pnpm demo:up`; the app header should show **Live · configured provider**. The LiteLLM API key is passed as `LLM_API_KEY` regardless of which compatible proxy issued it. Generation and rubric QA are separate calls: an invalid rubric response does not discard a valid draft. Deterministic checks remain available; use **Run again** to retry the advisory review.
+
+For the OpenAI and OpenRouter examples, replace the placeholders with your key and supported model IDs, then run `pnpm demo:full` and choose **Live** in the app header. OpenRouter model IDs use the `provider/model` form. You can use different models for generation and review; both must support JSON object output. These direct-provider examples disable managed prompts so the API uses the configured model IDs. The full demo's managed prompts use the `lesson-planner` LiteLLM alias by default. For Compose, the endpoint must be reachable from the API container. If you run the API on your machine, set `LLM_BASE_URL` instead of `COMPOSE_LLM_BASE_URL`.
+
+If you change credentials while the stack is running, rerun its startup command so Compose recreates the API with the new values. Prompt capture defaults on; set `LANGFUSE_CAPTURE_PROMPTS=false` for sensitive content. See [observability](docs/observability.md), the [OpenAI API reference](https://platform.openai.com/docs/api-reference/chat), and [OpenRouter](https://openrouter.ai/developers).
 
 ## Verify
 

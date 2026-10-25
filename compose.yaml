@@ -50,7 +50,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/nova_hub
       PORT: '3001'
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:${COMPOSE_WEB_PORT:-5173}}
-      LLM_PROVIDER: mock
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
       LLM_BASE_URL: ${COMPOSE_LLM_BASE_URL:-http://litellm:4000/v1}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_GENERATOR_MODEL: ${LLM_GENERATOR_MODEL:-lesson-planner}
@@ -70,6 +70,9 @@ services:
       LANGFUSE_CAPTURE_PROMPTS: ${LANGFUSE_CAPTURE_PROMPTS:-true}
       LANGFUSE_USE_MANAGED_PROMPTS: ${LANGFUSE_USE_MANAGED_PROMPTS:-true}
       LANGFUSE_PROMPT_LABEL: ${LANGFUSE_PROMPT_LABEL:-production}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_BASE_URL: ${COMPOSE_LANGFUSE_BASE_URL:-http://langfuse-web:3000}
     ports:
       - '127.0.0.1:${COMPOSE_API_PORT:-3001}:3001'
     volumes:

@@ -62,12 +62,8 @@ function readLocalConfig() {
 }
 
 function printSummary(full) {
-  const modeSource = full
-    ? process.env.LLM_PROVIDER?.trim()
-      ? 'command environment'
-      : '.env.local'
-    : 'default Compose services'
-  const requestedLive = full && configured('LLM_PROVIDER') === 'openai-compatible'
+  const modeSource = process.env.LLM_PROVIDER?.trim() ? 'command environment' : '.env.local'
+  const requestedLive = configured('LLM_PROVIDER') === 'openai-compatible'
   const baseUrl = configured('COMPOSE_LLM_BASE_URL') || configured('LLM_BASE_URL')
   const missing = [
     ...(!baseUrl ? ['COMPOSE_LLM_BASE_URL'] : []),
@@ -89,7 +85,7 @@ function printSummary(full) {
       'Mock generation is for workflow checks; use Live mode to assess lesson quality.\n',
     )
   process.stdout.write(
-    `Langfuse prompts     ${full && configured('LANGFUSE_USE_MANAGED_PROMPTS') !== 'false' ? `${configured('LANGFUSE_PROMPT_LABEL') || 'production'} label` : 'code fallback'}\n`,
+    `Langfuse prompts     ${configured('LANGFUSE_PUBLIC_KEY') && configured('LANGFUSE_SECRET_KEY') && configured('LANGFUSE_USE_MANAGED_PROMPTS') !== 'false' ? `${configured('LANGFUSE_PROMPT_LABEL') || 'production'} label` : 'code fallback'}\n`,
   )
   if (requestedLive && missing.length > 0)
     process.stdout.write(
