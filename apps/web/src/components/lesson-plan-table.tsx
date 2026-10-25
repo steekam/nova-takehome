@@ -220,7 +220,7 @@ function CurriculumContext({ plan }: { plan: LessonPlanTableItem }) {
         <Link
           to="/library/targets/$targetRevisionId"
           params={{ targetRevisionId: plan.targetRevisionId }}
-          className="block text-primary underline underline-offset-2"
+          className="text-primary underline underline-offset-2"
         >
           View outcome in curriculum library
         </Link>
@@ -244,7 +244,7 @@ function CurriculumContext({ plan }: { plan: LessonPlanTableItem }) {
           to="/library/targets/$targetRevisionId"
           params={{ targetRevisionId: plan.targetRevisionId }}
           aria-label={`View ${context.targetTitle} in ${context.framework}, ${context.programme}, ${context.grade} ${context.subject}, ${context.releaseLabel} edition, ${context.locator}`}
-          className="block text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+          className="text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
         >
           {context.locator} · {context.targetTitle}
         </Link>
