@@ -48,7 +48,17 @@ Use these terms consistently in the app, schema, demo, and project docs. Curricu
 
 ## Corpus and retrieval terms
 
-**Curriculum source.** A versioned authority record for a source such as a KICD curriculum design. Store its publisher, exact edition or file label, URL, and locator details separately from authored teaching material.
+**Curriculum source.** A versioned source resource linked to a curriculum target with a role and publication state. Preserve its publisher release, URL, and source locators separately from authored teaching material. In the current schema, `curriculum_frameworks.authority` names the issuing body; `library_resources.authority` is the provenance class.
+
+**Issuing authority.** The publisher or owner of a curriculum source, such as KICD. It is distinct from the library provenance class (`official`, `school`, `internal`, or `synthetic`).
+
+**Source snapshot (proposed).** An immutable capture of the original authority file or page, identified by its raw-file hash and capture metadata. A snapshot preserves what an extractor processed even if the publisher later replaces the file.
+
+**Ingestion run (proposed).** One attempt to fetch, extract, normalize, and prepare a source for review. It records tool versions, status, warnings, and counts; a failed run is not a published resource revision.
+
+**Extraction proposal (proposed).** Candidate curriculum records parsed from a source, each tied to a page, section, table row, or quoted evidence span. It becomes curriculum data only after validation and review.
+
+**Embedding profile (proposed).** A versioned set of model, model revision, dimensions, normalization, and chunking settings used to build a searchable index. Keep profiles separate when their vector spaces are incompatible.
 
 **Corpus document.** One short, typed source item in the mock corpus, such as an outcome reference, activity guide, scheme entry, or assessment item. The performance task asks for 8–12 documents for one subject.
 
@@ -109,7 +119,7 @@ Use these terms consistently in the app, schema, demo, and project docs. Curricu
 
 ## Pilot slice and source note
 
-The evaluation fixtures use Grade 8 Integrated Science under Kenya CBC. One selected KICD outcome is 1.2(a), in strand 1.0, sub-strand 1.2. The target's internal ID is `target-kicd-g8-is-physical-chemical-changes-slo-a-v2024`; `1.2(a)` is a locator derived from the sub-strand and outcome letter, not a claimed KICD identifier.
+The demo uses Grade 8 Integrated Science under Kenya CBC. One selected KICD outcome is 1.2(a), in strand 1.0, sub-strand 1.2. The target's internal ID is `target-kicd-g8-is-physical-chemical-changes-slo-a-v2024`; `1.2(a)` is a locator derived from the sub-strand and outcome letter, not a claimed KICD identifier.
 
 The source record points to the Grade Eight designs page and its file labeled Integrated Science Grade 8, July 2024. The target chunk preserves the specific learning outcome wording and locator. Particle size remaining unchanged is a synthetic teaching-note emphasis, not part of that KICD outcome. Do not merge the separate April 2024 file label or locator into this source record.
 

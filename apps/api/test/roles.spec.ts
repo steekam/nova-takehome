@@ -1,6 +1,6 @@
 import { permissionsForRoles } from '@nova/shared'
 
-describe('server-side capability matrix', () => {
+describe('shared permission matrix', () => {
   it('grants teacher lesson-plan and runtime mode capabilities', () => {
     expect(permissionsForRoles(['teacher'])).toEqual([
       'lesson_plan:view',

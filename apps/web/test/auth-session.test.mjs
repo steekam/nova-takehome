@@ -10,7 +10,7 @@ import {
 
 const principal = { subject: 'u1', roles: ['teacher'], permissions: ['lesson_plan:view'] }
 
-test('login stores the cookie-backed principal after clearing stale query data', async () => {
+test('login clears stale auth data before caching the returned principal', async () => {
   const calls = []
   const user = await loginAndCache(
     async () => principal,

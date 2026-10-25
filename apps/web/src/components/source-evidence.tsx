@@ -1,4 +1,5 @@
 import type { CurriculumSourceDto } from '@nova/shared'
+import { ExternalLink } from 'lucide-react'
 
 export function SourceProvenance({ source }: { source: CurriculumSourceDto }) {
   return (
@@ -26,21 +27,34 @@ export function SourceProvenance({ source }: { source: CurriculumSourceDto }) {
 export function SourcePassage({ source }: { source: CurriculumSourceDto }) {
   const synthetic = source.synthetic || source.authority === 'synthetic'
   const collapsed = synthetic || source.role !== 'defines_target'
-  const content = (
-    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-      {source.content}
-    </p>
-  )
-
-  if (!collapsed) return content
 
   return (
-    <details className="mt-3">
-      <summary className="cursor-pointer text-sm font-medium text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        {synthetic ? 'Show synthetic demo passage' : 'Show supporting passage'}
-      </summary>
-      {content}
-    </details>
+    <div className="mt-3">
+      {collapsed ? (
+        <details>
+          <summary className="cursor-pointer text-sm font-medium text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {synthetic ? 'Show synthetic demo passage' : 'Show supporting passage'}
+          </summary>
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+            {source.content}
+          </p>
+        </details>
+      ) : (
+        <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+          {source.content}
+        </p>
+      )}
+      {source.sourceUrl && (
+        <a
+          href={source.sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+        >
+          Open source document <ExternalLink aria-hidden="true" className="size-3.5" />
+        </a>
+      )}
+    </div>
   )
 }
 

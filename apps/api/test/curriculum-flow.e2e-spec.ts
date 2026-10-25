@@ -163,11 +163,7 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
       ),
     ])
     const targets = readyDetails.body.designs.flatMap((design) => design.targets)
-    const target = targets.find(
-      (candidate) =>
-        candidate.statement ===
-        'Describe the characteristics of particles in the three states of matter.',
-    )
+    const target = targets.find((candidate) => candidate.generationReady)
     const browseOnlyTarget = browseOnlyDetails.body.designs
       .flatMap((design) => design.targets)
       .find((candidate) => !candidate.generationReady)

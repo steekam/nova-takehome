@@ -303,7 +303,6 @@ services:
       - tempo
       - prometheus
       - loki
-      - langfuse-web
 
   tempo:
     profiles: [full]

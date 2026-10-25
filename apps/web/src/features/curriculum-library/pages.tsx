@@ -19,7 +19,6 @@ import {
   ChevronDown,
   ChevronRight,
   CircleAlert,
-  ExternalLink,
   Layers3,
 } from 'lucide-react'
 import { AppShell } from '../../components/app-shell'
@@ -1161,16 +1160,6 @@ function SourceCard({ chunks }: { chunks: CurriculumSourceDto[] }) {
             </p>
           )}
         </div>
-        {source.sourceUrl && (
-          <a
-            href={source.sourceUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-          >
-            Open reference <ExternalLink className="size-3" />
-          </a>
-        )}
       </div>
       <div className="mt-3 space-y-3">
         {chunks.map((chunk, index) => (

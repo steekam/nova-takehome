@@ -1,7 +1,7 @@
 {
   "name": "nova-curriculum-hub",
   "private": true,
-  "packageManager": "pnpm@12.11.2",
+  "packageManager": "pnpm@12.15.0",
   "engines": {
     "node": ">=24 <25"
   },
@@ -29,7 +29,6 @@
     "demo:full": "node scripts/demo.mjs up:full",
     "demo:check:full": "node scripts/demo.mjs check:full",
     "litellm:api-key": "varlock run -- node ops/litellm/provision-api-key.mjs",
-    "evals": "pnpm --filter @nova/shared build && pnpm --filter @nova/evals build && varlock run -- node apps/evals/dist/cli.js",
     "openapi:generate": "pnpm --filter @nova/api openapi:export && pnpm --filter @nova/web openapi:types",
     "test:web": "pnpm --filter @nova/web test",
     "test:integration": "node scripts/test-integration.mjs"

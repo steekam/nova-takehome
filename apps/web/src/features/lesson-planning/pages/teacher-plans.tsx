@@ -679,6 +679,16 @@ function GeneratePageContent({
                               ? `${source.content.slice(0, 210).trimEnd()}…`
                               : source.content}
                           </p>
+                          {source.sourceUrl ? (
+                            <a
+                              className="mt-2 inline-flex font-medium text-primary underline underline-offset-2"
+                              href={source.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Open source document
+                            </a>
+                          ) : null}
                         </li>
                       ))}
                     </ul>

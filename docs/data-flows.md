@@ -1,16 +1,10 @@
 # Data flows
 
-These diagrams follow the implemented source, generation, authoring, and review
-paths. The [domain model](domain-model.md) lists the persisted entities and
-attributes; the [architecture](architecture.md) shows the runtime services.
-
-Zoomable workflow diagrams: [system diagram board](https://www.tldraw.com/f/bmp8NfBjhONWbeWKxZ7M9).
+Follow the implemented source, generation, and review paths here. See the [data model](domain-model.md) for records and the [ingestion proposal](corpus-ingestion.md) for future file handling.
 
 ## Source intake and publication
 
-Curriculum Leads submit source text and metadata through the API. Each update
-creates a new immutable resource revision; publishing its target link makes the
-source eligible for retrieval.
+A Curriculum Lead submits text and metadata through the API. Each update creates an immutable resource revision. Publishing its target link makes the source eligible for retrieval.
 
 ```mermaid
 flowchart TD
@@ -29,10 +23,7 @@ flowchart TD
 
 ## Generate a grounded draft
 
-The API retrieves published evidence for the selected target, asks the configured
-provider for schema-constrained lesson content, and runs deterministic checks
-before saving. One repair call follows a failed first response. Rubric QA runs
-after draft persistence and is advisory.
+The API retrieves published evidence for the selected target, requests schema-constrained lesson content, and runs deterministic checks before saving. Invalid output gets one repair attempt. Rubric QA runs after persistence and provides advisory guidance.
 
 ```mermaid
 flowchart TD
@@ -56,16 +47,17 @@ flowchart TD
   Rubric -. AI workflow trace + prompt capture .-> LF[Langfuse]
 ```
 
-Transport retries happen inside each provider completion call and respect
-`Retry-After` with jitter. Generation and rubric QA have separate Langfuse
-traces; each trace carries request correlation. Rubric failure does not undo the
-persisted draft.
+The failure outcomes are distinct:
+
+- **Invalid lesson content:** one repair, then a clear error; no draft is saved.
+- **Retryable provider failure:** up to three provider retries, then a clear error; no draft is saved.
+- **Rubric failure:** the persisted draft remains available.
+
+Generation and rubric traces carry request correlation. See [observability](observability.md) to inspect them.
 
 ## Edit, validate, and review
 
-Teacher edits create new immutable versions. Rubric validation can run against
-any saved version. Submission and publication use deterministic checks; the
-Curriculum Lead's decision remains the publication gate.
+Saving an edit appends an immutable version. Rubric QA can assess any saved version and does not change plan status. Submission and publication run deterministic checks; the Curriculum Lead makes the publication decision.
 
 ```mermaid
 flowchart TD
@@ -81,5 +73,4 @@ flowchart TD
   Version -. new edit makes prior rubric result stale .-> Stale[UI marks old version result stale]
 ```
 
-Review decisions and validation rows reference the exact lesson-plan version.
-Rubric validation does not change plan status; submission and publication do.
+Reviews and validations reference the exact version assessed. Later edits leave that history intact and make the prior rubric result stale in the UI.

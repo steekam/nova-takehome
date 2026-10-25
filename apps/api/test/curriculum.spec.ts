@@ -256,7 +256,12 @@ describe('curriculum workflow invariants', () => {
         40,
       ),
     ).toThrow()
-    expect(citationsWithinCandidateSet(plan.sources, plan.sources)).toBe(true)
+    expect(
+      citationsWithinCandidateSet(plan.sources, [
+        ...plan.sources,
+        { documentId: relatedSource.documentId, chunkId: relatedSource.chunkId },
+      ]),
+    ).toBe(true)
     expect(
       citationsWithinCandidateSet(
         [{ documentId: outcome.id, chunkId: '00000000-0000-4000-8000-000000000003' }],

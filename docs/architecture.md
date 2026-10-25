@@ -1,15 +1,8 @@
 # Architecture
 
-This page maps the running application for reviewers and contributors. The root
-[README](../README.md) covers local setup and the demo flow.
+Use this page to locate services, code responsibilities, and access rules. See the [README](../README.md) to run the demo.
 
-See [authentication and security](security.md) for opaque cookie sessions,
-capability checks, deployment requirements, and third-party source provenance.
-
-See the [system diagram board](https://www.tldraw.com/f/bmp8NfBjhONWbeWKxZ7M9)
-for zoomable entity, workflow, and service diagrams.
-
-## Product request path
+## Application path
 
 ```mermaid
 flowchart TB
@@ -20,7 +13,7 @@ flowchart TB
   API -->|Drizzle| PG[(PostgreSQL + pgvector)]
 ```
 
-## Provider routing
+## Model routing
 
 ```mermaid
 flowchart LR
@@ -30,6 +23,8 @@ flowchart LR
   Adapter --> LiteLLM[LiteLLM proxy · full profile]
   LiteLLM -->|model alias routing| Provider[Baseten or configured provider]
 ```
+
+The OpenAI-compatible adapter can call a provider directly. The full demo routes through LiteLLM for model aliases and provider routing.
 
 ## Embedding and retrieval
 
@@ -42,91 +37,56 @@ flowchart LR
   Evidence --> API
 ```
 
-## Telemetry paths
+## Local services
 
-```mermaid
-flowchart LR
-  API[NestJS AI workflows] -->|AI traces and captured prompts| SDK[Langfuse SDK]
-  SDK --> LF[Langfuse · traces and prompts]
-  Evals[Evaluation runner] -->|dataset export| LF
-  API -->|system telemetry| Collector[OpenTelemetry Collector]
-  LiteLLM[LiteLLM] -->|OpenTelemetry| Collector
-  Collector --> Tempo[Tempo · traces]
-  Collector --> Prom[Prometheus · metrics]
-  Collector --> Loki[Loki · logs]
-  Tempo --> Grafana[Grafana]
-  Prom --> Grafana
-  Loki --> Grafana
+The Compose profiles share one PostgreSQL service:
+
+| Profile | Services |
+| --- | --- |
+| Lite | PostgreSQL, API, web |
+| Full | Lite services plus LiteLLM, Langfuse, Redis, ClickHouse, MinIO, and the OpenTelemetry/Grafana stack |
+
+PostgreSQL hosts separate Nova, LiteLLM, and Langfuse databases. Langfuse web and worker use Redis queues; the API does not use Redis as an application cache. See [observability](observability.md) for signal routing.
+
+## Code map
+
+The main directories own these responsibilities:
+
+```text
+apps/
+  api/                 HTTP, authentication, policies, use cases, persistence, retrieval
+  web/                 Screens, forms, routing, typed HTTP calls
+packages/
+  shared/              Zod request and response contracts
+  model-runtime/       Provider adapters
 ```
 
-The Langfuse web and worker use shared backing services; they exchange work
-through Redis queues rather than a direct web-to-worker call. The zoomable
-[system diagram board](https://www.tldraw.com/f/bmp8NfBjhONWbeWKxZ7M9) shows
-those services and the three database connections separately.
+Database tables live in feature files under `apps/api/src/database/schema`; feature repositories use Drizzle. Shared contracts produce the OpenAPI description and web client types. The API owns embedding and retrieval.
 
-The default Compose configuration runs the product services and PostgreSQL.
-The `full` profile adds LiteLLM, Langfuse, Redis, ClickHouse, MinIO, and the
-OpenTelemetry/Grafana stack. One PostgreSQL service hosts separate Nova,
-LiteLLM, and Langfuse databases. Redis serves Langfuse; the API does not use it
-as an application cache. AI workflow traces go directly to Langfuse; system
-telemetry goes through the Collector.
+## Access rules
 
-## Code boundaries
-
-- `apps/web` owns screens, forms, routing, and typed HTTP calls.
-- `apps/api` owns authentication, authorization, HTTP validation, use cases,
-  database access, retrieval, model calls, and workflow transitions.
-- `packages/shared` owns Zod contracts shared across the API and web app.
-- `packages/model-runtime` owns provider adapters used by the API. The API owns
-  embedding and retrieval behavior.
-- `apps/evals` calls the API for generation and validation, then exports
-  evaluation run snapshots to Langfuse. It has no duplicate product workflow.
-
-Database table definitions live in feature-oriented files under
-`apps/api/src/database/schema`. Feature repositories use Drizzle. HTTP request
-and response contracts live in `packages/shared` and are used to generate the
-OpenAPI description and web client types.
-
-## Workflows
-
-See [workflow state charts](workflow-state-charts.md) for the implemented
-lesson-plan lifecycle, generation and repair path, provider retries, standalone
-rubric validation, and source revision publication. The shared package defines
-allowed lesson-plan transitions; review decisions reference the exact immutable
-version reviewed.
-
-See [data flows](data-flows.md) for source ingestion, grounded generation,
-versioned editing, rubric validation, and human review.
-
-## Access policy
-
-Protected API routes require authentication and capability checks. The API
-checks ownership and workflow state before it reads or changes a lesson plan.
-The web app also uses role guards to route users to their workspace; those
-guards do not replace API authorization.
+The API requires authentication, checks capabilities, then enforces plan ownership and workflow state. Web role guards choose the workspace; the API remains responsible for authorization.
 
 | Action | Teacher | Curriculum Lead |
 | --- | --- | --- |
-| List plans | Own plans and published plans | Submitted and published plans |
-| Read a plan | Own plans and published plans | Submitted and published plans |
-| Generate, edit, submit | Generate plans; edit own drafts or returned plans; submit own drafts | — |
-| Delete a plan | Own unreviewed drafts | — |
-| Run rubric QA | Any plan the user may read | Any plan the user may read |
+| List or read plans | Own plans and published plans | Submitted and published plans |
+| Generate | Yes | — |
+| Edit | Own Draft or Returned plans | — |
+| Submit | Own Draft plans | — |
+| Delete | Own unreviewed Draft plans | — |
+| Run rubric QA | Any readable plan | Any readable plan |
 | Return or publish | — | Submitted plans |
-| Browse curriculum library | Published catalogue and sources | Published catalogue plus draft designs and source revisions/links |
-| Add and publish curriculum sources | — | Yes |
-| Read runtime LLM mode | Yes | Yes |
-| Change runtime LLM mode | Yes | Yes |
+| Browse library | Published catalogue and sources | Also draft designs and source revisions/links |
+| Add or publish sources | — | Yes |
+| Read or change LLM mode | Yes | Yes |
 
-Source intake accepts text and metadata through the API. It creates a resource
-or a draft revision of an existing resource, chunks, and target link; a
-separate action publishes the link. The web library does not expose source
-management. Any authenticated user can read published plans.
+Source management is API-only; the web library does not expose those actions. Source intake creates a resource or revision, chunks, and a draft target link. Publication is a separate action. See [data flows](data-flows.md) for the workflow.
 
-## Change guide
+## Add a workflow
 
-When adding a workflow, define its contract in `packages/shared`, add the API
-use case and persistence path, expose it through the controller, then connect
-the web screen. Keep state changes and their version/review records in one
-database transaction. Add telemetry at the AI workflow boundary only for
-AI-related traces; ordinary HTTP and database traces remain in OpenTelemetry.
+Follow the existing contract-to-screen path:
+
+1. Define the request and response in `packages/shared`.
+2. Add the API use case and repository operations. Commit state changes and their version/review records in one transaction.
+3. Expose the controller route and connect the web client and screen.
+4. Trace AI work at the AI workflow boundary. Keep ordinary HTTP and database spans in OpenTelemetry.

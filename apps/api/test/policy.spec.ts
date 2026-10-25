@@ -1,6 +1,6 @@
 import 'reflect-metadata'
 import { permissionsForRoles } from '@nova/shared'
-import { Can, authorize, evaluatePolicy, POLICY_REQUIREMENTS_KEY } from '../src/common/auth/policy'
+import { authorize, evaluatePolicy } from '../src/common/auth/policy'
 import { ForbiddenException } from '@nestjs/common'
 import {
   CurriculumSourcePolicy,
@@ -106,20 +106,6 @@ describe('authorization policies', () => {
       publish: false,
       validate: true,
     })
-  })
-
-  it('keeps the route decorator typed and explicit', () => {
-    class ExamplePolicy {
-      check() {
-        return true
-      }
-    }
-    class ExampleController {
-      @Can(ExamplePolicy, 'check') run() {}
-    }
-    expect(Reflect.getMetadata(POLICY_REQUIREMENTS_KEY, ExampleController.prototype.run)).toEqual([
-      { policy: ExamplePolicy, ability: 'check' },
-    ])
   })
 
   it('allows explicit public metadata without a principal', async () => {

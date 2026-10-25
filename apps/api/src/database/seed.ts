@@ -117,6 +117,30 @@ const supportingSources = [
     content:
       'DEMO ONLY, SYNTHETIC LEAD NOTE: Use paper cards, drawings, or counters; do not require heating, burning, or open flames. Offer spoken descriptions and static response cards so every task works without visual access or body movement.',
   },
+  {
+    type: 'teaching_note' as const,
+    title: 'Demo particle diagram activity note',
+    locator: 'Teaching note 2',
+    role: 'teaching_support' as const,
+    content:
+      'DEMO ONLY, SYNTHETIC TEACHING NOTE: Draw three boxes with same-size circles. Pack circles in a regular arrangement for a solid, close together with gaps for a liquid, and far apart for a gas. Ask learners to describe spacing before discussing movement. Keep circle size constant across all three boxes.',
+  },
+  {
+    type: 'assessment_item' as const,
+    title: 'Demo particle model exit question',
+    locator: 'Exit question 1',
+    role: 'assessment_support' as const,
+    content:
+      'DEMO ONLY, SYNTHETIC ASSESSMENT ITEM: Show three particle diagrams with equal-size circles: closely packed and regular; close but irregular; widely spaced. Ask learners to match each diagram to a state and explain one difference in particle movement. A complete response uses both spacing and movement and does not say that particles grow in a gas.',
+  },
+  {
+    type: 'exemplar' as const,
+    title: 'Demo exemplar: particle model explanation',
+    locator: 'Illustrative lesson excerpt',
+    role: 'exemplar' as const,
+    content:
+      'DEMO ONLY, SYNTHETIC EXEMPLAR: In a hypothetical reviewed lesson, learners compared same-size particle cards arranged for solids, liquids, and gases. The teacher asked them to explain spacing and movement before naming each state. Learners then corrected the claim that gas particles become larger. This invented excerpt demonstrates a lesson pattern; it is not a real or approved Nova Pioneer plan.',
+  },
 ]
 
 const retiredSeedSourceTitles = [
@@ -284,15 +308,29 @@ async function seed(): Promise<void> {
       offerings.set(`${path.programmeCode}:${path.levelCode}:${path.subjectCode}`, offering)
     }
 
+    const kicdSourceUrl =
+      'https://drive.google.com/file/d/1RpqZRmeMywbc1Tya0_x-tNJBs75Gy0-v/preview'
     const officialResource = await seedResource({
       title: 'KICD Integrated Science Grade 8 learning outcome excerpt 1.2(a)',
       type: 'curriculum_design',
       authority: 'official',
       editionLabel: 'July 2024',
-      sourceUrl: 'https://drive.google.com/file/d/1RpqZRmeMywbc1Tya0_x-tNJBs75Gy0-v/preview',
+      sourceUrl: kicdSourceUrl,
       locator:
         'Strand 1.0 · Mixtures, Elements and Compounds / Sub-strand 1.2 · Physical and chemical changes / Specific learning outcome (a)',
       content: 'Describe the characteristics of particles in the three states of matter.',
+      creatorId: leadId,
+      embed,
+    })
+    const officialInquiryResource = await seedResource({
+      title: 'KICD Integrated Science Grade 8 key inquiry question 1.2',
+      type: 'curriculum_design',
+      authority: 'official',
+      editionLabel: 'July 2024',
+      sourceUrl: kicdSourceUrl,
+      locator:
+        'Strand 1.0 · Mixtures, Elements and Compounds / Sub-strand 1.2 · Suggested key inquiry question',
+      content: 'How does the movement of particles in matter affect its properties?',
       creatorId: leadId,
       embed,
     })
@@ -420,6 +458,12 @@ async function seed(): Promise<void> {
       'defines_target',
       leadId,
     )
+    await linkPublishedSource(
+      officialTargetId,
+      officialInquiryResource.revision.id,
+      'teaching_support',
+      leadId,
+    )
     const supportResources = new Map<string, Awaited<ReturnType<typeof seedResource>>>()
     for (const source of supportingSources) {
       const created = await seedResource({
@@ -478,6 +522,10 @@ async function seed(): Promise<void> {
         'Ask learners to explain why a gas fills its container without its particles becoming larger. Look for spacing and movement in the explanation.',
       sources: [
         { documentId: officialResource.resource.id, chunkId: officialResource.chunk.id },
+        {
+          documentId: officialInquiryResource.resource.id,
+          chunkId: officialInquiryResource.chunk.id,
+        },
         { documentId: teachingNote.resource.id, chunkId: teachingNote.chunk.id },
       ],
     }
@@ -504,7 +552,7 @@ async function seed(): Promise<void> {
       .onConflictDoNothing()
 
     console.log(
-      `Seeded ${seedAccounts.length} local accounts, ${supportedPaths.length} CBC catalogue paths, ${supportingSources.length + 1} source passages, and one target-linked lesson-plan draft.`,
+      `Seeded ${seedAccounts.length} local accounts, ${supportedPaths.length} CBC catalogue paths, ${supportingSources.length + 2} source passages, and one target-linked lesson-plan draft.`,
     )
   } finally {
     await pool.end()

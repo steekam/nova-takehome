@@ -1,32 +1,13 @@
 # AI log
 
-## How I used AI
+I used Codex for codebase exploration, implementation, tests, and documentation. Sub-agents reviewed independent areas. I checked proposals against the task PDF, source code, and runnable workflows; I used primary documentation for provider and observability integrations.
 
-I used Codex to explore the domain model, implement the API and web app, and
-write tests and documentation. Parallel agents reviewed architecture,
-correctness, and cleanup. Web research helped with provider, Langfuse, and
-OpenTelemetry integrations. I reviewed the proposals and checked the result
-through tests and live workflow runs.
+## Proposal I rejected
 
-## A schema proposal I corrected
+An early AI-assisted schema kept curriculum hierarchy inside curriculum source documents. I tested it against adding another grade or subject and importing a correction to the same release. The document could not serve as both a stable curriculum identity and changing evidence without mixing their histories.
 
-The early design kept curriculum hierarchy inside source documents. I asked
-how it would handle another grade, subject, curriculum edition, or source
-update. Working through those examples exposed the coupling between the
-curriculum catalogue and its supporting material.
+I chose a structured catalogue with offerings, design versions, hierarchy nodes, and target revisions. Source resources have their own revisions and link to the target they support. A plan version can now retain its selected target and exact source chunks.
 
-I directed a separate, structured catalogue with versioned curriculum targets
-and explicit links to source revisions. Publisher outcome locators are scoped
-to a curriculum design version; internal IDs identify records. This makes
-curriculum selection and validation explicit while preserving which sources
-supported a lesson.
+## Decision I made
 
-## A scope decision I made
-
-I narrowed source ingestion to text and metadata: create a draft revision,
-chunk and embed it, and link it to a curriculum target. A separate Curriculum
-Lead action publishes it. File upload, extraction, and source-management
-screens remain outside this slice.
-
-That preserves source history and publication control while keeping the work
-focused on the required CBC flow: generate, edit, submit, review, and publish.
+I kept source intake to text and metadata. Each update creates a new source revision and draft target link; a Curriculum Lead publishes the link separately. I left file upload, extraction, and source-management screens out. This keeps source history and review control while focusing the demo on the required generate, edit, submit, review, and publish workflow.

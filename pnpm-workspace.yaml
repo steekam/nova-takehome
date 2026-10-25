@@ -8,3 +8,8 @@ allowBuilds:
   onnxruntime-node: true
   protobufjs: true
   unrs-resolver: true
+permissions:
+  drizzle-kit:
+    skills: true
+  varlock:
+    skills: true
