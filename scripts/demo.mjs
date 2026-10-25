@@ -4,9 +4,13 @@ import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
 const envPath = resolve(root, '.env.local')
+const config = readLocalConfig()
+const configured = (key) => process.env[key]?.trim() || config.get(key)
+const apiPort = configured('COMPOSE_API_PORT') || '3001'
+const webPort = configured('COMPOSE_WEB_PORT') || '5173'
 const coreUrls = [
-  { name: 'Nova lesson studio', url: 'http://localhost:5173/login' },
-  { name: 'API readiness', url: 'http://localhost:3001/api/health/ready' },
+  { name: 'Nova lesson studio', url: `http://localhost:${webPort}/login` },
+  { name: 'API readiness', url: `http://localhost:${apiPort}/api/health/ready` },
 ]
 const fullUrls = [
   ...coreUrls,
@@ -58,8 +62,6 @@ function readLocalConfig() {
 }
 
 function printSummary(full) {
-  const config = readLocalConfig()
-  const configured = (key) => process.env[key]?.trim() || config.get(key)
   const modeSource = full
     ? process.env.LLM_PROVIDER?.trim()
       ? 'command environment'
@@ -83,7 +85,9 @@ function printSummary(full) {
     `LLM config default   ${provider} (${modeSource}; app header shows current runtime mode)\n`,
   )
   if (provider === 'mock')
-    process.stdout.write('Mock generation is for workflow checks; use Live mode to assess lesson quality.\n')
+    process.stdout.write(
+      'Mock generation is for workflow checks; use Live mode to assess lesson quality.\n',
+    )
   process.stdout.write(
     `Langfuse prompts     ${full && configured('LANGFUSE_USE_MANAGED_PROMPTS') !== 'false' ? `${configured('LANGFUSE_PROMPT_LABEL') || 'production'} label` : 'code fallback'}\n`,
   )

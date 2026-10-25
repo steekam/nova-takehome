@@ -9,7 +9,7 @@ services:
       LITELLM_POSTGRES_PASSWORD: ${LITELLM_POSTGRES_PASSWORD:-nova-lite-local}
       LANGFUSE_POSTGRES_PASSWORD: ${LANGFUSE_POSTGRES_PASSWORD:-nova-lite-local}
     ports:
-      - '127.0.0.1:5433:5432'
+      - '127.0.0.1:${COMPOSE_POSTGRES_PORT:-5433}:5432'
     volumes:
       - nova-postgres-data:/var/lib/postgresql/data
       - ./ops/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -49,7 +49,7 @@ services:
       NODE_ENV: development
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/nova_hub
       PORT: '3001'
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:${COMPOSE_WEB_PORT:-5173}}
       LLM_PROVIDER: mock
       LLM_BASE_URL: ${COMPOSE_LLM_BASE_URL:-http://litellm:4000/v1}
       LLM_API_KEY: ${LLM_API_KEY:-}
@@ -71,7 +71,7 @@ services:
       LANGFUSE_USE_MANAGED_PROMPTS: ${LANGFUSE_USE_MANAGED_PROMPTS:-true}
       LANGFUSE_PROMPT_LABEL: ${LANGFUSE_PROMPT_LABEL:-production}
     ports:
-      - '127.0.0.1:3001:3001'
+      - '127.0.0.1:${COMPOSE_API_PORT:-3001}:3001'
     volumes:
       - nova-model-cache:/workspace/.cache
     depends_on:
@@ -97,9 +97,9 @@ services:
     restart: unless-stopped
     command: ['pnpm', '--filter', '@nova/web', 'dev', '--host', '0.0.0.0']
     environment:
-      VITE_API_URL: http://localhost:3001
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:${COMPOSE_API_PORT:-3001}}
     ports:
-      - '127.0.0.1:5173:5173'
+      - '127.0.0.1:${COMPOSE_WEB_PORT:-5173}:5173'
     depends_on:
       api:
         condition: service_healthy

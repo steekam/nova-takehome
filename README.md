@@ -15,6 +15,8 @@ pnpm demo:up
 
 Startup builds the app, migrates the database, seeds the corpus, checks health, and prints URLs. The first run downloads the local embedding model and can take longer. No LLM key is needed for the workflow smoke test.
 
+To run a second clone beside another stack, set `COMPOSE_POSTGRES_PORT`, `COMPOSE_API_PORT`, and `COMPOSE_WEB_PORT` in `.env.local`; keep `DATABASE_URL`, `CORS_ORIGIN`, and `VITE_API_URL` aligned. `pnpm demo:check` prints the active app and API URLs.
+
 Open [localhost:5173/login](http://localhost:5173/login) and sign in with either account:
 
 | Role | Email | Password |
@@ -117,6 +119,8 @@ pnpm typecheck
 pnpm lint
 pnpm format:check
 ```
+
+If you changed `COMPOSE_POSTGRES_PORT`, use that port in `TEST_DATABASE_URL`.
 
 `pnpm test` covers API unit, web authentication, and database-backed HTTP tests. `pnpm test:web` needs no database.
 
