@@ -558,11 +558,9 @@ export function validatePlanQa(
   sourcesAllowed: boolean,
 ): asserts content is LessonPlanContent {
   const valid = LessonPlanContentSchema.safeParse(content)
-  const durationMatches = valid.success && planDurationMatches(valid.data)
-  if (!valid.success || !durationMatches || !sourcesExist || !sourcesAllowed) {
+  if (!valid.success || !sourcesExist || !sourcesAllowed) {
     const issues = [
       ...(!valid.success ? ['content must match the lesson plan schema'] : []),
-      ...(!durationMatches ? ['activity durations must sum to the lesson duration'] : []),
       ...(!sourcesExist
         ? [
             'citations must reference published target sources and include the official excerpt that defines the selected outcome',

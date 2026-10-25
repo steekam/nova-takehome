@@ -181,29 +181,32 @@ export function buildLessonPlanQa(
 ) {
   const parsed = LessonPlanContentSchema.safeParse(content)
   const structure = parsed.success
-  const duration =
-    structure &&
-    parsed.data.activities.reduce((sum, activity) => sum + activity.durationMinutes, 0) ===
-      parsed.data.durationMinutes
+  const activityDuration = structure
+    ? parsed.data.activities.reduce((sum, activity) => sum + activity.durationMinutes, 0)
+    : undefined
+  const requestedDuration = structure ? parsed.data.durationMinutes : undefined
+  const durationMatches = activityDuration !== undefined && activityDuration === requestedDuration
   const hasCitations = structure && parsed.data.sources.length > 0
   const checks = [
     {
       code: 'lesson-structure',
-      passed: structure,
+      status: structure ? 'passed' : 'failed',
       message: structure
         ? 'Lesson plan has the required structure.'
         : 'Lesson plan structure is invalid.',
     },
     {
       code: 'duration-total',
-      passed: duration,
-      message: duration
+      status: !structure ? 'failed' : durationMatches ? 'passed' : 'warning',
+      message: durationMatches
         ? 'Activity times match the lesson duration.'
-        : 'Activity times do not match the lesson duration.',
+        : activityDuration === undefined || requestedDuration === undefined
+          ? 'Activity timing could not be checked because the lesson structure is invalid.'
+          : `Suggested activity times total ${activityDuration} of ${requestedDuration} minutes. Adjust them if needed before teaching.`,
     },
     {
       code: 'citations-present',
-      passed: hasCitations,
+      status: hasCitations ? 'passed' : 'failed',
       message: !structure
         ? 'Fix the lesson plan structure before checking citations.'
         : hasCitations
@@ -212,7 +215,7 @@ export function buildLessonPlanQa(
     },
     {
       code: 'official-target-citation',
-      passed: structure && citationsExist,
+      status: structure && citationsExist ? 'passed' : 'failed',
       message: !structure
         ? 'Fix the lesson plan structure before checking citations.'
         : citationsExist
@@ -221,7 +224,7 @@ export function buildLessonPlanQa(
     },
     {
       code: 'citation-source-membership',
-      passed: structure && citationsAllowed,
+      status: structure && citationsAllowed ? 'passed' : 'failed',
       message: !structure
         ? 'Fix the lesson plan structure before checking citation provenance.'
         : citationsAllowed
@@ -229,5 +232,5 @@ export function buildLessonPlanQa(
           : 'Use only the curriculum chunks retrieved for this draft.',
     },
   ]
-  return { passed: checks.every((check) => check.passed), checks }
+  return { passed: checks.every((check) => check.status !== 'failed'), checks }
 }

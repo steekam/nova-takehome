@@ -803,7 +803,8 @@ export interface components {
                 passed: boolean;
                 checks: {
                     code: string;
-                    passed: boolean;
+                    /** @enum {string} */
+                    status: "passed" | "warning" | "failed";
                     message: string;
                 }[];
             };
@@ -951,7 +952,8 @@ export interface components {
                 passed: boolean;
                 checks: {
                     code: string;
-                    passed: boolean;
+                    /** @enum {string} */
+                    status: "passed" | "warning" | "failed";
                     message: string;
                 }[];
             };

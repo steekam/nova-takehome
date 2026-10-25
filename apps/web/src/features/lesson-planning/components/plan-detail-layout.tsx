@@ -64,6 +64,7 @@ export function PlanDetailLayout({
       icon: ClipboardCheck,
       marker:
         detail.qa?.passed === false ||
+        detail.qa?.checks.some((check) => check.status === 'warning') ||
         (detail.rubricQa?.status !== undefined && detail.rubricQa.status !== 'completed')
           ? '!'
           : undefined,

@@ -1,5 +1,4 @@
 export * from './schema/identity.schema'
-export * from './schema/curriculum-documents.schema'
 export * from './schema/curriculum-catalogue.schema'
 export * from './schema/library.schema'
 export * from './schema/curriculum-source-links.schema'

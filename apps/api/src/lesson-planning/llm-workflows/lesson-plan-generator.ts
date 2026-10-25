@@ -46,7 +46,7 @@ export class LessonPlanGenerator {
       span.setAttribute('lesson.duration_minutes', durationMinutes)
       span.setAttribute(
         'generation.validation.kind',
-        'deterministic_schema_target_timing_and_citation_provenance',
+        'deterministic_schema_target_and_citation_provenance_with_advisory_timing',
       )
       let provider = 'unknown'
       let model: string | undefined
@@ -60,7 +60,7 @@ export class LessonPlanGenerator {
       const validationAttempts: Array<{
         attempt: number
         passed: boolean
-        checks: Array<{ code: string; passed: boolean }>
+        checks: Array<{ code: string; status: 'passed' | 'warning' | 'failed' }>
       }> = []
       try {
         const managedPrompt = await this.prompts.get(
@@ -116,31 +116,47 @@ export class LessonPlanGenerator {
           span.setAttribute('generation.provider_attempts', providerAttempts)
           const parsedJson = parseJson(completion.content)
           const checks = generatedPlanChecks(parsedJson, outcome, sources, durationMinutes)
+          const attemptPassed = checks.every((check) => check.status !== 'failed')
           validationAttempts.push({
             attempt: attempt + 1,
-            passed: checks.every((check) => check.passed),
-            checks: checks.map(({ code, passed }) => ({ code, passed })),
+            passed: attemptPassed,
+            checks: checks.map(({ code, status }) => ({ code, status })),
           })
           await recordGenerationValidationAttempt({
             attempt: attempt + 1,
-            passed: checks.every((check) => check.passed),
-            checks: checks.map(({ code, passed }) => ({ code, passed })),
+            passed: attemptPassed,
+            checks: checks.map(({ code, status }) => ({ code, status })),
           })
           for (const check of checks)
-            recordGenerationValidation({ provider, checkCode: check.code, passed: check.passed })
-          const issues = checks.filter((check) => !check.passed).map((check) => check.message)
+            recordGenerationValidation({ provider, checkCode: check.code, status: check.status })
+          const issues = checks
+            .filter((check) => check.status === 'failed')
+            .map((check) => check.message)
           if (issues.length === 0) {
             outcomeLabel = 'success'
-            span.setAttribute('generation.validation', 'passed')
+            const warningChecks = checks.filter((check) => check.status === 'warning')
+            span.setAttribute(
+              'generation.validation',
+              warningChecks.length ? 'passed_with_warnings' : 'passed',
+            )
             span.setAttribute(
               'generation.validation.kind',
-              'deterministic_schema_target_timing_and_citation_provenance',
+              'deterministic_schema_target_and_citation_provenance_with_advisory_timing',
             )
+            if (warningChecks.length)
+              span.setAttribute(
+                'generation.validation.warning_codes',
+                warningChecks.map((check) => check.code).join(','),
+              )
             setUsageAttributes(span, inputTokens, outputTokens, reportedCostUsd)
             const plan = LessonPlanContentSchema.parse(parsedJson)
             setLangfuseOutput(span, {
               lessonPlan: plan,
-              deterministicQa: { passed: true, attempts: validationAttempts },
+              deterministicQa: {
+                passed: true,
+                attempts: validationAttempts,
+                warnings: warningChecks.map((check) => check.message),
+              },
             })
             span.setStatus({ code: SpanStatusCode.OK })
             return plan
@@ -152,7 +168,7 @@ export class LessonPlanGenerator {
           span.setAttribute(
             'generation.validation.failed_codes',
             checks
-              .filter((check) => !check.passed)
+              .filter((check) => check.status === 'failed')
               .map((check) => check.code)
               .join(','),
           )
@@ -206,12 +222,16 @@ export function validateGeneratedPlan(
   durationMinutes: number,
 ): void {
   const issues = generatedPlanChecks(plan, outcome, sources, durationMinutes)
-    .filter((check) => !check.passed)
+    .filter((check) => check.status === 'failed')
     .map((check) => check.message)
   if (issues.length > 0) throw new Error(`Generated plan failed checks: ${issues.join('; ')}`)
 }
 
-type GenerationValidationCheck = { code: string; passed: boolean; message: string }
+type GenerationValidationCheck = {
+  code: string
+  status: 'passed' | 'warning' | 'failed'
+  message: string
+}
 
 function generatedPlanChecks(
   plan: unknown,
@@ -224,7 +244,7 @@ function generatedPlanChecks(
     return [
       {
         code: 'OUTPUT_SCHEMA',
-        passed: false,
+        status: 'failed',
         message: parsed.error.issues
           .map((issue) => `${issue.path.join('.') || 'content'}: ${issue.message}`)
           .join('; '),
@@ -237,47 +257,53 @@ function generatedPlanChecks(
   const selectedOutcome =
     targetDefinition && `${targetDefinition.documentId}:${targetDefinition.chunkId}`
   return [
-    { code: 'OUTPUT_SCHEMA', passed: true, message: 'output must match the lesson plan schema' },
+    {
+      code: 'OUTPUT_SCHEMA',
+      status: 'passed',
+      message: 'output must match the lesson plan schema',
+    },
     {
       code: 'REQUESTED_DURATION_MATCH',
-      passed: content.durationMinutes === durationMinutes,
+      status: content.durationMinutes === durationMinutes ? 'passed' : 'failed',
       message: 'durationMinutes must match the requested lesson duration',
     },
     {
       code: 'SUBJECT_MATCH',
-      passed: content.subject === outcome.subject,
+      status: content.subject === outcome.subject ? 'passed' : 'failed',
       message: 'subject must match the selected outcome',
     },
     {
       code: 'GRADE_MATCH',
-      passed: content.grade === outcome.grade,
+      status: content.grade === outcome.grade ? 'passed' : 'failed',
       message: 'grade must match the selected outcome',
     },
     {
       code: 'OUTCOME_MATCH',
-      passed: content.learningOutcome === outcome.content,
+      status: content.learningOutcome === outcome.content ? 'passed' : 'failed',
       message: 'learningOutcome must match the selected outcome exactly',
     },
     {
       code: 'ACTIVITY_DURATION_TOTAL',
-      passed:
+      status:
         content.activities.reduce((sum, activity) => sum + activity.durationMinutes, 0) ===
-        durationMinutes,
-      message: 'activity durations must sum to durationMinutes',
+        durationMinutes
+          ? 'passed'
+          : 'warning',
+      message: `suggested activity durations total ${content.activities.reduce((sum, activity) => sum + activity.durationMinutes, 0)} of ${durationMinutes} requested minutes; adjust if needed`,
     },
     {
       code: 'UNIQUE_CITATIONS',
-      passed: cited.size === content.sources.length,
+      status: cited.size === content.sources.length ? 'passed' : 'failed',
       message: 'source references must be unique',
     },
     {
       code: 'OFFICIAL_TARGET_CITATION',
-      passed: Boolean(selectedOutcome && cited.has(selectedOutcome)),
+      status: selectedOutcome && cited.has(selectedOutcome) ? 'passed' : 'failed',
       message: 'sources must cite the curriculum chunk that defines the selected target',
     },
     {
       code: 'CITATIONS_IN_RETRIEVED_SET',
-      passed: [...cited].every((source) => eligible.has(source)),
+      status: [...cited].every((source) => eligible.has(source)) ? 'passed' : 'failed',
       message: 'sources must use only supplied curriculum source IDs',
     },
   ]

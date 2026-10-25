@@ -2,16 +2,6 @@ import { defineRelations } from 'drizzle-orm'
 import * as schema from './schema'
 
 export const relations = defineRelations(schema, (r) => ({
-  curriculumDocuments: {
-    chunks: r.many.curriculumChunks(),
-  },
-  curriculumChunks: {
-    document: r.one.curriculumDocuments({
-      from: r.curriculumChunks.documentId,
-      to: r.curriculumDocuments.id,
-      optional: false,
-    }),
-  },
   curriculumFrameworks: {
     programmes: r.many.curriculumProgrammes(),
     subjects: r.many.curriculumSubjects(),

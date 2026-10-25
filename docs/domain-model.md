@@ -210,4 +210,4 @@ Review and validation use a composite foreign key so their version must belong t
 
 The shared lesson content JSON has: title, subject, grade, learning outcome, duration, objectives, materials, starter, timed activities, check for understanding, and cited sources. Deterministic QA results are returned with the workflow; rubric QA is stored separately.
 
-`users` supplies teacher, lead, and attribution references. Authentication sessions and rate-limit counters support the application but are outside this product model. The older `curriculum_documents` tables are not used by the current library workflow.
+`users` supplies teacher, lead, and attribution references. Authentication sessions and rate-limit counters support the application but are outside this product model.

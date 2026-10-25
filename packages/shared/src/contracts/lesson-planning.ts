@@ -70,7 +70,7 @@ export const ReviewLessonPlanRequestSchema = z
 export const LessonPlanQaCheckSchema = z
   .object({
     code: z.string(),
-    passed: z.boolean(),
+    status: z.enum(['passed', 'warning', 'failed']),
     message: z.string(),
   })
   .strict()

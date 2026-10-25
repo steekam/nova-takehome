@@ -2720,8 +2720,13 @@
                     "code": {
                       "type": "string"
                     },
-                    "passed": {
-                      "type": "boolean"
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "passed",
+                        "warning",
+                        "failed"
+                      ]
                     },
                     "message": {
                       "type": "string"
@@ -2729,7 +2734,7 @@
                   },
                   "required": [
                     "code",
-                    "passed",
+                    "status",
                     "message"
                   ],
                   "additionalProperties": false
@@ -3404,8 +3409,13 @@
                     "code": {
                       "type": "string"
                     },
-                    "passed": {
-                      "type": "boolean"
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "passed",
+                        "warning",
+                        "failed"
+                      ]
                     },
                     "message": {
                       "type": "string"
@@ -3413,7 +3423,7 @@
                   },
                   "required": [
                     "code",
-                    "passed",
+                    "status",
                     "message"
                   ],
                   "additionalProperties": false

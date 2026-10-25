@@ -21,9 +21,15 @@ describe('lesson planning prompts', () => {
   })
 
   it('versions the teacher-facing generation instructions', () => {
-    expect(lessonPlanGenerationPromptVersion).toBe('lesson-plan-generation-v3')
+    expect(lessonPlanGenerationPromptVersion).toBe('lesson-plan-generation-v4')
     expect(lessonPlanGenerationPrompt.prompt).toContain('concrete learner actions')
     expect(lessonPlanGenerationPrompt.prompt).toContain('never invent an ID')
+    expect(lessonPlanGenerationPrompt.prompt).toContain('Required contract')
+    expect(lessonPlanGenerationPrompt.prompt).toContain('Lesson design guidance')
+    expect(lessonPlanGenerationPrompt.prompt).toContain(
+      'An exact activity-duration total is not a quality requirement',
+    )
+    expect(lessonPlanGenerationPrompt.prompt).toContain('Do not improvise hazardous experiments')
     expect(renderLessonPlanGenerationPrompt()).toContain(
       JSON.stringify(lessonPlanGenerationOutputSchema(), null, 2),
     )
@@ -39,7 +45,7 @@ describe('lesson planning prompts', () => {
   })
 
   it('renders the review contract from shared schema and keeps rubric guidance', () => {
-    expect(lessonPlanRubricPromptVersion).toBe('lesson-plan-rubric-v4')
+    expect(lessonPlanRubricPromptVersion).toBe('lesson-plan-rubric-v5')
     for (const dimension of [
       'outcome_alignment',
       'objective_measurability',
@@ -60,5 +66,14 @@ describe('lesson planning prompts', () => {
       z.toJSONSchema(LessonPlanRubricReviewOutputSchema),
     )
     expect(lessonPlanRubricPrompt.prompt).toContain('{{{output_schema}}}')
+    expect(lessonPlanRubricPrompt.prompt).toContain(
+      'citation presence alone does not establish support',
+    )
+    expect(renderLessonPlanRubricPrompt()).toContain(
+      'an activity-duration sum mismatch alone must not lower the score',
+    )
+    expect(lessonPlanRubricPrompt.prompt).toContain(
+      "present in both the reviewed plan's sources and the supplied evidence",
+    )
   })
 })

@@ -34,7 +34,7 @@ export function setLangfuseOutput(span: Span, output: unknown): void {
 export async function recordGenerationValidationAttempt(input: {
   attempt: number
   passed: boolean
-  checks: Array<{ code: string; passed: boolean }>
+  checks: Array<{ code: string; status: 'passed' | 'warning' | 'failed' }>
 }): Promise<void> {
   await startActiveObservation('curriculum.lesson_plan.validation', async (observation) => {
     observation.update({
@@ -91,12 +91,12 @@ export function recordProviderAttempt(input: {
 export function recordGenerationValidation(input: {
   provider: string
   checkCode: string
-  passed: boolean
+  status: 'passed' | 'warning' | 'failed'
 }): void {
   generationValidationChecks.add(1, {
     provider: input.provider,
     check_code: input.checkCode,
-    outcome: input.passed ? 'passed' : 'failed',
+    outcome: input.status,
   })
 }
 
