@@ -141,7 +141,7 @@ function Navigation({
   return (
     <nav
       aria-label="Main navigation"
-      className={mobile ? 'flex min-w-max gap-1 px-3 py-2' : 'space-y-1 p-3'}
+      className={mobile ? 'flex flex-wrap gap-1 px-3 py-2' : 'space-y-1 p-3'}
     >
       {items.map((item) => {
         const active = isActiveItem(pathname, item)
@@ -153,7 +153,7 @@ function Navigation({
             aria-current={active ? 'page' : undefined}
             className={
               mobile
-                ? `flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`
+                ? `flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium ${active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`
                 : `flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium ${active ? 'bg-white/10 text-white ring-1 ring-inset ring-white/10' : 'text-sky-100/75 hover:bg-white/10 hover:text-white'}`
             }
           >
@@ -247,7 +247,7 @@ export function AppShell({ permissions, children }: AppShellProps) {
             </Button>
           </div>
         </header>
-        <div className="sticky top-0 z-20 overflow-x-auto border-b bg-card md:hidden">
+        <div className="sticky top-0 z-20 border-b bg-card md:hidden">
           <Navigation items={items} pathname={pathname} mobile />
         </div>
         <main

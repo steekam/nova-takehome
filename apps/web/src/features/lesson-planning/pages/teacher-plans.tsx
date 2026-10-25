@@ -5,17 +5,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { ApiPrincipal } from '@nova/shared'
 import { LessonPlanContentSchema } from '@nova/shared'
 import { AppShell } from '../../../components/app-shell'
-import { SourcePassage, SourceProvenance } from '../../../components/source-evidence'
 import { QualityChecks } from '../../../components/quality-checks'
 import { RubricQaPanel } from '../../../components/rubric-qa-panel'
 import { Button } from '../../../components/ui/button'
 import { buttonVariants } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
-import {
-  PlanReviewHistory,
-  PlanVersionHistory,
-  type LessonPlanVersion,
-} from '../../../components/plan-history'
+import { PlanReviewHistory, type LessonPlanVersion } from '../../../components/plan-history'
+import { PlanDetailLayout, PlanSources } from '../components/plan-detail-layout'
 import {
   generateLessonPlan,
   getLessonPlan,
@@ -1295,7 +1291,7 @@ function PlanEditor({
           </Card>
         </fieldset>
         <aside className="space-y-6 xl:sticky xl:top-6">
-          <PlanContext
+          <PlanSources
             detail={sourceContent}
             sources={sources}
             sourcesLoading={sourcesLoading}
@@ -1386,212 +1382,97 @@ function PlanContent({
 }) {
   const { plan } = detail
   const editable = detail.viewer.availableActions.edit
-  return (
-    <div className="space-y-7">
-      <header className="flex flex-col justify-between gap-4 border-b border-primary/15 pb-6 sm:flex-row sm:items-end">
-        <div>
-          <Link
-            to="/teacher"
-            className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground"
-          >
-            <ArrowLeft aria-hidden="true" className="size-4" /> Overview
-          </Link>
-          <h1 className="text-3xl font-semibold tracking-tight">{plan.content.title}</h1>
-          <p className="mt-2 text-muted-foreground">
-            {plan.content.subject} · {plan.content.grade} · {plan.content.durationMinutes} minutes
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="rounded-full bg-muted px-3 py-1.5 text-sm font-medium">
-            {statusLabel[plan.status]}
-          </span>
-          {editable && (
-            <Link
-              className={buttonVariants()}
-              to="/teacher/plans/$planId/edit"
-              params={{ planId: plan.id }}
-            >
-              Edit plan
-            </Link>
-          )}
-        </div>
-      </header>
-      <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.7fr)]">
-        <div className="space-y-7">
-          <Card>
-            <CardHeader>
-              <CardTitle>Learning goals</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <section>
-                <h2 className="text-sm font-semibold text-muted-foreground">Learning outcome</h2>
-                <p className="mt-2 leading-7">{plan.content.learningOutcome}</p>
-              </section>
-              <ListReadOnly label="Objectives" values={plan.content.objectives} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Lesson sequence</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <ListReadOnly label="Materials" values={plan.content.materials} />
-              <section>
-                <h2 className="text-sm font-semibold text-muted-foreground">Starter</h2>
-                <p className="mt-2 whitespace-pre-wrap leading-7">{plan.content.starter}</p>
-              </section>
-              <section className="space-y-4">
-                <h2 className="text-sm font-semibold text-muted-foreground">Activities</h2>
-                <ol className="divide-y">
-                  {plan.content.activities.map((activity, index) => (
-                    <li
-                      key={`${activity.title}-${index}`}
-                      className="flex gap-4 py-4 first:pt-0 last:pb-0"
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold"
-                      >
-                        {index + 1}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline justify-between gap-2">
-                          <h3 className="font-semibold">{activity.title}</h3>
-                          <span className="text-sm text-muted-foreground">
-                            {activity.durationMinutes} min
-                          </span>
-                        </div>
-                        <p className="mt-2 whitespace-pre-wrap leading-7 text-muted-foreground">
-                          {activity.description}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Assessment</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="whitespace-pre-wrap leading-7">{plan.content.checkForUnderstanding}</p>
-            </CardContent>
-          </Card>
-        </div>
-        <aside className="space-y-6 xl:sticky xl:top-6">
-          <PlanContext
-            detail={detail}
-            sources={sources}
-            sourcesLoading={sourcesLoading}
-            sourcesError={sourcesError}
-          />
-          {detail.qa && <QualityChecks qa={detail.qa} />}
-          {detail.viewer.availableActions.validate && (
-            <RubricQaPanel
-              planId={plan.id}
-              versionId={plan.versionId}
-              validation={detail.rubricQa}
-            />
-          )}
-          <PlanVersionHistory versions={detail.versions} currentVersion={plan.version} />
-          <PlanReviewHistory reviews={detail.reviews} />
-          {plan.status === 'submitted' && (
-            <p className="rounded-xl border bg-card p-4 text-sm leading-6 text-muted-foreground">
-              This plan is locked while it is with the curriculum lead for review.
-            </p>
-          )}
-        </aside>
-      </div>
-    </div>
-  )
-}
 
-function PlanContext({
-  detail,
-  sources,
-  sourcesLoading,
-  sourcesError,
-}: {
-  detail: Detail
-  sources: CurriculumSource[]
-  sourcesLoading: boolean
-  sourcesError?: string
-}) {
-  const content = detail.plan.content
-  const references = content.sources.map((source) => ({
-    source,
-    match: sources.find(
-      (item) => item.documentId === source.documentId && item.chunkId === source.chunkId,
-    ),
-  }))
   return (
-    <section className="space-y-4" aria-labelledby="plan-context-heading">
-      <h2 id="plan-context-heading" className="text-lg font-semibold">
-        Plan context
-      </h2>
-      <div className="rounded-xl border bg-card p-4">
-        <h3 className="text-sm font-semibold">Selected curriculum target</h3>
-        {detail.plan.targetRevisionId ? (
+    <PlanDetailLayout
+      detail={detail}
+      sources={sources}
+      sourcesLoading={sourcesLoading}
+      sourcesError={sourcesError}
+      backLink={
+        <Link
+          to="/teacher"
+          className="mb-1 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground"
+        >
+          <ArrowLeft aria-hidden="true" className="size-4" /> Overview
+        </Link>
+      }
+      headerAction={
+        editable ? (
           <Link
-            to="/library/targets/$targetRevisionId"
-            params={{ targetRevisionId: detail.plan.targetRevisionId }}
-            className="mt-2 inline-flex text-sm font-medium text-primary hover:underline"
+            className={buttonVariants()}
+            to="/teacher/plans/$planId/edit"
+            params={{ planId: plan.id }}
           >
-            {content.subject} · {content.grade} · View exact target
+            Edit plan
           </Link>
-        ) : (
-          <p className="mt-2 text-sm text-muted-foreground">
-            This is a legacy plan without a linked catalogue target.
-          </p>
-        )}
+        ) : undefined
+      }
+    >
+      <div className="space-y-7">
+        <Card>
+          <CardHeader>
+            <CardTitle>Learning goals</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <section>
+              <h2 className="text-sm font-semibold text-muted-foreground">Learning outcome</h2>
+              <p className="mt-2 leading-7">{plan.content.learningOutcome}</p>
+            </section>
+            <ListReadOnly label="Objectives" values={plan.content.objectives} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Lesson sequence</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <ListReadOnly label="Materials" values={plan.content.materials} />
+            <section>
+              <h2 className="text-sm font-semibold text-muted-foreground">Starter</h2>
+              <p className="mt-2 whitespace-pre-wrap leading-7">{plan.content.starter}</p>
+            </section>
+            <section className="space-y-4">
+              <h2 className="text-sm font-semibold text-muted-foreground">Activities</h2>
+              <ol className="divide-y">
+                {plan.content.activities.map((activity, index) => (
+                  <li
+                    key={`${activity.title}-${index}`}
+                    className="flex gap-4 py-4 first:pt-0 last:pb-0"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold"
+                    >
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <h3 className="font-semibold">{activity.title}</h3>
+                        <span className="text-sm text-muted-foreground">
+                          {activity.durationMinutes} min
+                        </span>
+                      </div>
+                      <p className="mt-2 whitespace-pre-wrap leading-7 text-muted-foreground">
+                        {activity.description}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Assessment</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="whitespace-pre-wrap leading-7">{plan.content.checkForUnderstanding}</p>
+          </CardContent>
+        </Card>
       </div>
-      <div className="rounded-xl border bg-card p-4">
-        <h3 className="text-sm font-semibold">Curriculum sources</h3>
-        {sourcesError ? (
-          <p role="alert" className="mt-3 text-sm text-destructive">
-            Source details could not be loaded: {sourcesError}
-          </p>
-        ) : (
-          sourcesLoading && (
-            <p role="status" className="mt-3 text-sm text-muted-foreground">
-              Loading source details…
-            </p>
-          )
-        )}
-        {!sourcesLoading && !sourcesError && references.length === 0 && (
-          <p className="mt-3 text-sm text-muted-foreground">No source references were attached.</p>
-        )}
-        {!sourcesLoading && !sourcesError && (
-          <div className="mt-3 space-y-4">
-            {references.map(({ source, match }) => (
-              <article
-                key={`${source.documentId}-${source.chunkId}`}
-                className="border-t pt-3 first:border-0 first:pt-0"
-              >
-                <h4 className="font-medium">{match?.title ?? 'Curriculum source'}</h4>
-                {match && (
-                  <>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {match.subject} · {match.grade}
-                    </p>
-                    <SourceProvenance source={match} />
-                  </>
-                )}
-                {match ? (
-                  <SourcePassage source={match} />
-                ) : (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Source details are unavailable. The citation remains attached to this plan.
-                  </p>
-                )}
-              </article>
-            ))}
-          </div>
-        )}
-      </div>
-    </section>
+    </PlanDetailLayout>
   )
 }
 

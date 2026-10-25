@@ -4,9 +4,8 @@ import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
 import type { ApiPrincipal } from '@nova/shared'
 import { AppShell } from '../../../components/app-shell'
 import { LessonPlanTable } from '../../../components/lesson-plan-table'
-import { PlanReviewHistory, PlanVersionHistory } from '../../../components/plan-history'
-import { SourcePassage, SourceProvenance } from '../../../components/source-evidence'
 import { buttonVariants } from '../../../components/ui/button'
+import { PlanDetailLayout } from '../components/plan-detail-layout'
 import { getLessonPlan, lessonPlanningKeys, listLessonPlans } from '../api'
 import { curriculumLibraryKeys, listCurriculumSources } from '../../curriculum-library/api'
 import { toLessonPlanTableItems } from '../table-items'
@@ -148,140 +147,109 @@ export function PublishedPlanPage({ user, planId }: { user: ApiPrincipal; planId
       </AppShell>
     )
 
-  const { plan, reviews, versions } = detail.data
+  const plan = detail.data.plan
   const content = plan.content
-  const references = content.sources.map((source) => ({
-    source,
-    detail: sources.data?.find(
-      (item) => item.documentId === source.documentId && item.chunkId === source.chunkId,
-    ),
-  }))
 
   return (
     <AppShell permissions={user.permissions}>
-      <div className="space-y-7">
-        <header className="space-y-3 border-b border-primary/15 pb-6">
+      <PlanDetailLayout
+        detail={detail.data}
+        sources={sources.data ?? []}
+        sourcesLoading={sources.isLoading}
+        sourcesError={sources.error?.message}
+        backLink={
           <Link
             to="/lesson-plans"
-            className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+            className="mb-1 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground"
           >
-            <ArrowLeft aria-hidden="true" className="size-4" />
-            Lesson Plans
+            <ArrowLeft aria-hidden="true" className="size-4" /> Lesson Plans
           </Link>
-          <div>
-            <p className="text-sm font-medium text-primary">
-              {content.subject} · {content.grade} · {content.durationMinutes} minutes
-            </p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight">{content.title}</h1>
-            <p className="mt-3 max-w-4xl text-sm leading-6">{content.learningOutcome}</p>
-            {plan.targetRevisionId && (
-              <Link
-                to="/library/targets/$targetRevisionId"
-                params={{ targetRevisionId: plan.targetRevisionId }}
-                className="mt-2 inline-flex text-sm font-medium text-primary hover:underline"
-              >
-                View exact curriculum target
-              </Link>
-            )}
-          </div>
-        </header>
-        <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.7fr)]">
-          <main className="min-w-0 space-y-7">
-            <section className="grid gap-6 rounded-xl border bg-card p-5 md:grid-cols-2 md:p-6">
-              <div>
-                <h2 className="text-lg font-semibold">Objectives</h2>
-                <ul className="mt-3 list-inside list-disc space-y-2 text-sm leading-6 text-muted-foreground">
+        }
+        headerSupplement={
+          plan.targetRevisionId ? (
+            <Link
+              to="/library/targets/$targetRevisionId"
+              params={{ targetRevisionId: plan.targetRevisionId }}
+              className="mt-1 inline-flex text-sm font-medium text-primary hover:underline"
+            >
+              View exact curriculum target
+            </Link>
+          ) : undefined
+        }
+      >
+        <main className="space-y-7">
+          <section className="rounded-xl border bg-card p-5 md:p-6">
+            <h2 className="text-lg font-semibold">Learning goals</h2>
+            <div className="mt-5 space-y-5">
+              <section>
+                <h3 className="text-sm font-semibold text-muted-foreground">Learning outcome</h3>
+                <p className="mt-2 leading-7">{content.learningOutcome}</p>
+              </section>
+              <section>
+                <h3 className="text-sm font-semibold text-muted-foreground">Objectives</h3>
+                <ul className="mt-2 list-inside list-disc space-y-2 text-sm leading-6 text-muted-foreground">
                   {content.objectives.map((item, index) => (
-                    <li key={index}>{item}</li>
+                    <li key={`${index}-${item}`}>{item}</li>
                   ))}
                 </ul>
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">Materials</h2>
+              </section>
+            </div>
+          </section>
+          <section className="rounded-xl border bg-card p-5 md:p-6">
+            <h2 className="text-lg font-semibold">Lesson sequence</h2>
+            <div className="mt-5 space-y-6">
+              <section>
+                <h3 className="text-sm font-semibold text-muted-foreground">Materials</h3>
                 {content.materials.length ? (
-                  <ul className="mt-3 list-inside list-disc space-y-2 text-sm leading-6 text-muted-foreground">
+                  <ul className="mt-2 list-inside list-disc space-y-2 text-sm leading-6 text-muted-foreground">
                     {content.materials.map((item, index) => (
-                      <li key={index}>{item}</li>
+                      <li key={`${index}-${item}`}>{item}</li>
                     ))}
                   </ul>
                 ) : (
                   <p className="mt-2 text-sm text-muted-foreground">No additional materials.</p>
                 )}
-              </div>
-            </section>
-            <section className="rounded-xl border bg-card p-5 md:p-6">
-              <h2 className="text-lg font-semibold">Lesson sequence</h2>
-              <div className="mt-4 space-y-4">
-                <article className="rounded-lg bg-muted/55 p-4">
-                  <h3 className="font-semibold">Starter</h3>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                    {content.starter}
-                  </p>
-                </article>
-                {content.activities.map((activity, index) => (
-                  <article key={index} className="rounded-lg bg-muted/55 p-4">
-                    <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
-                      <h3 className="font-semibold">{activity.title}</h3>
-                      <span className="text-sm tabular-nums text-muted-foreground">
-                        {activity.durationMinutes} min
+              </section>
+              <section>
+                <h3 className="text-sm font-semibold text-muted-foreground">Starter</h3>
+                <p className="mt-2 whitespace-pre-wrap leading-7">{content.starter}</p>
+              </section>
+              <section>
+                <h3 className="text-sm font-semibold text-muted-foreground">Activities</h3>
+                <ol className="mt-2 divide-y">
+                  {content.activities.map((activity, index) => (
+                    <li key={`${index}-${activity.title}`} className="flex gap-4 py-4 first:pt-0">
+                      <span
+                        aria-hidden="true"
+                        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold"
+                      >
+                        {index + 1}
                       </span>
-                    </div>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                      {activity.description}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            </section>
-            <section className="rounded-xl border bg-card p-5 md:p-6">
-              <h2 className="text-lg font-semibold">Assessment</h2>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                {content.checkForUnderstanding}
-              </p>
-            </section>
-          </main>
-          <aside className="space-y-7 xl:sticky xl:top-6">
-            <section className="space-y-3">
-              <h2 className="text-lg font-semibold">Curriculum sources</h2>
-              {sources.isLoading ? (
-                <p role="status" className="text-sm text-muted-foreground">
-                  Loading source details…
-                </p>
-              ) : sources.error ? (
-                <p role="alert" className="text-sm text-destructive">
-                  Source details could not be loaded: {sources.error.message}
-                </p>
-              ) : references.length ? (
-                references.map(({ source, detail }, index) => (
-                  <article
-                    key={`${source.documentId}-${source.chunkId}`}
-                    className="rounded-xl border bg-card p-4"
-                  >
-                    <h3 className="font-semibold">{detail?.title ?? `Source ${index + 1}`}</h3>
-                    {detail ? (
-                      <>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {detail.subject} · {detail.grade}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <h4 className="font-semibold">{activity.title}</h4>
+                          <span className="text-sm text-muted-foreground">
+                            {activity.durationMinutes} min
+                          </span>
+                        </div>
+                        <p className="mt-2 whitespace-pre-wrap leading-7 text-muted-foreground">
+                          {activity.description}
                         </p>
-                        <SourceProvenance source={detail} />
-                        <SourcePassage source={detail} />
-                      </>
-                    ) : (
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        Source details are unavailable. The citation remains attached to this plan.
-                      </p>
-                    )}
-                  </article>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">No curriculum sources attached.</p>
-              )}
-            </section>
-            <PlanVersionHistory versions={versions} currentVersion={plan.version} />
-            <PlanReviewHistory reviews={reviews} />
-          </aside>
-        </div>
-      </div>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            </div>
+          </section>
+          <section className="rounded-xl border bg-card p-5 md:p-6">
+            <h2 className="text-lg font-semibold">Assessment</h2>
+            <p className="mt-2 whitespace-pre-wrap leading-7 text-muted-foreground">
+              {content.checkForUnderstanding}
+            </p>
+          </section>
+        </main>
+      </PlanDetailLayout>
     </AppShell>
   )
 }

@@ -1,5 +1,4 @@
 import type { LessonPlanContent } from '@nova/shared'
-import { ChevronRight } from 'lucide-react'
 
 export type LessonPlanVersion = {
   version: number
@@ -24,17 +23,11 @@ export function PlanVersionHistory({
   currentVersion: number
 }) {
   return (
-    <details className="rounded-xl border bg-card">
-      <summary className="group flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <span>
-          Version history{' '}
-          <span className="text-sm font-normal text-muted-foreground">({versions.length})</span>
-        </span>
-        <ChevronRight
-          aria-hidden="true"
-          className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
-        />
-      </summary>
+    <section className="rounded-xl border bg-card">
+      <h2 className="px-4 py-3 font-semibold">
+        Version history{' '}
+        <span className="text-sm font-normal text-muted-foreground">({versions.length})</span>
+      </h2>
       {versions.length ? (
         <ol className="divide-y border-t px-4">
           {versions.map((version) => (
@@ -60,23 +53,17 @@ export function PlanVersionHistory({
       ) : (
         <p className="border-t px-4 py-3 text-sm text-muted-foreground">No saved versions.</p>
       )}
-    </details>
+    </section>
   )
 }
 
 export function PlanReviewHistory({ reviews }: { reviews: PlanReview[] }) {
   return (
-    <details className="rounded-xl border bg-card">
-      <summary className="group flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <span>
-          Review comments{' '}
-          <span className="text-sm font-normal text-muted-foreground">({reviews.length})</span>
-        </span>
-        <ChevronRight
-          aria-hidden="true"
-          className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
-        />
-      </summary>
+    <section className="rounded-xl border bg-card">
+      <h2 className="px-4 py-3 font-semibold">
+        Review comments{' '}
+        <span className="text-sm font-normal text-muted-foreground">({reviews.length})</span>
+      </h2>
       {reviews.length ? (
         <ol className="divide-y border-t px-4">
           {reviews.map((review) => (
@@ -96,6 +83,6 @@ export function PlanReviewHistory({ reviews }: { reviews: PlanReview[] }) {
       ) : (
         <p className="border-t px-4 py-3 text-sm text-muted-foreground">No review feedback yet.</p>
       )}
-    </details>
+    </section>
   )
 }
