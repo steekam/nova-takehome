@@ -76,7 +76,7 @@ Use these terms consistently in the app, schema, demo, and project docs. Curricu
 
 **Grounding.** The plan's claims and activities have support in in-scope source chunks. Generated citations must belong to the frozen retrieval set, and edited plans must cite chunks linked to the selected target and present in that set. These checks establish identity and provenance; they do not prove publication approval or that a passage supports a claim.
 
-**Deterministic grounding check.** A program check over structured data, such as target matching, citation identity, membership in the frozen retrieval set, required fields, and duration arithmetic. Current checks prove traceability and constraints, not source approval or whether a cited passage supports a claim.
+**Deterministic grounding check.** A program check over structured data, such as target matching, citation identity, membership in the frozen retrieval set, and required fields. Activity-duration arithmetic is reported as an advisory warning. These checks prove traceability and constraints, not source approval or whether a cited passage supports a claim.
 
 **Semantic review.** A person checks whether a source actually supports the lesson's subject claim and whether the activity is accurate, suitable, feasible, and safe. Keep this separate from mechanical validation.
 

@@ -40,7 +40,7 @@ flowchart TD
 
 ## Generate a grounded draft
 
-The API retrieves published evidence for the selected target, requests schema-constrained lesson content, and runs deterministic checks before saving. Invalid output gets one repair attempt. Rubric QA runs after persistence and provides advisory guidance.
+The API retrieves published evidence for the selected target, requests schema-constrained lesson content, and runs deterministic checks before saving. Invalid structure, requested duration, target details, or citations get one repair attempt. Activity-time totals produce an advisory warning and do not trigger repair or rejection. Rubric QA runs after persistence and provides advisory guidance.
 
 ```mermaid
 flowchart TD
@@ -51,7 +51,7 @@ flowchart TD
   Search --> Context[Build evidence context; pin official target excerpt]
   Context --> Generate[Generator adapter: mock or OpenAI-compatible provider]
   Generate --> Parse[Parse JSON + shared lesson-plan schema]
-  Parse --> QA[Deterministic target, timing, structure, citation checks]
+  Parse --> QA[Schema, requested duration, target, citation checks; activity-time warning]
   QA -->|Pass| Persist[Save plan, immutable version, retrieved candidates, citations]
   QA -->|First failure| Repair[One repair attempt with validation feedback]
   Repair --> QA2[Repeat deterministic checks]
@@ -74,7 +74,7 @@ Generation and rubric traces carry request correlation. See [observability](obse
 
 ## Edit, validate, and review
 
-Saving an edit appends an immutable version. Rubric QA can assess any saved version and does not change plan status. Submission and publication run deterministic checks; the Curriculum Lead makes the publication decision.
+Saving an edit appends an immutable version. Rubric QA can assess any saved version and does not change plan status. Submission and publication run deterministic checks; activity-time totals remain advisory. The Curriculum Lead makes the publication decision.
 
 ```mermaid
 flowchart TD

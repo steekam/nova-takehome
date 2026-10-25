@@ -217,6 +217,6 @@ An edit appends a plan version. `deletedAt` and a version's `targetRevisionId` a
 
 Review and validation use a composite foreign key so their version must belong to the stated plan. Later edits do not change the version that was reviewed or scored.
 
-The shared lesson content JSON has: title, subject, grade, learning outcome, duration, objectives, materials, starter, timed activities, check for understanding, and cited sources. Deterministic QA results are returned with the workflow; rubric QA is stored separately.
+The shared lesson content JSON has: title, subject, grade, learning outcome, duration, objectives, materials, starter, timed activities, check for understanding, and cited sources. Deterministic QA results are returned with the workflow. Schema, requested duration, target, and citation checks can block saving; activity-time totals are advisory warnings. Rubric QA is stored separately.
 
 `users` supplies teacher, lead, and attribution references. Authentication sessions and rate-limit counters support the application but are outside this product model.

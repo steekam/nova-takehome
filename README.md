@@ -4,7 +4,7 @@ A CBC lesson-planning prototype. Teachers create source-backed drafts; Curriculu
 
 ## Start a tester environment
 
-Requires Node 24, pnpm 12.11.2, and Docker Compose. From a fresh checkout:
+Requires Node 24, pnpm 12.15.0, and Docker Compose. From a fresh checkout:
 
 ```sh
 pnpm install
@@ -72,34 +72,37 @@ The mock uses outcome-specific lesson scaffolds, but it remains deterministic. F
 | `3.1(c)` | Energy transformations |
 | `3.2(a)` | Demonstrating pressure in solids and liquids |
 
-For each plan, check that objectives, activities, and evidence match the outcome, timings fit the lesson duration, and source passages support the claims. Check safety and age-appropriate handling, especially for fire, practical activities, and reproductive health. Confirm the selected outcome stays unchanged in the saved draft.
+For each plan, check that objectives, activities, and evidence match the outcome and that source passages support the claims. The plan duration must match your request. Activity times are suggestions: the app warns when their total differs from the lesson duration but does not block the draft. Check safety and age-appropriate handling, especially for fire, practical activities, and reproductive health. Confirm the selected outcome stays unchanged in the saved draft.
 
 ## Configure Live mode
 
-Use an OpenAI-compatible provider reachable from the API container. Add these values to `.env.local`:
+Live mode uses an OpenAI-compatible chat API. Choose one provider example and add its endpoint, key, and model IDs to `.env.local`.
+
+For OpenAI directly:
 
 ```dotenv
 LLM_PROVIDER=openai-compatible
-COMPOSE_LLM_BASE_URL=https://provider.example/v1
-LLM_API_KEY=PROVIDER_API_KEY
-LLM_GENERATOR_MODEL=GENERATOR_MODEL_ID
-LLM_REVIEWER_MODEL=REVIEWER_MODEL_ID
+COMPOSE_LLM_BASE_URL=https://api.openai.com/v1
+LLM_API_KEY=YOUR_OPENAI_API_KEY
+LLM_GENERATOR_MODEL=YOUR_GENERATOR_MODEL_ID
+LLM_REVIEWER_MODEL=YOUR_REVIEWER_MODEL_ID
 LANGFUSE_USE_MANAGED_PROMPTS=false
 ```
 
-Replace the endpoint, key, and model IDs, then run `pnpm demo:full`. The endpoint must be reachable from Docker. After startup, choose **Live** in the app header. If you add or change credentials while the stack is running, rerun `pnpm demo:full` so Compose recreates the API with the new values. Prompt capture defaults on; set `LANGFUSE_CAPTURE_PROMPTS=false` for sensitive content. See [observability](docs/observability.md).
+For OpenRouter, use its OpenAI-compatible endpoint and a model ID from its catalog, in `provider/model` form:
 
-## Reset the local sample
-
-`pnpm demo:down` keeps the database and saved plans. To clear curriculum resources and lesson plans while keeping demo accounts, stop the stack, reset the local database, and start it again:
-
-```sh
-pnpm demo:down
-env NODE_ENV=development pnpm --filter @nova/api db:reset:curriculum-content -- --confirm-curriculum-content-reset
-pnpm demo:up
+```dotenv
+LLM_PROVIDER=openai-compatible
+COMPOSE_LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_API_KEY=YOUR_OPENROUTER_API_KEY
+LLM_GENERATOR_MODEL=PROVIDER/MODEL_ID
+LLM_REVIEWER_MODEL=PROVIDER/MODEL_ID
+LANGFUSE_USE_MANAGED_PROMPTS=false
 ```
 
-The reset command is restricted to development or test databases on this machine. Startup reruns migrations and seeds the 37 outcomes and corpus sources.
+Replace the placeholders with your key and supported model IDs. OpenRouter model IDs use the `provider/model` form. You can use different models for generation and review; both must support JSON object output. These direct-provider examples disable managed prompts so the API uses the configured model IDs. The full demo's managed prompts use the `lesson-planner` LiteLLM alias by default. For `pnpm demo:full`, the endpoint must be reachable from the API container. If you run the API on your machine, set `LLM_BASE_URL` instead of `COMPOSE_LLM_BASE_URL`.
+
+Then run `pnpm demo:full` and choose **Live** in the app header. If you change credentials while the stack is running, rerun the command so Compose recreates the API with the new values. Prompt capture defaults on; set `LANGFUSE_CAPTURE_PROMPTS=false` for sensitive content. See [observability](docs/observability.md), the [OpenAI API reference](https://platform.openai.com/docs/api-reference/chat), and [OpenRouter](https://openrouter.ai/developers).
 
 ## Verify
 

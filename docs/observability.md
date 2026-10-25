@@ -56,7 +56,7 @@ Request IDs are searchable in Langfuse and reach the provider as `X-Request-Id`.
 
 ## Prompts and capture
 
-The API uses Langfuse prompts `nova-lesson-plan-generate` and `nova-lesson-plan-rubric-review`. `LANGFUSE_PROMPT_LABEL` selects the label; the default is `production`. A prompt's model config can select a LiteLLM alias. Otherwise, the API uses its configured generator or reviewer model. If managed prompts are disabled or unavailable, it falls back to source-controlled prompts.
+The API uses Langfuse prompts `nova-lesson-plan-generate` and `nova-lesson-plan-rubric-review`. `LANGFUSE_PROMPT_LABEL` selects the label; the default is `production`. A prompt's model config can select a LiteLLM alias; the synced prompts use `lesson-planner`. Otherwise, the API uses its configured generator or reviewer model. For a direct provider endpoint, disable managed prompts or set each prompt's model config to a valid provider model. If managed prompts are unavailable, the API falls back to source-controlled prompts.
 
 The full demo creates missing prompts without replacing edits. Sync missing prompts or publish code-defined changes with:
 
@@ -71,4 +71,4 @@ Prompt input/output capture defaults to `LANGFUSE_CAPTURE_PROMPTS=true`. Capture
 LANGFUSE_CAPTURE_PROMPTS=false
 ```
 
-Deterministic QA checks schema, target, timing, and citation provenance. Rubric QA gives advisory feedback. The Curriculum Lead decides whether to publish.
+Deterministic QA checks schema, requested duration, target, and citation provenance. Activity-time totals are advisory warnings. Rubric QA also gives advisory feedback; the Curriculum Lead decides whether to publish.
