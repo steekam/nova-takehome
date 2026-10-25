@@ -6,7 +6,7 @@ The API accepts text passages. This proposal extends intake to publisher files w
 
 The API validates a target in a published design, hashes submitted text, splits paragraphs into chunks of up to 1,200 characters, embeds them at 384 dimensions, and creates a draft source link for a Curriculum Lead to publish. A `defines_target` link requires an official curriculum design, edition, URL, and locator. See [source intake](data-flows.md#source-intake-and-publication).
 
-The seed uses two July 2024 excerpts—the Grade 8 Integrated Science outcome and a key inquiry question—from [KICD Grade Eight designs](https://kicd.ac.ke/cbc-materials/curriculum-designs/grade-eight-designs/), plus seven synthetic supports. It does not store the original PDF.
+The seed uses eight July 2024 passages from [KICD Grade Eight designs](https://kicd.ac.ke/cbc-materials/curriculum-designs/grade-eight-designs/): five sub-strand 1.1 outcomes, shared sub-strand guidance, and the existing 1.2(a) particle outcome and inquiry question. Seven synthetic teaching and assessment supports round out the demo corpus. The original PDF is not stored.
 
 ## Proposed file pipeline
 

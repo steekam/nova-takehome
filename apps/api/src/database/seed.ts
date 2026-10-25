@@ -84,6 +84,45 @@ const supportedPaths = [
   },
 ] as const
 
+const elementsAndCompoundsOutcomes = [
+  {
+    code: '(a)',
+    locator: '1.1(a)',
+    title: 'Relate atoms, elements, molecules and compounds',
+    statement: 'Explain the relationship between an atom, an element, a molecule and a compound.',
+  },
+  {
+    code: '(b)',
+    locator: '1.1(b)',
+    title: 'Assign symbols to selected elements',
+    statement: 'Assign symbols to selected elements.',
+  },
+  {
+    code: '(c)',
+    locator: '1.1(c)',
+    title: 'Represent compound formation with word equations',
+    statement:
+      'Write word equations to represent reactions of selected elements to form compounds.',
+  },
+  {
+    code: '(d)',
+    locator: '1.1(d)',
+    title: 'Outline applications of common elements',
+    statement: 'Outline the applications of common elements in the society.',
+  },
+  {
+    code: '(e)',
+    locator: '1.1(e)',
+    title: 'Read packaging labels for common substances',
+    statement: 'Appreciate the information on packaging labels of commonly consumed substances.',
+  },
+] as const
+
+const elementsAndCompoundsSupportContent = `Grade 8 Integrated Science, Sub-strand 1.1: Elements and Compounds (18 lessons).
+Coverage: atoms, elements, molecules and compounds; symbols for common elements including oxygen, carbon, hydrogen, nitrogen, iron, aluminium, copper, silver, gold, chlorine, sodium, mercury and lead; word equations for selected compounds including sodium chloride, water, carbon dioxide, copper oxide and aluminium oxide; applications of common elements in jewellery, construction, electricity, food nutrients, minerals and medals; and information on packaging labels of commonly consumed substances.
+Suggested experiences: discuss the concepts; examine labelled containers and record elements or compounds; represent elements with symbols; write word equations; identify elements in two-element compounds; explore everyday uses; and use print or digital media or simulations.
+Key inquiry question: Why is it important to use symbols for representing elements in day-to-day life?`
+
 const supportingSources = [
   {
     type: 'scheme_of_work' as const,
@@ -451,6 +490,119 @@ async function seed(): Promise<void> {
       targetIdByPath.set(`${path.programmeCode}:${path.levelCode}:${path.subjectCode}`, target.id)
     }
 
+    const grade8ScienceDesign = designs.get('JUNIOR:G8:INT_SCI')!
+    const grade8ScienceStrand = await findOrInsert(
+      () =>
+        db
+          .select()
+          .from(curriculumNodes)
+          .where(
+            and(
+              eq(curriculumNodes.designVersionId, grade8ScienceDesign.id),
+              eq(curriculumNodes.sourceLocator, '1.0'),
+            ),
+          )
+          .limit(1),
+      () =>
+        db
+          .insert(curriculumNodes)
+          .values({
+            designVersionId: grade8ScienceDesign.id,
+            kind: 'strand',
+            code: '1.0',
+            label: 'Mixtures, Elements and Compounds',
+            sourceLocator: '1.0',
+            sortOrder: 1,
+          })
+          .returning(),
+    )
+    const elementsAndCompounds = await findOrInsert(
+      () =>
+        db
+          .select()
+          .from(curriculumNodes)
+          .where(
+            and(
+              eq(curriculumNodes.designVersionId, grade8ScienceDesign.id),
+              eq(curriculumNodes.sourceLocator, '1.1'),
+            ),
+          )
+          .limit(1),
+      () =>
+        db
+          .insert(curriculumNodes)
+          .values({
+            designVersionId: grade8ScienceDesign.id,
+            parentNodeId: grade8ScienceStrand.id,
+            kind: 'sub_strand',
+            code: '1.1',
+            label: 'Elements and Compounds',
+            sourceLocator: '1.1',
+            sortOrder: 1,
+          })
+          .returning(),
+    )
+    const elementsAndCompoundsSupport = await seedResource({
+      title: 'KICD Integrated Science Grade 8 sub-strand 1.1 curriculum guidance',
+      type: 'curriculum_design',
+      authority: 'official',
+      editionLabel: 'July 2024',
+      sourceUrl: kicdSourceUrl,
+      locator:
+        'Strand 1.0 · Mixtures, Elements and Compounds / Sub-strand 1.1 · Elements and Compounds',
+      content: elementsAndCompoundsSupportContent,
+      creatorId: leadId,
+      embed,
+    })
+
+    for (const [index, outcome] of elementsAndCompoundsOutcomes.entries()) {
+      const target = await findOrInsert(
+        () =>
+          db
+            .select()
+            .from(curriculumTargetRevisions)
+            .where(
+              and(
+                eq(curriculumTargetRevisions.designVersionId, grade8ScienceDesign.id),
+                eq(curriculumTargetRevisions.sourceLocator, outcome.locator),
+              ),
+            )
+            .limit(1),
+        () =>
+          db
+            .insert(curriculumTargetRevisions)
+            .values({
+              designVersionId: grade8ScienceDesign.id,
+              nodeId: elementsAndCompounds.id,
+              kind: 'specific_learning_outcome',
+              code: outcome.code,
+              sourceLocator: outcome.locator,
+              title: outcome.title,
+              statement: outcome.statement,
+              sortOrder: index + 1,
+            })
+            .returning(),
+      )
+      const definition = await seedResource({
+        title: `KICD Integrated Science Grade 8 learning outcome excerpt ${outcome.locator}`,
+        type: 'curriculum_design',
+        authority: 'official',
+        editionLabel: 'July 2024',
+        sourceUrl: kicdSourceUrl,
+        locator: `Strand 1.0 · Mixtures, Elements and Compounds / Sub-strand 1.1 · Specific learning outcome ${outcome.code}`,
+        content: outcome.statement,
+        creatorId: leadId,
+        embed,
+      })
+      await linkPublishedSource(target.id, definition.revision.id, 'defines_target', leadId)
+      await linkPublishedSource(
+        target.id,
+        elementsAndCompoundsSupport.revision.id,
+        'teaching_support',
+        leadId,
+      )
+    }
+
     const officialTargetId = targetIdByPath.get('JUNIOR:G8:INT_SCI')!
     await linkPublishedSource(
       officialTargetId,
@@ -552,7 +704,7 @@ async function seed(): Promise<void> {
       .onConflictDoNothing()
 
     console.log(
-      `Seeded ${seedAccounts.length} local accounts, ${supportedPaths.length} CBC catalogue paths, ${supportingSources.length + 2} source passages, and one target-linked lesson-plan draft.`,
+      `Seeded ${seedAccounts.length} local accounts, ${supportedPaths.length} CBC catalogue paths, ${elementsAndCompoundsOutcomes.length + 1} generation-ready Grade 8 Integrated Science outcomes, ${supportingSources.length + elementsAndCompoundsOutcomes.length + 3} source passages, and one target-linked lesson-plan draft.`,
     )
   } finally {
     await pool.end()

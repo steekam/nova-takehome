@@ -31,7 +31,7 @@ Sign out to switch roles. Use these commands to manage the stack:
 
 ## Try the workflow
 
-Use CBC → Junior School → Grade 8 → Integrated Science → July 2024 → outcome `1.2(a)`. Other catalogue paths are browse-only.
+Use CBC → Junior School → Grade 8 → Integrated Science → July 2024 to generate from any `1.1(a)`–`1.1(e)` outcome or the existing `1.2(a)` particle target. Other catalogue paths are browse-only.
 
 1. As Teacher, select the target and generate a draft.
 2. Inspect its sources and QA, edit it, save, and submit.
