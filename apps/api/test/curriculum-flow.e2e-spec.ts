@@ -8,6 +8,7 @@ import { configureHttp } from '../src/configure-http'
 import { DatabaseService } from '../src/database/database.service'
 import {
   curriculumSourceLinks,
+  curriculumTargetRevisions,
   lessonPlanRetrievalCandidates,
   lessonPlanValidations,
   lessonPlanVersionSources,
@@ -41,6 +42,7 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
   const otherTeacherEmail = `teacher-${otherTeacherId}@example.test`
   const createdPlanIds: string[] = []
   const createdSourceLinkIds: string[] = []
+  const createdTargetIds: string[] = []
 
   beforeAll(async () => {
     for (const key of llmEnvironmentKeys) delete process.env[key]
@@ -102,6 +104,10 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
             await tx
               .delete(curriculumSourceLinks)
               .where(inArray(curriculumSourceLinks.id, createdSourceLinkIds))
+          if (createdTargetIds.length)
+            await tx
+              .delete(curriculumTargetRevisions)
+              .where(inArray(curriculumTargetRevisions.id, createdTargetIds))
           await tx.delete(users).where(eq(users.id, otherTeacherId))
         })
     } finally {
@@ -153,29 +159,41 @@ describeWithDatabase('lesson plan HTTP workflow', () => {
     )
     const designs = catalogue.body.offerings.flatMap((offering) => offering.designs)
     const readyDesign = designs.find((design) => design.generationReadyCount > 0)
-    const browseOnlyDesign = designs.find((design) => design.generationReadyCount === 0)
-    const [readyDetails, browseOnlyDetails] = await Promise.all([
-      request<Offering>(teacherCookie, 'GET', `/api/curriculum/library/designs/${readyDesign!.id}`),
-      request<Offering>(
-        teacherCookie,
-        'GET',
-        `/api/curriculum/library/designs/${browseOnlyDesign!.id}`,
-      ),
-    ])
+    const readyDetails = await request<Offering>(
+      teacherCookie,
+      'GET',
+      `/api/curriculum/library/designs/${readyDesign!.id}`,
+    )
     const targets = readyDetails.body.designs.flatMap((design) => design.targets)
     const target = targets.find((candidate) => candidate.generationReady)
-    const browseOnlyTarget = browseOnlyDetails.body.designs
-      .flatMap((design) => design.targets)
-      .find((candidate) => !candidate.generationReady)
     expect(target).toBeDefined()
-    expect(browseOnlyTarget).toBeDefined()
+
+    const [seededTarget] = await database.db
+      .select()
+      .from(curriculumTargetRevisions)
+      .where(eq(curriculumTargetRevisions.id, target!.id))
+      .limit(1)
+    const [ungroundedTarget] = await database.db
+      .insert(curriculumTargetRevisions)
+      .values({
+        designVersionId: seededTarget.designVersionId,
+        nodeId: seededTarget.nodeId,
+        kind: seededTarget.kind,
+        code: null,
+        sourceLocator: `e2e-unlinked-${randomUUID()}`,
+        title: seededTarget.title,
+        statement: seededTarget.statement,
+        sortOrder: seededTarget.sortOrder,
+      })
+      .returning({ id: curriculumTargetRevisions.id })
+    createdTargetIds.push(ungroundedTarget.id)
 
     const ungrounded = await request<{ code: string }>(
       teacherCookie,
       'POST',
       `/api/lesson-plans/generate`,
       {
-        targetRevisionId: browseOnlyTarget!.id,
+        targetRevisionId: ungroundedTarget.id,
         durationMinutes: 40,
       },
     )

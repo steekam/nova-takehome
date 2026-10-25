@@ -573,7 +573,7 @@ function splitOversizedChunk(chunk: SourceChunk): SourceChunk[] {
     const metadata = CurriculumChunkMetadataSchema.parse({
       ...chunk.metadata,
       attributes: {
-        ...(chunk.metadata.attributes ?? {}),
+        ...chunk.metadata.attributes,
         partIndex: index + 1,
         partCount: parts.length,
       },

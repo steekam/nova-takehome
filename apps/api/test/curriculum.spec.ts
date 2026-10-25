@@ -83,6 +83,8 @@ const source: CurriculumSourceDto = {
   editionLabel: 'April 2024',
   sourceUrl: 'https://example.test/cbc',
   locator: 'Page 3',
+  sourceLocator: null,
+  resourceMetadata: {},
   synthetic: false,
   role: 'defines_target',
   status: 'published',

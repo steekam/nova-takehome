@@ -44,23 +44,29 @@ type Outcome = {
 }
 
 export async function seedCurriculumLibrary(pool: Pool, creatorId: string) {
-  const corpusDirectory = resolve(
-    process.cwd(),
-    '../../corpus/grade-8-integrated-science',
-  )
+  const corpusDirectory = resolve(process.cwd(), '../../corpus/grade-8-integrated-science')
   const files = await markdownFiles(corpusDirectory)
   const parsedSources = await Promise.all(
     files.map(async (path) => parseMarkdownSource(await readFile(path, 'utf8'))),
   )
   const sourceKeys = parsedSources.map((source) => source.sourceKey)
-  if (new Set(sourceKeys).size !== sourceKeys.length) throw new Error('Corpus source keys must be unique.')
-  const officialSource = parsedSources.find((source) => source.sourceKey === officialOutcomeSourceKey)
-  if (!officialSource) throw new Error(`Missing official curriculum source: ${officialOutcomeSourceKey}`)
+  if (new Set(sourceKeys).size !== sourceKeys.length)
+    throw new Error('Corpus source keys must be unique.')
+  const officialSource = parsedSources.find(
+    (source) => source.sourceKey === officialOutcomeSourceKey,
+  )
+  if (!officialSource)
+    throw new Error(`Missing official curriculum source: ${officialOutcomeSourceKey}`)
   const outcomes = officialOutcomes(officialSource)
   const expectedCodes = expectedOutcomeCodes()
   const outcomeCodes = outcomes.map((outcome) => outcome.code).sort()
-  if (outcomeCodes.length !== new Set(outcomeCodes).size || outcomeCodes.join() !== expectedCodes.join())
-    throw new Error('The official Grade 8 Integrated Science source must contain the complete 37-outcome set.')
+  if (
+    outcomeCodes.length !== new Set(outcomeCodes).size ||
+    outcomeCodes.join() !== expectedCodes.join()
+  )
+    throw new Error(
+      'The official Grade 8 Integrated Science source must contain the complete 37-outcome set.',
+    )
 
   const settings = embeddingSettings()
   const embeddingModel = [
@@ -88,14 +94,23 @@ export async function seedCurriculumLibrary(pool: Pool, creatorId: string) {
     await client.query('BEGIN')
     const offeringId = await ensureOffering(client)
     const official = staged.find((source) => source.parsed.sourceKey === officialOutcomeSourceKey)!
-    const officialRevisionId = await ensureResourceRevision(client, official, creatorId, embeddingModel)
+    const officialRevisionId = await ensureResourceRevision(
+      client,
+      official,
+      creatorId,
+      embeddingModel,
+    )
     const designVersionId = await ensureDesign(client, offeringId, officialRevisionId)
     const targetIds = await ensureTargets(client, designVersionId, outcomes)
     await retireSupersededDesigns(client, offeringId, designVersionId)
     await retireUnseededTargets(client, designVersionId, [...targetIds.values()])
-    await reconcileSourceLinks(client, officialRevisionId, 'defines_target', [...targetIds.values()])
+    await reconcileSourceLinks(client, officialRevisionId, 'defines_target', [
+      ...targetIds.values(),
+    ])
 
-    const resourceRevisionIds = new Map<string, string>([[officialOutcomeSourceKey, officialRevisionId]])
+    const resourceRevisionIds = new Map<string, string>([
+      [officialOutcomeSourceKey, officialRevisionId],
+    ])
     for (const source of staged) {
       if (source.parsed.sourceKey === officialOutcomeSourceKey) continue
       resourceRevisionIds.set(
@@ -291,11 +306,17 @@ async function ensureOffering(client: PoolClient) {
 }
 
 async function ensureDesign(client: PoolClient, offeringId: string, sourceRevisionId: string) {
+  await client.query(
+    `update curriculum_design_versions
+     set edition_label = 'July 2024'
+     where offering_id = $1 and edition_label = 'July 2024 · Revision 1' and revision_number = 1`,
+    [offeringId],
+  )
   const row = await upsertReturning<{ id: string }>(
     client,
     `insert into curriculum_design_versions
        (offering_id, source_resource_revision_id, edition_label, revision_number, origin, status, published_at)
-     values ($1, $2, 'July 2024 · Revision 1', 1, 'official_import', 'published', now())
+     values ($1, $2, 'July 2024', 1, 'official_import', 'published', now())
      on conflict (offering_id, edition_label, revision_number) do update
        set source_resource_revision_id = excluded.source_resource_revision_id,
            origin = 'official_import', status = 'published',
@@ -306,7 +327,11 @@ async function ensureDesign(client: PoolClient, offeringId: string, sourceRevisi
   return row.id
 }
 
-async function retireSupersededDesigns(client: PoolClient, offeringId: string, designVersionId: string) {
+async function retireSupersededDesigns(
+  client: PoolClient,
+  offeringId: string,
+  designVersionId: string,
+) {
   const retired = await client.query<{ id: string }>(
     `update curriculum_design_versions
      set status = 'retired'
@@ -346,10 +371,9 @@ async function retireUnseededTargets(
       'delete from curriculum_source_links where target_revision_id = any($1::uuid[])',
       [unreferencedTargetIds],
     )
-    await client.query(
-      'delete from curriculum_target_revisions where id = any($1::uuid[])',
-      [unreferencedTargetIds],
-    )
+    await client.query('delete from curriculum_target_revisions where id = any($1::uuid[])', [
+      unreferencedTargetIds,
+    ])
   }
   await client.query(
     `update curriculum_source_links
@@ -377,7 +401,13 @@ async function ensureTargets(client: PoolClient, designVersionId: string, outcom
        on conflict (design_version_id, source_locator) do update
          set kind = excluded.kind, code = excluded.code, label = excluded.label, sort_order = excluded.sort_order
        returning id`,
-      [designVersionId, strand.strandCode, strand.strandLabel, `Strand ${strand.strandCode}`, index + 1],
+      [
+        designVersionId,
+        strand.strandCode,
+        strand.strandLabel,
+        `Strand ${strand.strandCode}`,
+        index + 1,
+      ],
     )
     strandIds.set(strand.strandCode, row.id)
   }
@@ -446,9 +476,15 @@ async function ensureResourceRevision(
     )
   const currentResource = resource.rows[0]
   if (!currentResource) throw new Error(`Could not create source ${parsed.sourceKey}.`)
-  if (currentResource.resource_type !== parsed.resourceType || currentResource.authority !== parsed.authority)
+  if (
+    currentResource.resource_type !== parsed.resourceType ||
+    currentResource.authority !== parsed.authority
+  )
     throw new Error(`Source identity changed for ${parsed.sourceKey}.`)
-  await client.query('update library_resources set title = $2 where id = $1', [currentResource.id, parsed.title])
+  await client.query('update library_resources set title = $2 where id = $1', [
+    currentResource.id,
+    parsed.title,
+  ])
 
   const latest = await client.query<{
     id: string
@@ -627,7 +663,10 @@ function escapeRegExp(value: string) {
 function expectedOutcomeCodes() {
   return Object.entries(expectedOutcomeCounts)
     .flatMap(([subStrand, count]) =>
-      Array.from({ length: count }, (_, index) => `${subStrand}(${String.fromCharCode(97 + index)})`),
+      Array.from(
+        { length: count },
+        (_, index) => `${subStrand}(${String.fromCharCode(97 + index)})`,
+      ),
     )
     .sort()
 }

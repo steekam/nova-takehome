@@ -108,10 +108,11 @@ Then run `pnpm demo:full` and choose **Live** in the app header. If you change c
 
 ## Verify
 
-Set `TEST_DATABASE_URL` to a disposable local PostgreSQL database ending in `_test`, then run:
+With the lite or full stack running, create a separate test database and run:
 
 ```sh
-pnpm test
+pnpm exec varlock run -- docker compose exec postgres createdb -U postgres nova_hub_test
+env TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5433/nova_hub_test pnpm test
 pnpm typecheck
 pnpm lint
 pnpm format:check

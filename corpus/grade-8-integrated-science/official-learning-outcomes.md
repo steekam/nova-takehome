@@ -4,7 +4,7 @@ resource_type: curriculum_design
 authority: official
 source_authority: Kenya Institute of Curriculum Development
 title: Integrated Science Grade 8 — July 2024
-edition_label: July 2024 · Revision 1
+edition_label: July 2024
 source_locator: Tables 1.1–3.2, printed pages 1–20 / PDF pages 13–32
 framework: Kenya CBC
 programme: Junior School
