@@ -4,6 +4,17 @@ A CBC lesson-planning prototype. Teachers create source-backed drafts; Curriculu
 
 **[Watch the demo](https://www.loom.com/share/916db49d91a1469095cc6b8fbdc8dbe8)** · 3–5 minutes
 
+## What the demo demonstrates
+
+The demo follows a lesson plan from a CBC outcome to human publication. Each stage leaves evidence a reviewer can inspect.
+
+- **Grounding:** The teacher selects an outcome. Retrieval uses sources published for that target, and the saved plan keeps its target, citations, and retrieved evidence.
+- **Correctness:** Shared schemas shape the output. Deterministic checks enforce the target, requested duration, and citation provenance. The generator gets one repair attempt; if checks still fail, the API returns an error and saves no draft. Activity-time totals produce a warning, not a block.
+- **Human review:** Rubric QA returns scores, evidence, and suggestions after the draft is saved. A failed review does not discard the draft. Teachers edit; Curriculum Leads decide whether to publish.
+- **Operational evidence:** Langfuse traces retrieval, provider calls, checks, repairs, and rubric QA. With prompt capture enabled, traces also include prompt versions, source context, and model inputs and outputs; request IDs connect them to API calls. LiteLLM routes model aliases and reports usage and spend. OpenTelemetry auto-instrumentation exports API signals through the collector; Prometheus, Tempo, and Loki feed Grafana dashboards.
+
+The Grade 8 seed contains 37 source-linked outcomes. Bootstrap checks the expected count. This curriculum corpus grounds lesson generation; a separate, versioned benchmark set for repeatable AI comparisons remains an extension.
+
 ## Start a tester environment
 
 Requires Node 24, pnpm 12.15.0, and Docker Compose. From a fresh checkout:
@@ -37,7 +48,7 @@ Use these commands to manage the stack:
 
 ## Curriculum sample
 
-Choose Kenya CBC → Junior School → Grade 8 → Integrated Science → **July 2024 · Revision 1**. The edition has 37 generation-ready learning outcomes across all eight sub-strands, official KICD outcome excerpts, eight assessment packs, three schemes of work, and curriculum guidance. Each outcome links to relevant source chunks.
+Choose Kenya CBC → Junior School → Grade 8 → Integrated Science → **July 2024 · Revision 1**. The seeded edition has 37 generation-ready outcomes across eight sub-strands, official KICD outcome excerpts, eight assessment packs, three schemes of work, and curriculum guidance. The bootstrap checks the outcome count; each outcome links to source chunks used for retrieval and citation.
 
 ## Try the review workflow
 
@@ -142,7 +153,9 @@ If you changed `COMPOSE_POSTGRES_PORT`, use that port in `TEST_DATABASE_URL`.
 
 ## Scope and extensions
 
-**Curriculum file ingestion.** Text intake could grow into reviewed file extraction, versioned content, and evaluated indexes. See the [corpus ingestion design](docs/corpus-ingestion.md).
+**Curriculum file ingestion.** Extend the current text intake into an authority-document pipeline: extract and review curriculum records, publish immutable revisions, chunk and embed them, then evaluate retrieval before activating an index. See the [corpus ingestion design](docs/corpus-ingestion.md).
+
+**Evaluation and model iteration.** Turn representative traces into a versioned Langfuse dataset, then run each case against candidate prompts and models. Compare grounding, rubric scores, latency, token use, and cost to see which variants preserve quality at lower cost or latency. Trace capture, prompt management, model aliases, and usage reporting supply the data and controls; evaluation runs and release gates still need to be built.
 
 **Durable AI jobs.** Generation and rubric QA run synchronously with pending/error states, timeouts, and limited retries. A queue was cut for scope; it would need a worker, persistent job state, owner-checked polling, idempotent stages, and request/trace propagation.
 
